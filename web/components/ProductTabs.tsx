@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Product, ProductType, typeInfo } from "@/lib/data";
+import { Product, ProductType, typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 import { useCart } from "./CartProvider";
 

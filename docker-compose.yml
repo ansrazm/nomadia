@@ -29,6 +29,7 @@ services:
       IPAYMU_VA: ${IPAYMU_VA:-}
       IPAYMU_API_KEY: ${IPAYMU_API_KEY:-}
       IPAYMU_MODE: ${IPAYMU_MODE:-sandbox}
+      IPAYMU_DEBUG: ${IPAYMU_DEBUG:-false}
       N8N_WEBHOOK_URL: http://n8n:5678/webhook/nomadia-order-paid
       N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:?isi N8N_WEBHOOK_SECRET di .env (minimal 16 karakter)}
     ports:
@@ -39,6 +40,9 @@ services:
       context: ./web
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    environment:
+      # Server web membaca katalog lewat jaringan Docker. NEXT_PUBLIC_API_URL hanya untuk browser.
+      API_INTERNAL_URL: http://api:4000
     depends_on:
       - api
     ports:

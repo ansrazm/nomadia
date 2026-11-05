@@ -1,10 +1,14 @@
 import Link from "next/link";
-import { destinations, flagUrl, startingPrice } from "@/lib/data";
+import { getDestinations } from "@/lib/catalog";
+import { flagUrl } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 
 export const metadata = { title: "Semua destinasi — Nomadia" };
 
-export default function DestinationsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function DestinationsPage() {
+  const destinations = await getDestinations();
   const regions = Array.from(new Set(destinations.map((d) => d.region)));
   return (
     <>
@@ -28,7 +32,7 @@ export default function DestinationsPage() {
                       <span className="block font-semibold">{d.name}</span>
                       <span className="text-sm text-ink/60">{d.network}</span>
                     </span>
-                    <span className="text-sm font-semibold">{idr(startingPrice(d))}</span>
+                    {d.startingPrice != null && <span className="text-sm font-semibold">{idr(d.startingPrice)}</span>}
                   </Link>
                 </li>
               ))}

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { catalogRoutes } from "./routes/catalog.js";
+import { quoteRoutes } from "./routes/quote.js";
 import { orderRoutes } from "./routes/orders.js";
 import type { Db } from "./db/pool.js";
 import { ApiError } from "./errors.js";
@@ -28,6 +29,7 @@ export function createApp({ db, corsOrigins, gateway = null, outbox = null, publ
   });
 
   app.route("/", catalogRoutes(db));
+  app.route("/", quoteRoutes(db));
   app.route("/", orderRoutes(db, gateway, { publicApiUrl, webUrl }));
   app.route("/", webhookRoutes(db, gateway, outbox));
 

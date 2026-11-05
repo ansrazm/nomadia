@@ -2,21 +2,21 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProductTabs } from "@/components/ProductTabs";
 import { SignalBars } from "@/components/SignalBars";
-import { destinations, flagUrl, getDestination, productsFor } from "@/lib/data";
+import { getDestination } from "@/lib/catalog";
+import { flagUrl } from "@/lib/catalog-types";
 
-export function generateStaticParams() {
-  return destinations.map((d) => ({ slug: d.slug }));
-}
+// Katalog dibaca dari API saat request; slug tidak dikenal dijawab 404 oleh API lalu menjadi notFound().
+export const dynamic = "force-dynamic";
 
-export function generateMetadata({ params }: { params: { slug: string } }) {
-  const d = getDestination(params.slug);
+export async function generateMetadata({ params }: { params: { slug: string } }) {
+  // Fetch yang sama dengan halaman di bawah, jadi Next hanya memanggil API sekali per request.
+  const d = await getDestination(params.slug);
   return { title: d ? `eSIM, SIM & WiFi ${d.name} — Nomadia` : "Destinasi tidak ditemukan" };
 }
 
-export default function DestinationPage({ params }: { params: { slug: string } }) {
-  const d = getDestination(params.slug);
+export default async function DestinationPage({ params }: { params: { slug: string } }) {
+  const d = await getDestination(params.slug);
   if (!d) notFound();
-  const products = productsFor(d);
   return (
     <>
       <section className="bg-ink pb-14 pt-32 text-white">
@@ -33,7 +33,11 @@ export default function DestinationPage({ params }: { params: { slug: string } }
         </div>
       </section>
       <div className="container-x py-12">
-        <ProductTabs products={products} />
+        {d.products.length > 0 ? (
+          <ProductTabs products={d.products} />
+        ) : (
+          <p className="text-ink/70">Paket untuk {d.name} belum tersedia. Coba lagi nanti atau pilih destinasi lain.</p>
+        )}
       </div>
     </>
   );

@@ -72,6 +72,10 @@ export interface IpaymuOptions {
   mode: "sandbox" | "live";
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  /** Log ringkas hasil Check Transaction ke console. Hanya untuk debugging; default mati. */
+  debug?: boolean;
+  /** Tujuan log debug; tes menyuntikkan penampung. */
+  logger?: (...args: unknown[]) => void;
 }
 
 export class IpaymuClient implements PaymentGateway {
@@ -137,12 +141,19 @@ export class IpaymuClient implements PaymentGateway {
       throw new GatewayError(json?.Message ? `iPaymu: ${json.Message}` : `Cek transaksi gagal (HTTP ${status})`);
     }
     const d = json.Data;
+    if (this.o.debug) {
+      (this.o.logger ?? console.log)("[ipaymu:check]", JSON.stringify({
+        Status: d.Status, StatusDesc: d.StatusDesc,
+        SubTotal: d.SubTotal, Total: d.Total, Amount: d.Amount,
+        ReferenceId: d.ReferenceId,
+      }));
+    }
     const code = Number(d.Status);
     return {
       trxId,
       referenceId: String(d.ReferenceId ?? ""),
-      // 1 = berhasil, 6 = pembayaran diterima (settlement menyusul), -2 = kedaluwarsa
-      status: code === 1 || code === 6 ? "paid" : code === -2 ? "expired" : "pending",
+      // 1 = berhasil, 6 = pembayaran diterima (settlement menyusul), 7 = dana ditahan escrow (sudah dibayar), -2 = kedaluwarsa
+      status: code === 1 || code === 6 || code === 7 ? "paid" : code === -2 ? "expired" : "pending",
       // SubTotal = nilai tagihan sebelum biaya admin; Total bisa memuat fee yang ditanggung pembeli.
       amount: Number(d.SubTotal ?? d.Amount ?? d.Total),
     };

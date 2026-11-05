@@ -3,8 +3,8 @@ import type { Db } from "../src/db/pool.js";
 import { migrate } from "../src/db/migrate.js";
 import { seed } from "../src/db/seed.js";
 import { appFor, freshDb } from "./helpers.js";
-// Sumber kebenaran frontend; tes ini menjaga id & harga di DB tidak menyimpang darinya.
-import { destinations as webDestinations, productsFor as webProductsFor } from "../../web/lib/data.js";
+// Data awal milik API sendiri. Setelah migrasi, frontend tidak lagi punya salinan katalog.
+import { seedDestinations as webDestinations, productsFor as webProductsFor } from "../src/db/catalog-data.js";
 
 let db: Db;
 let call: ReturnType<typeof appFor>["call"];
@@ -32,7 +32,7 @@ describe("migrasi & seed", () => {
   });
 });
 
-describe("paritas dengan data mock frontend", () => {
+describe("isi database sama dengan data awal (seed)", () => {
   it("setiap destinasi: id, nama, tipe, hari, kuota, harga, catatan sama persis", async () => {
     for (const d of webDestinations) {
       const r = await call("GET", `/destinations/${d.slug}`);
@@ -47,7 +47,7 @@ describe("paritas dengan data mock frontend", () => {
 });
 
 describe("GET /destinations", () => {
-  it("mengembalikan 12 destinasi berurutan seperti katalog, dengan harga mulai dari", async () => {
+  it("mengembalikan 12 destinasi berurutan seperti data awal, dengan harga mulai dari", async () => {
     const r = await call("GET", "/destinations");
     expect(r.status).toBe(200);
     expect(r.json.data.map((d: any) => d.slug)).toEqual(webDestinations.map((d) => d.slug));

@@ -5,15 +5,13 @@ import { ApiError } from "../errors.js";
 import { createOrder, getOrder, maskEmail } from "../services/orders.js";
 import { startCheckout, type CheckoutUrls } from "../services/payments.js";
 import type { PaymentGateway } from "../payments/ipaymu.js";
+import { cartItems, voucherField } from "./schemas.js";
 
 const body = z.object({
   name: z.string().trim().min(1, "Nama wajib diisi").max(80),
   email: z.string().trim().email("Format email tidak valid").max(120),
-  items: z
-    .array(z.object({ productId: z.string().min(1).max(80), qty: z.number().int().min(1).max(9) }))
-    .min(1, "Keranjang kosong")
-    .max(20),
-  voucher: z.string().trim().max(32).optional(),
+  items: cartItems,
+  voucher: voucherField,
 });
 
 export function orderRoutes(db: Db, gateway: PaymentGateway | null, urls: CheckoutUrls) {

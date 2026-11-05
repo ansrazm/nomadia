@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCart } from "@/components/CartProvider";
 import { ApiRequestError, createOrder, CheckoutResult } from "@/lib/api";
 import { VOUCHERS } from "@/lib/data";
 import { idr } from "@/lib/format";
+import { markPendingOrder } from "@/lib/pending-order";
 
 function CheckoutForm() {
-  const { items, subtotal, clear } = useCart();
+  const { items, subtotal } = useCart();
   const params = useSearchParams();
   const voucher = params.get("voucher") ?? undefined;
   const discount = voucher && VOUCHERS[voucher] ? Math.round(subtotal * VOUCHERS[voucher]) : 0;
@@ -19,6 +20,11 @@ function CheckoutForm() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<CheckoutResult | null>(null);
   const [error, setError] = useState("");
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (redirectUrl) window.location.assign(redirectUrl);
+  }, [redirectUrl]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,10 +34,10 @@ function CheckoutForm() {
     setBusy(true);
     try {
       const r = await createOrder({ name, email, items, voucher });
-      clear();
       if (r.paymentUrl) {
-        // Ke halaman bayar iPaymu; setelah bayar pengguna kembali ke /orders/[id].
-        window.location.assign(r.paymentUrl);
+        // Keranjang sengaja belum dikosongkan: dikosongkan di /orders/[id] setelah pengguna kembali.
+        markPendingOrder(r.orderId);
+        setRedirectUrl(r.paymentUrl);
         return;
       }
       setResult(r);
@@ -41,6 +47,16 @@ function CheckoutForm() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (redirectUrl) {
+    return (
+      <div className="rounded-3xl border border-line bg-white p-10 text-center" role="status" aria-live="polite">
+        <p className="font-display text-2xl font-bold">Mengalihkan ke halaman pembayaran…</p>
+        <p className="mt-3 text-ink/70">Jangan tutup halaman ini. Kamu akan kembali ke sini setelah pembayaran selesai.</p>
+        <a href={redirectUrl} className="mt-6 inline-block text-sm font-semibold text-deep underline">Belum berpindah? Klik di sini</a>
+      </div>
+    );
   }
 
   if (result) {

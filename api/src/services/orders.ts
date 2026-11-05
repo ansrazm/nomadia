@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import type { Db } from "../db/pool.js";
-import { ApiError } from "../errors.js";
+import { priceCart } from "./pricing.js";
+
+export { discountFor } from "./pricing.js";
 
 export interface OrderInput {
   name: string;
@@ -24,7 +26,6 @@ export interface Order {
   items: { productId: string; name: string; unitPrice: number; qty: number }[];
 }
 
-const MAX_QTY = 9;
 // Tanpa 0/O/1/I/L supaya mudah dibaca dan diketik ulang.
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
@@ -35,63 +36,22 @@ export function newOrderId(): string {
   return `NMD-${s}`;
 }
 
-export function discountFor(subtotal: number, percent: number): number {
-  return Math.round((subtotal * percent) / 100);
-}
-
 /**
  * Membuat order. Harga TIDAK diambil dari klien: server membaca harga produk dari database
  * lalu menyalinnya ke order_items, sehingga total tidak bisa dimanipulasi dari browser.
  */
 export async function createOrder(db: Db, input: OrderInput): Promise<Order> {
-  // Gabungkan baris produk yang sama (klien boleh mengirim dobel).
-  const qtyById = new Map<string, number>();
-  for (const it of input.items) qtyById.set(it.productId, (qtyById.get(it.productId) ?? 0) + it.qty);
-  for (const [id, qty] of qtyById) {
-    if (qty > MAX_QTY) throw new ApiError(422, "QTY_LIMIT", `Maksimal ${MAX_QTY} per produk (${id}).`);
-  }
-
   const client = await db.connect();
   try {
     await client.query("BEGIN");
 
-    const ids = [...qtyById.keys()];
-    const found = await client.query<{ id: string; name: string; price: number }>(
-      "SELECT id, name, price FROM products WHERE id = ANY($1::text[]) AND active",
-      [ids],
-    );
-    const byId = new Map(found.rows.map((r) => [r.id, r]));
-    const missing = ids.filter((id) => !byId.has(id));
-    if (missing.length) {
-      throw new ApiError(422, "PRODUCT_NOT_FOUND", "Ada produk di keranjang yang sudah tidak tersedia.", { productIds: missing });
-    }
-
-    const lines = ids.map((id) => {
-      const p = byId.get(id)!;
-      return { productId: id, name: p.name, unitPrice: p.price, qty: qtyById.get(id)! };
-    });
-    const subtotal = lines.reduce((s, l) => s + l.unitPrice * l.qty, 0);
-
-    let voucher: string | null = null;
-    let discount = 0;
-    if (input.voucher) {
-      const code = input.voucher.trim().toUpperCase();
-      const v = await client.query<{ code: string; percent: number }>(
-        "SELECT code, percent FROM vouchers WHERE code = $1 AND active",
-        [code],
-      );
-      const row = v.rows[0];
-      if (!row) throw new ApiError(422, "VOUCHER_INVALID", "Kode voucher tidak ditemukan.");
-      voucher = row.code;
-      discount = discountFor(subtotal, row.percent);
-    }
-    const total = subtotal - discount;
+    const { lines, subtotal, discount, total, voucher } = await priceCart(client, input.items, input.voucher);
 
     const id = newOrderId();
     await client.query(
       `INSERT INTO orders (id, customer_name, customer_email, subtotal, discount, total, voucher_code)
        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [id, input.name, input.email.toLowerCase(), subtotal, discount, total, voucher],
+      [id, input.name, input.email.toLowerCase(), subtotal, discount, total, voucher?.code ?? null],
     );
     await client.query(
       `INSERT INTO order_items (order_id, product_id, product_name, unit_price, qty)

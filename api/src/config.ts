@@ -11,6 +11,7 @@ const schema = z.object({
   IPAYMU_VA: z.string().optional(),
   IPAYMU_API_KEY: z.string().optional(),
   IPAYMU_MODE: z.enum(["sandbox", "live"]).default("sandbox"),
+  IPAYMU_DEBUG: z.enum(["true", "false", "1", "0"]).default("false"),
   N8N_WEBHOOK_URL: z.string().url().optional(),
   N8N_WEBHOOK_SECRET: z.string().min(16, "N8N_WEBHOOK_SECRET minimal 16 karakter").optional(),
 });
@@ -21,7 +22,7 @@ export interface Config {
   corsOrigins: string[];
   publicApiUrl: string;
   webUrl: string;
-  ipaymu: { va: string; apiKey: string; mode: "sandbox" | "live" } | null;
+  ipaymu: { va: string; apiKey: string; mode: "sandbox" | "live"; debug: boolean } | null;
   n8n: { url: string; secret: string } | null;
 }
 
@@ -43,7 +44,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     corsOrigins: d.CORS_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean),
     publicApiUrl: d.PUBLIC_API_URL.replace(/\/+$/, ""),
     webUrl: d.WEB_URL.replace(/\/+$/, ""),
-    ipaymu: d.IPAYMU_VA && d.IPAYMU_API_KEY ? { va: d.IPAYMU_VA, apiKey: d.IPAYMU_API_KEY, mode: d.IPAYMU_MODE } : null,
+    ipaymu: d.IPAYMU_VA && d.IPAYMU_API_KEY ? { va: d.IPAYMU_VA, apiKey: d.IPAYMU_API_KEY, mode: d.IPAYMU_MODE, debug: d.IPAYMU_DEBUG === "true" || d.IPAYMU_DEBUG === "1" } : null,
     n8n: d.N8N_WEBHOOK_URL && d.N8N_WEBHOOK_SECRET ? { url: d.N8N_WEBHOOK_URL, secret: d.N8N_WEBHOOK_SECRET } : null,
   };
 }

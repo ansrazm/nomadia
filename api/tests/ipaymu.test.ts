@@ -97,12 +97,23 @@ describe("IpaymuClient.checkTransaction", () => {
     return { m, c: new IpaymuClient({ va: VA, apiKey: KEY, mode: "sandbox", fetchImpl: m.fetchImpl }) };
   };
   it.each([
-    [1, "paid"], [6, "paid"], [0, "pending"], [-2, "expired"],
+    [1, "paid"], [6, "paid"], [7, "paid"], [0, "pending"], [-2, "expired"],
   ])("kode status %s -> %s", async (code, want) => {
     const { c, m } = client(() => ({ body: { Status: 200, Success: true, Data: { TransactionId: 77, ReferenceId: "NMD-X", Status: code, SubTotal: 242000, Total: 244500 } } }));
     expect(await c.checkTransaction(77)).toEqual({ trxId: 77, referenceId: "NMD-X", status: want, amount: 242000 });
     expect(m.calls[0]!.url).toBe("https://sandbox.ipaymu.com/api/v2/transaction");
     expect(JSON.parse(m.calls[0]!.init.body)).toEqual({ transactionId: 77 });
+  });
+  it("log [ipaymu:check] mati secara default dan hanya menyala dengan debug", async () => {
+    const body = { Success: true, Data: { ReferenceId: "NMD-X", Status: 7, SubTotal: 19000, Total: 19000 } };
+    const lines: unknown[][] = [];
+    const off = mockFetch(() => ({ body }));
+    await new IpaymuClient({ va: VA, apiKey: KEY, mode: "sandbox", fetchImpl: off.fetchImpl, logger: (...a) => lines.push(a) }).checkTransaction(1);
+    expect(lines).toHaveLength(0);
+    const on = mockFetch(() => ({ body }));
+    await new IpaymuClient({ va: VA, apiKey: KEY, mode: "sandbox", fetchImpl: on.fetchImpl, debug: true, logger: (...a) => lines.push(a) }).checkTransaction(1);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]![0]).toBe("[ipaymu:check]");
   });
   it("nominal memakai SubTotal, bukan Total yang bisa memuat biaya admin", async () => {
     const { c } = client(() => ({ body: { Success: true, Data: { ReferenceId: "A", Status: 1, SubTotal: 100000, Total: 102500 } } }));

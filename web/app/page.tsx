@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Hero } from "@/components/Hero";
-import { destinations, flagUrl, startingPrice, typeInfo } from "@/lib/data";
+import { getDestinations } from "@/lib/catalog";
+import { flagUrl, typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 
 const compare = [
@@ -15,11 +16,15 @@ const steps = [
   { title: "Terima dan aktifkan", body: "QR eSIM masuk ke email, atau alat dan kartu dikirim ke alamatmu." },
 ];
 
-export default function Home() {
+// Katalog dibaca dari API saat request, jadi halaman tidak boleh di-prerender saat build (API belum jalan).
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const destinations = await getDestinations();
   const featured = destinations.slice(0, 8);
   return (
     <>
-      <Hero />
+      <Hero destinations={destinations} />
 
       <section id="cara-terhubung" className="container-x py-20">
         <h2 className="max-w-2xl font-display text-4xl font-extrabold tracking-tight">Tiga cara tetap terhubung</h2>
@@ -54,7 +59,7 @@ export default function Home() {
                   <img src={flagUrl(d.code)} alt="" width={56} height={40} className="h-10 w-14 rounded-md object-cover shadow-sm" />
                   <div className="mt-8">
                     <h3 className="font-display text-xl font-bold">{d.name}</h3>
-                    <p className="text-sm text-ink/65">Mulai {idr(startingPrice(d))}</p>
+                    {d.startingPrice != null && <p className="text-sm text-ink/65">Mulai {idr(d.startingPrice)}</p>}
                   </div>
                 </Link>
               </li>

@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SignalBars } from "./SignalBars";
-import { Destination, destinations, flagUrl, startingPrice } from "@/lib/data";
+import { DestinationSummary, flagUrl } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 
 const popular = ["jepang", "korea-selatan", "singapura", "thailand", "eropa"];
 
-export function Hero() {
+export function Hero({ destinations }: { destinations: DestinationSummary[] }) {
   const [query, setQuery] = useState("");
-  const [picked, setPicked] = useState<Destination | null>(null);
+  const [picked, setPicked] = useState<DestinationSummary | null>(null);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const listId = useId();
@@ -20,9 +20,9 @@ export function Hero() {
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     return destinations.filter((d) => !q || d.name.toLowerCase().includes(q) || d.region.toLowerCase().includes(q)).slice(0, 6);
-  }, [query]);
+  }, [query, destinations]);
 
-  function choose(d: Destination) {
+  function choose(d: DestinationSummary) {
     setPicked(d);
     setQuery(d.name);
     setOpen(false);
@@ -56,7 +56,7 @@ export function Hero() {
           transition={{ delay: 0.35, duration: 0.6 }}
           className="mt-6 max-w-xl text-lg leading-relaxed text-white/80"
         >
-          eSIM, SIM Card, dan Portable WiFi untuk 12 destinasi. Pilih tujuanmu, bandingkan paketnya, dan bayar dalam hitungan menit.
+          eSIM, SIM Card, dan Portable WiFi untuk {destinations.length} destinasi. Pilih tujuanmu, bandingkan paketnya, dan bayar dalam hitungan menit.
         </motion.p>
 
         <motion.div
@@ -105,10 +105,9 @@ export function Hero() {
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2 px-1">
-            {popular.map((slug) => {
-              const d = destinations.find((x) => x.slug === slug)!;
+            {popular.map((slug) => destinations.find((x) => x.slug === slug)).filter((d): d is DestinationSummary => !!d).map((d) => {
               return (
-                <button key={slug} type="button" onClick={() => choose(d)} className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium hover:border-lagoon hover:bg-mist">
+                <button key={d.slug} type="button" onClick={() => choose(d)} className="rounded-full border border-line px-3.5 py-1.5 text-sm font-medium hover:border-lagoon hover:bg-mist">
                   {d.name.split(" (")[0]}
                 </button>
               );
@@ -122,7 +121,7 @@ export function Hero() {
                 {picked ? (
                   <motion.div key={picked.slug} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
                     <p className="truncate font-display text-lg font-bold">Sinyal siap di {picked.name}</p>
-                    <p className="text-sm text-white/70">{picked.network} · mulai {idr(startingPrice(picked))}</p>
+                    <p className="text-sm text-white/70">{picked.network}{picked.startingPrice != null && ` · mulai ${idr(picked.startingPrice)}`}</p>
                   </motion.div>
                 ) : (
                   <motion.p key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-white/75">

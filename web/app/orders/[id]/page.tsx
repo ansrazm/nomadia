@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import { useCart } from "@/components/CartProvider";
 import { getOrder, OrderView } from "@/lib/api";
 import { idr } from "@/lib/format";
+import { consumePendingOrder } from "@/lib/pending-order";
 
 const POLL_MS = 4000;
 
@@ -13,6 +15,13 @@ function OrderStatus() {
   const cancelled = useSearchParams().get("cancelled") === "1";
   const [order, setOrder] = useState<OrderView | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
+  const { clear } = useCart();
+
+  // Pengguna kembali dari iPaymu (bukan batal): pesanan ini sudah di tangan iPaymu, kosongkan keranjang.
+  useEffect(() => {
+    if (cancelled || !order || (order.status !== "pending" && order.status !== "paid")) return;
+    if (consumePendingOrder(order.id)) clear();
+  }, [cancelled, order, clear]);
 
   useEffect(() => {
     let stop = false;
