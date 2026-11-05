@@ -61,6 +61,35 @@ npm run dev                   # http://localhost:3000
 Halaman: `/`, `/destinations`, `/destinations/[slug]`, `/cart`, `/checkout`.
 Checkout memanggil API; jika order punya `paymentUrl`, pengguna diarahkan ke halaman bayar iPaymu lalu kembali ke `/orders/[id]` (memperbarui status otomatis). Halaman katalog masih membaca `web/lib/data.ts`.
 
+## Expose ke internet (Cloudflare Tunnel)
+Untuk demo atau uji iPaymu sandbox dari laptop, web dan API di-expose lewat dua tunnel:
+
+| Layanan | Lokal | Domain publik |
+|---|---|---|
+| Web (Next.js) | http://localhost:3000 | https://nomadia.dragonstorepb.com |
+| API | http://localhost:4000 | https://nomadia-api.dragonstorepb.com |
+
+Env yang harus cocok:
+- `api/.env`: `WEB_URL`, `PUBLIC_API_URL`, dan `CORS_ORIGINS` (harus memuat domain web)
+- `web/.env.local`: `NEXT_PUBLIC_API_URL=https://nomadia-api.dragonstorepb.com`
+
+Setup sekali (per tunnel):
+```bash
+cloudflared tunnel create nomadia-web
+cloudflared tunnel route dns nomadia-web nomadia.dragonstorepb.com
+cloudflared tunnel create nomadia-api
+cloudflared tunnel route dns nomadia-api nomadia-api.dragonstorepb.com
+```
+
+Menjalankan (4 terminal):
+```bash
+cd api && npm run dev                                          # :4000
+cd web && npm run dev                                          # :3000
+cloudflared tunnel run --url http://localhost:4000 nomadia-api
+cloudflared tunnel run --url http://localhost:3000 nomadia-web
+```
+Setelah mengubah `NEXT_PUBLIC_API_URL`, restart `npm run dev` web.
+
 ## API
 | Method | Path | Keterangan |
 |---|---|---|
