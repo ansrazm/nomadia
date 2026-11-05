@@ -1,19 +1,56 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCart } from "@/components/CartProvider";
-import { ApiRequestError, createOrder, CheckoutResult } from "@/lib/api";
-import { VOUCHERS } from "@/lib/data";
+import { ApiRequestError, createOrder, quoteCart, type CheckoutResult, type Quote } from "@/lib/api";
 import { idr } from "@/lib/format";
 import { markPendingOrder } from "@/lib/pending-order";
 
 function CheckoutForm() {
-  const { items, subtotal } = useCart();
+  const { items } = useCart();
   const params = useSearchParams();
-  const voucher = params.get("voucher") ?? undefined;
-  const discount = voucher && VOUCHERS[voucher] ? Math.round(subtotal * VOUCHERS[voucher]) : 0;
+  const [voucher, setVoucher] = useState<string | undefined>(params.get("voucher") ?? undefined);
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [quoteFailed, setQuoteFailed] = useState(false);
+  const [unavailable, setUnavailable] = useState<string[]>([]);
+  const [voucherNote, setVoucherNote] = useState("");
+  const [retry, setRetry] = useState(0);
+
+  // Total yang dibayar selalu hasil hitung server (/quote), sama dengan yang dipakai POST /orders.
+  const cartKey = items.map((i) => `${i.id}:${i.qty}`).join("|");
+  useEffect(() => {
+    if (items.length === 0) return;
+    const ctrl = new AbortController();
+    quoteCart(items, voucher, ctrl.signal)
+      .then((q) => {
+        setQuote(q);
+        setQuoteFailed(false);
+        setUnavailable([]);
+      })
+      .catch((err) => {
+        if (ctrl.signal.aborted) return;
+        if (err instanceof ApiRequestError && err.code === "VOUCHER_INVALID") {
+          setVoucher(undefined);
+          setVoucherNote(err.message);
+          return;
+        }
+        if (err instanceof ApiRequestError && err.code === "PRODUCT_NOT_FOUND") {
+          const ids = (err.details as { productIds?: string[] } | undefined)?.productIds;
+          setUnavailable(Array.isArray(ids) ? ids : []);
+          setQuote(null);
+          setQuoteFailed(false);
+          return;
+        }
+        setQuoteFailed(true);
+      });
+    return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartKey, voucher, retry]);
+
+  const lineById = useMemo(() => new Map((quote?.lines ?? []).map((l) => [l.productId, l])), [quote]);
+  const canPay = !!quote && !quoteFailed && unavailable.length === 0;
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -31,6 +68,7 @@ function CheckoutForm() {
     setError("");
     if (!name.trim()) return setError("Isi nama lengkap sesuai identitas.");
     if (!/^\S+@\S+\.\S+$/.test(email)) return setError("Alamat email belum valid. Contoh: nama@email.com");
+    if (!canPay) return setError("Total belum bisa dihitung. Tunggu sebentar atau periksa keranjang.");
     setBusy(true);
     try {
       const r = await createOrder({ name, email, items, voucher });
@@ -92,17 +130,36 @@ function CheckoutForm() {
           <p className="mt-1 text-sm text-ink/60">QR eSIM dan bukti pembayaran dikirim ke email ini.</p>
         </div>
         {error && <p role="alert" className="text-sm font-medium text-coral">{error}</p>}
-        <button className="btn-signal w-full disabled:opacity-60" disabled={busy}>{busy ? "Membuat pesanan…" : `Bayar ${idr(subtotal - discount)}`}</button>
+        <button className="btn-signal w-full disabled:opacity-60" disabled={busy || !canPay}>
+          {busy ? "Membuat pesanan…" : quote ? `Bayar ${idr(quote.total)}` : "Menghitung total…"}
+        </button>
       </form>
       <aside className="h-fit rounded-3xl border border-line bg-white p-6">
         <h2 className="font-display text-xl font-bold">Pesananmu</h2>
         <ul className="mt-4 space-y-3 text-sm">
           {items.map((i) => (
-            <li key={i.id} className="flex justify-between gap-3"><span>{i.qty} × {i.name}</span><span className="font-semibold">{idr(i.price * i.qty)}</span></li>
+            <li key={i.id} className="flex justify-between gap-3"><span>{i.qty} × {i.name}</span><span className="font-semibold">{idr((lineById.get(i.id)?.unitPrice ?? i.price) * i.qty)}</span></li>
           ))}
         </ul>
-        {discount > 0 && <p className="mt-4 text-sm text-deep">Voucher {voucher}: −{idr(discount)}</p>}
-        <p className="mt-4 flex justify-between border-t border-line pt-4 font-display text-xl font-bold"><span>Total</span><span>{idr(subtotal - discount)}</span></p>
+        {voucherNote && <p role="alert" className="mt-4 text-sm text-coral">{voucherNote} Voucher dilepas, total dihitung tanpa voucher.</p>}
+        {unavailable.length > 0 && (
+          <p role="alert" className="mt-4 text-sm font-medium text-coral">
+            Ada paket yang sudah tidak tersedia. <Link href="/cart" className="underline">Kembali ke keranjang</Link> untuk menghapusnya.
+          </p>
+        )}
+        {quoteFailed ? (
+          <div role="alert" className="mt-4 text-sm text-coral">
+            <p>Harga belum bisa dihitung. Periksa koneksi lalu coba lagi.</p>
+            <button type="button" className="mt-2 font-semibold underline" onClick={() => setRetry((n) => n + 1)}>Coba lagi</button>
+          </div>
+        ) : quote ? (
+          <>
+            {quote.discount > 0 && quote.voucher && <p className="mt-4 flex justify-between text-sm text-deep"><span>Voucher {quote.voucher.code} ({quote.voucher.percent}%)</span><span>−{idr(quote.discount)}</span></p>}
+            <p className="mt-4 flex justify-between border-t border-line pt-4 font-display text-xl font-bold"><span>Total</span><span>{idr(quote.total)}</span></p>
+          </>
+        ) : unavailable.length === 0 ? (
+          <p className="mt-4 text-sm text-ink/60" role="status">Menghitung total…</p>
+        ) : null}
       </aside>
     </div>
   );

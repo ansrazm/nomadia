@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from "react";
-import type { Product } from "@/lib/data";
+import type { Product } from "@/lib/catalog-types";
 
 export interface CartItem {
   id: string;
@@ -40,7 +40,6 @@ function reducer(state: CartItem[], a: Action): CartItem[] {
 interface CartCtx {
   items: CartItem[];
   count: number;
-  subtotal: number;
   add: (p: Product) => void;
   setQty: (id: string, qty: number) => void;
   remove: (id: string) => void;
@@ -81,7 +80,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     () => ({
       items,
       count: items.reduce((n, i) => n + i.qty, 0),
-      subtotal: items.reduce((n, i) => n + i.qty * i.price, 0),
       add,
       setQty: (id, qty) => dispatch({ t: "qty", id, qty }),
       remove: (id) => dispatch({ t: "remove", id }),

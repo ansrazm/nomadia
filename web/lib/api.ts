@@ -14,12 +14,11 @@ export interface CheckoutResult {
 
 /** Galat dari API yang pesannya aman ditampilkan ke pengguna (mis. voucher salah, produk tidak tersedia). */
 export class ApiRequestError extends Error {
-  constructor(public status: number, public code: string, message: string) {
+  constructor(public status: number, public code: string, message: string, public details?: unknown) {
     super(message);
   }
 }
 
-// Kosong = mode mock (frontend jalan sendiri tanpa backend).
 const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ?? "";
 
 /**
@@ -28,10 +27,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ?? "";
  * paymentUrl akan terisi setelah integrasi iPaymu terpasang.
  */
 export async function createOrder(payload: CheckoutPayload): Promise<CheckoutResult> {
-  if (!API_URL) {
-    await new Promise((r) => setTimeout(r, 700));
-    return { orderId: `NMD-${Date.now().toString(36).toUpperCase()}`, paymentUrl: null };
-  }
+  if (!API_URL) throw new ApiRequestError(0, "NO_API", "NEXT_PUBLIC_API_URL belum diisi.");
 
   const res = await fetch(`${API_URL}/orders`, {
     method: "POST",
@@ -46,9 +42,49 @@ export async function createOrder(payload: CheckoutPayload): Promise<CheckoutRes
   const json = await res.json().catch(() => null);
   if (!res.ok) {
     const e = json?.error;
-    throw new ApiRequestError(res.status, e?.code ?? "UNKNOWN", e?.message ?? "Permintaan gagal.");
+    throw new ApiRequestError(res.status, e?.code ?? "UNKNOWN", e?.message ?? "Permintaan gagal.", e?.details);
   }
   return { orderId: json.data.orderId, paymentUrl: json.data.paymentUrl ?? null };
+}
+
+export interface QuoteLine {
+  productId: string;
+  name: string;
+  unitPrice: number;
+  qty: number;
+  lineTotal: number;
+}
+
+/** Respons POST /quote: harga keranjang yang dihitung server (sumber kebenaran, sama dengan POST /orders). */
+export interface Quote {
+  lines: QuoteLine[];
+  subtotal: number;
+  discount: number;
+  total: number;
+  voucher: { code: string; percent: number } | null;
+}
+
+/**
+ * POST {API_URL}/quote. Hanya id produk dan jumlah yang dikirim. Voucher yang salah dibalas 422 VOUCHER_INVALID,
+ * produk yang sudah tidak aktif dibalas 422 PRODUCT_NOT_FOUND (details.productIds berisi id-nya).
+ */
+export async function quoteCart(items: CartItem[], voucher?: string, signal?: AbortSignal): Promise<Quote> {
+  if (!API_URL) throw new ApiRequestError(0, "NO_API", "NEXT_PUBLIC_API_URL belum diisi.");
+  const res = await fetch(`${API_URL}/quote`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    signal,
+    body: JSON.stringify({
+      items: items.map((i) => ({ productId: i.id, qty: i.qty })),
+      ...(voucher ? { voucher } : {}),
+    }),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    const e = json?.error;
+    throw new ApiRequestError(res.status, e?.code ?? "UNKNOWN", e?.message ?? "Permintaan gagal.", e?.details);
+  }
+  return json.data as Quote;
 }
 
 export interface OrderView {
@@ -70,6 +106,6 @@ export async function getOrder(id: string): Promise<OrderView | null> {
   const res = await fetch(`${API_URL}/orders/${encodeURIComponent(id)}`, { cache: "no-store" });
   if (res.status === 404) return null;
   const json = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiRequestError(res.status, json?.error?.code ?? "UNKNOWN", json?.error?.message ?? "Permintaan gagal.");
+  if (!res.ok) throw new ApiRequestError(res.status, json?.error?.code ?? "UNKNOWN", json?.error?.message ?? "Permintaan gagal.", json?.error?.details);
   return json.data as OrderView;
 }

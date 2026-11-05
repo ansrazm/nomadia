@@ -54,7 +54,7 @@ npm test
 ## Menjalankan frontend
 ```bash
 cd web
-cp .env.example .env.local    # NEXT_PUBLIC_API_URL=http://localhost:4000 ; kosongkan untuk mode mock
+cp .env.example .env.local    # NEXT_PUBLIC_API_URL=http://localhost:4000 (wajib, tidak ada mode mock lagi)
 npm install
 npm run dev                   # http://localhost:3000
 ```
