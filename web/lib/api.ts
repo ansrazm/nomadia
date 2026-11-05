@@ -50,3 +50,26 @@ export async function createOrder(payload: CheckoutPayload): Promise<CheckoutRes
   }
   return { orderId: json.data.orderId, paymentUrl: json.data.paymentUrl ?? null };
 }
+
+export interface OrderView {
+  id: string;
+  status: "pending" | "paid" | "expired" | "cancelled";
+  customerName: string;
+  customerEmail: string; // sudah disamarkan oleh server
+  subtotal: number;
+  discount: number;
+  total: number;
+  voucher: string | null;
+  paymentUrl: string | null;
+  items: { productId: string; name: string; unitPrice: number; qty: number }[];
+}
+
+/** GET {API_URL}/orders/:id. Mengembalikan null bila pesanan tidak ada. */
+export async function getOrder(id: string): Promise<OrderView | null> {
+  if (!API_URL) return null;
+  const res = await fetch(`${API_URL}/orders/${encodeURIComponent(id)}`, { cache: "no-store" });
+  if (res.status === 404) return null;
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiRequestError(res.status, json?.error?.code ?? "UNKNOWN", json?.error?.message ?? "Permintaan gagal.");
+  return json.data as OrderView;
+}

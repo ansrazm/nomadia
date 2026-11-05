@@ -37,7 +37,7 @@ export async function migrate(db: Db): Promise<string[]> {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const { loadConfig } = await import("../config.js");
   const { createPool } = await import("./pool.js");
-  const db = createPool(loadConfig().DATABASE_URL);
+  const db = createPool(loadConfig().databaseUrl);
   const applied = await migrate(db);
   console.log(applied.length ? `Migrasi dijalankan: ${applied.join(", ")}` : "Skema sudah terbaru.");
   await db.end();

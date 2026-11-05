@@ -4,13 +4,20 @@ import { catalogRoutes } from "./routes/catalog.js";
 import { orderRoutes } from "./routes/orders.js";
 import type { Db } from "./db/pool.js";
 import { ApiError } from "./errors.js";
+import { webhookRoutes } from "./routes/webhooks.js";
+import type { PaymentGateway } from "./payments/ipaymu.js";
+import type { OutboxDispatcher } from "./services/outbox.js";
 
 export interface AppDeps {
   db: Db;
   corsOrigins: string[];
+  gateway?: PaymentGateway | null;
+  outbox?: OutboxDispatcher | null;
+  publicApiUrl?: string;
+  webUrl?: string;
 }
 
-export function createApp({ db, corsOrigins }: AppDeps) {
+export function createApp({ db, corsOrigins, gateway = null, outbox = null, publicApiUrl = "http://localhost:4000", webUrl = "http://localhost:3000" }: AppDeps) {
   const app = new Hono();
 
   app.use("*", cors({ origin: corsOrigins, allowMethods: ["GET", "POST", "OPTIONS"], maxAge: 600 }));
@@ -21,7 +28,8 @@ export function createApp({ db, corsOrigins }: AppDeps) {
   });
 
   app.route("/", catalogRoutes(db));
-  app.route("/", orderRoutes(db));
+  app.route("/", orderRoutes(db, gateway, { publicApiUrl, webUrl }));
+  app.route("/", webhookRoutes(db, gateway, outbox));
 
   app.notFound((c) => c.json({ error: { code: "NOT_FOUND", message: "Endpoint tidak ditemukan." } }, 404));
 

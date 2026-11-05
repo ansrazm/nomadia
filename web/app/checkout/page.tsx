@@ -28,8 +28,13 @@ function CheckoutForm() {
     setBusy(true);
     try {
       const r = await createOrder({ name, email, items, voucher });
-      setResult(r);
       clear();
+      if (r.paymentUrl) {
+        // Ke halaman bayar iPaymu; setelah bayar pengguna kembali ke /orders/[id].
+        window.location.assign(r.paymentUrl);
+        return;
+      }
+      setResult(r);
     } catch (err) {
       // Galat 4xx dari server membawa pesan yang jelas; selain itu anggap masalah koneksi.
       setError(err instanceof ApiRequestError && err.status < 500 ? err.message : "Pesanan belum bisa dibuat. Periksa koneksi lalu coba lagi.");

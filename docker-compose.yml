@@ -1,0 +1,66 @@
+# Satu perintah: docker compose up --build
+# Salin .env.example menjadi .env di folder ini lebih dulu (kredensial iPaymu & secret n8n).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: nomadia
+      POSTGRES_PASSWORD: nomadia
+      POSTGRES_DB: nomadia
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nomadia -d nomadia"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./api
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PORT: "4000"
+      DATABASE_URL: postgres://nomadia:nomadia@db:5432/nomadia
+      CORS_ORIGINS: http://localhost:3000
+      # Alamat yang bisa dijangkau iPaymu. Di laptop, isi URL tunnel (mis. ngrok) agar callback sampai.
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:4000}
+      WEB_URL: ${WEB_URL:-http://localhost:3000}
+      IPAYMU_VA: ${IPAYMU_VA:-}
+      IPAYMU_API_KEY: ${IPAYMU_API_KEY:-}
+      IPAYMU_MODE: ${IPAYMU_MODE:-sandbox}
+      N8N_WEBHOOK_URL: http://n8n:5678/webhook/nomadia-order-paid
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:?isi N8N_WEBHOOK_SECRET di .env (minimal 16 karakter)}
+    ports:
+      - "4000:4000"
+
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://localhost:5678/
+      GENERIC_TIMEZONE: Asia/Jakarta
+      # Workflow contoh memverifikasi tanda tangan di node Code: butuh modul crypto dan akses $env.
+      NODE_FUNCTION_ALLOW_BUILTIN: crypto
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n:/workflows:ro
+    ports:
+      - "5678:5678"
+
+volumes:
+  pgdata:
+  n8n_data:

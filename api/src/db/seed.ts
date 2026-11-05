@@ -40,7 +40,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const { loadConfig } = await import("../config.js");
   const { createPool } = await import("./pool.js");
   const { migrate } = await import("./migrate.js");
-  const db = createPool(loadConfig().DATABASE_URL);
+  const db = createPool(loadConfig().databaseUrl);
   await migrate(db);
   const r = await seed(db);
   console.log(`Seed selesai: ${r.destinations} destinasi, ${r.products} produk baru.`);

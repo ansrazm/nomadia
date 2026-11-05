@@ -1,0 +1,48 @@
+{
+  "name": "Nomadia - order paid",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "nomadia-order-paid", "responseMode": "responseNode", "options": {} },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Webhook order.paid",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "nomadia-order-paid"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.N8N_WEBHOOK_SECRET;\nconst h = $input.first().json.headers;\nconst body = $input.first().json.body;\n// Body dikirim API sebagai JSON.stringify; stringify ulang hasil parse menghasilkan byte yang sama.\nconst raw = JSON.stringify(body);\nconst ts = h['x-nomadia-timestamp'];\nconst expected = 'sha256=' + crypto.createHmac('sha256', secret).update(ts + '.' + raw).digest('hex');\nconst got = String(h['x-nomadia-signature'] || '');\nconst fresh = Math.abs(Date.now() / 1000 - Number(ts)) <= 300;\nconst same = got.length === expected.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(expected));\nif (!fresh || !same) throw new Error('Tanda tangan tidak valid atau kedaluwarsa');\nreturn [{ json: { deliveryId: body.id, order: body.data.order } }];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Verifikasi tanda tangan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const o = $input.first().json.order;\nconst rp = (n) => 'Rp' + n.toLocaleString('id-ID');\nconst lines = o.items.map((i) => `- ${i.name} x${i.qty}: ${rp(i.unitPrice * i.qty)}`).join('\\n');\nreturn [{ json: {\n  to: o.customerEmail,\n  subject: `Pembayaran diterima - pesanan ${o.id}`,\n  text: `Halo ${o.customerName},\\n\\nPembayaran pesanan ${o.id} sebesar ${rp(o.total)} sudah kami terima.\\n\\n${lines}\\n\\nQR eSIM / info pengiriman menyusul di email berikutnya.\\n\\nSalam,\\nNomadia`,\n  orderId: o.id\n} }];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Siapkan email konfirmasi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { \"ok\": true, \"orderId\": $json.orderId } }}", "options": { "responseCode": 200 } },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Balas 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [720, 0]
+    }
+  ],
+  "connections": {
+    "Webhook order.paid": { "main": [[{ "node": "Verifikasi tanda tangan", "type": "main", "index": 0 }]] },
+    "Verifikasi tanda tangan": { "main": [[{ "node": "Siapkan email konfirmasi", "type": "main", "index": 0 }]] },
+    "Siapkan email konfirmasi": { "main": [[{ "node": "Balas 200", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

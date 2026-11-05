@@ -15,12 +15,13 @@ export async function freshDb(): Promise<Db> {
   return db;
 }
 
-export function appFor(db: Db) {
-  const app = createApp({ db, corsOrigins: ["http://localhost:3000"] });
+export function appFor(db: Db, extra: Partial<Parameters<typeof createApp>[0]> = {}) {
+  const app = createApp({ db, corsOrigins: ["http://localhost:3000"], ...extra });
   const call = async (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => {
+    const isRaw = typeof body === "string";
     const res = await app.request(path, {
       method,
-      headers: { ...(body !== undefined ? { "Content-Type": "application/json" } : {}), ...headers },
+      headers: { ...(body !== undefined && !(isRaw && headers["Content-Type"]) ? { "Content-Type": "application/json" } : {}), ...headers },
       body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body),
     });
     const text = await res.text();
