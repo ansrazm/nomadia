@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCart } from "@/components/CartProvider";
-import { createOrder, CheckoutResult } from "@/lib/api";
+import { ApiRequestError, createOrder, CheckoutResult } from "@/lib/api";
 import { VOUCHERS } from "@/lib/data";
 import { idr } from "@/lib/format";
 
@@ -30,8 +30,9 @@ function CheckoutForm() {
       const r = await createOrder({ name, email, items, voucher });
       setResult(r);
       clear();
-    } catch {
-      setError("Pesanan belum bisa dibuat. Periksa koneksi lalu coba lagi.");
+    } catch (err) {
+      // Galat 4xx dari server membawa pesan yang jelas; selain itu anggap masalah koneksi.
+      setError(err instanceof ApiRequestError && err.status < 500 ? err.message : "Pesanan belum bisa dibuat. Periksa koneksi lalu coba lagi.");
     } finally {
       setBusy(false);
     }
