@@ -5,6 +5,7 @@ import { Header } from "./Header";
 import { Footer } from "./Footer";
 import { CartToast } from "./CartToast";
 import { PromoModal } from "./PromoModal";
+import { FloatingActions } from "./FloatingActions";
 
 /** Halaman toko memakai header + footer; area /admin punya kerangka sendiri. */
 export function SiteShell({ children }: { children: React.ReactNode }) {
@@ -17,6 +18,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       <Footer />
       <CartToast />
       <PromoModal />
+      <FloatingActions />
     </>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SignalBars } from "./SignalBars";
 import { useCart } from "./CartProvider";
 
@@ -14,9 +14,19 @@ const links = [
 export function Header() {
   const { count } = useCart();
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  // Header menempel di atas saat scroll; latar navy baru muncul setelah halaman bergeser sedikit.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 16);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <header className="absolute inset-x-0 top-0 z-30">
-      <div className="container-x flex items-center justify-between py-5 text-white">
+    <header className={`fixed inset-x-0 top-0 z-30 transition-[background-color,box-shadow] duration-300 ${scrolled || open ? "bg-ink/90 shadow-lift backdrop-blur-md" : "bg-transparent"}`}>
+      <div className={`container-x flex items-center justify-between text-white transition-[padding] duration-300 ${scrolled ? "py-3" : "py-5"}`}>
         {/* <a> biasa (bukan <Link>): logo selalu memuat ulang beranda penuh, jadi tetap jalan dari halaman mana pun
             walau navigasi sisi-klien tertahan (mis. halaman resi yang sedang polling, atau proxy/tunnel yang menahan request RSC). */}
         {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}

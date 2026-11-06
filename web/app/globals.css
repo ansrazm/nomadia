@@ -4,7 +4,7 @@
 
 :root { color-scheme: light; }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
 body { @apply bg-mist font-sans text-ink antialiased; }
 
 :focus-visible { outline: 3px solid #FFC93C; outline-offset: 2px; border-radius: 8px; }

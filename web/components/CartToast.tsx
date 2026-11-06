@@ -19,7 +19,7 @@ export function CartToast() {
   }, [lastAdded, dismissAdded]);
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 sm:justify-end sm:px-8">
+    <div className="pointer-events-none fixed inset-x-0 bottom-36 z-40 flex justify-center px-4 sm:bottom-4 sm:justify-end sm:pl-8 sm:pr-24">
       <AnimatePresence>
         {lastAdded && !hidden && (
           <motion.div

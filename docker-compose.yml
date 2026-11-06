@@ -44,6 +44,7 @@ services:
       context: ./web
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+        NEXT_PUBLIC_WHATSAPP_NUMBER: ${NEXT_PUBLIC_WHATSAPP_NUMBER:-}
     environment:
       # Server web membaca katalog lewat jaringan Docker. NEXT_PUBLIC_API_URL hanya untuk browser.
       API_INTERNAL_URL: http://api:4000
