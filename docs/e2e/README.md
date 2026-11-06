@@ -15,5 +15,6 @@ Pesanan: NMD-RV4F4UF7, 2 x eSIM Korea Selatan 1 hari, Rp52.000. Web: https://nom
 | 08 | 08-ipaymu-simulasi-notify-hasil-200.png | Callback ke /webhooks/ipaymu dibalas 200 {"data":{"status":"paid"}} |
 | 09 | 09-mailpit-email-pembayaran-diterima.png | Email "Pembayaran diterima" masuk (Mailpit :8025) |
 | 10 | 10-telegram-pesanan-baru-lunas.png | Notifikasi Telegram ke pemilik toko |
+| 11 | 11-web-status-pesanan-pembayaran-diterima.png | Setelah bayar, pembeli kembali ke /orders/[id] dan melihat "Pembayaran diterima" (returnUrl publik bekerja) |
 
 Catatan: webhook membawa total Rp52.936 (termasuk escrow), tetapi API membaca ulang transaksi lewat Check Transaction dan membandingkan SubTotal (Rp52.000) dengan orders.total, sehingga order tetap ditandai lunas.
