@@ -4,11 +4,49 @@ import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCart } from "@/components/CartProvider";
-import { getOrder, OrderView } from "@/lib/api";
+import { getOrder, OrderQr, OrderView } from "@/lib/api";
 import { idr } from "@/lib/format";
 import { consumePendingOrder } from "@/lib/pending-order";
 
 const POLL_MS = 4000;
+
+function fmtRemaining(ms: number): string {
+  const t = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(t / 3600);
+  const mm = String(Math.floor((t % 3600) / 60)).padStart(2, "0");
+  const ss = String(t % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+/** QRIS Direct: QR di halaman sendiri dengan hitung mundur dari waktu kedaluwarsa yang diberikan iPaymu. */
+function QrPanel({ qr, total }: { qr: OrderQr; total: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!qr.expiresAt) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [qr.expiresAt]);
+
+  const remaining = qr.expiresAt ? new Date(qr.expiresAt).getTime() - now : null;
+  if (remaining !== null && remaining <= 0) {
+    return (
+      <div className="mt-6 rounded-2xl bg-mist p-6 text-center" role="alert">
+        <p className="font-semibold">QR sudah kedaluwarsa.</p>
+        <p className="mt-1 text-sm text-ink/70">Kalau kamu belum membayar, buat pesanan baru dari keranjang. Kalau sudah membayar, halaman ini akan berubah sendiri begitu pembayaran terkonfirmasi.</p>
+        <Link href="/cart" className="btn-signal mt-4">Kembali ke keranjang</Link>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-6 rounded-2xl bg-mist p-6 text-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={qr.imageUrl} alt={`Kode QRIS untuk membayar ${idr(total)}`} width={256} height={256} className="mx-auto h-64 w-64 rounded-xl bg-white object-contain p-2" />
+      <p className="mt-4 font-display text-xl font-bold">Bayar {idr(total)}</p>
+      <p className="mt-1 text-sm text-ink/70">Scan dengan aplikasi bank atau e-wallet yang mendukung QRIS.</p>
+      {remaining !== null && <p className="mt-3 text-sm font-semibold" aria-live="off">Berlaku {fmtRemaining(remaining)} lagi</p>}
+    </div>
+  );
+}
 
 function OrderStatus() {
   const { id } = useParams<{ id: string }>();
@@ -17,10 +55,12 @@ function OrderStatus() {
   const [failed, setFailed] = useState(false);
   const { clear } = useCart();
 
-  // Pengguna kembali dari iPaymu (bukan batal): pesanan ini sudah di tangan iPaymu, kosongkan keranjang.
+  // Redirect: pengguna kembali dari iPaymu (bukan batal), pesanan sudah di tangan iPaymu, jadi keranjang dikosongkan.
+  // QRIS: keranjang dipertahankan sampai lunas, supaya QR yang kedaluwarsa bisa diganti tanpa mengisi ulang keranjang.
   useEffect(() => {
-    if (cancelled || !order || (order.status !== "pending" && order.status !== "paid")) return;
-    if (consumePendingOrder(order.id)) clear();
+    if (cancelled || !order) return;
+    const settled = order.status === "paid" || (order.status === "pending" && !order.qr);
+    if (settled && consumePendingOrder(order.id)) clear();
   }, [cancelled, order, clear]);
 
   useEffect(() => {
@@ -67,6 +107,7 @@ function OrderStatus() {
       <h2 className="mt-2 font-display text-3xl font-extrabold" role="status">{headline}</h2>
       {order.status === "paid" && <p className="mt-3 text-ink/70">Terima kasih, {order.customerName}. QR eSIM dan bukti pembayaran dikirim ke {order.customerEmail}.</p>}
       {order.status === "pending" && <p className="mt-3 text-ink/70">Halaman ini diperbarui otomatis setelah pembayaran kamu terkonfirmasi.</p>}
+      {order.status === "pending" && order.qr && <QrPanel qr={order.qr} total={order.total} />}
       {failed && <p className="mt-3 text-sm text-coral">Koneksi terputus sebentar, mencoba lagi…</p>}
 
       <ul className="mt-6 divide-y divide-line border-y border-line">

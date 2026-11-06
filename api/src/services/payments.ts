@@ -1,7 +1,9 @@
 import type { Db } from "../db/pool.js";
 import { ApiError } from "../errors.js";
-import { GatewayError, type PaymentGateway, type TxInfo } from "../payments/ipaymu.js";
-import { getOrder, type Order } from "./orders.js";
+import QRCode from "qrcode";
+import { GatewayError, parseIpaymuTime, type PaymentGateway, type TxInfo } from "../payments/ipaymu.js";
+import { buildEsimActivations } from "./esim.js";
+import { getOrder, type Order, type OrderQr } from "./orders.js";
 
 export interface CheckoutUrls {
   publicApiUrl: string;
@@ -10,6 +12,16 @@ export interface CheckoutUrls {
 
 // iPaymu mewajibkan nomor telepon; form checkout belum mengumpulkannya.
 const PLACEHOLDER_PHONE = "081234567890";
+
+/** Order batal bila pembayaran gagal dibuat, supaya tidak menggantung pending tanpa cara membayar. */
+async function abortCheckout(db: Db, order: Order, e: unknown): Promise<never> {
+  await db.query("UPDATE orders SET status = 'cancelled' WHERE id = $1 AND status = 'pending'", [order.id]);
+  if (e instanceof GatewayError) {
+    console.error(`[payments] gagal membuat sesi bayar untuk ${order.id}:`, e.message);
+    throw new ApiError(502, "PAYMENT_UNAVAILABLE", "Pembayaran belum bisa dibuat saat ini. Coba lagi sebentar lagi.");
+  }
+  throw e;
+}
 
 /** Membuat sesi bayar di iPaymu dan menyimpannya di order. Jika gagal, order dibatalkan agar tidak menggantung. */
 export async function startCheckout(db: Db, gateway: PaymentGateway, order: Order, urls: CheckoutUrls): Promise<Order> {
@@ -28,12 +40,38 @@ export async function startCheckout(db: Db, gateway: PaymentGateway, order: Orde
     await db.query("UPDATE orders SET payment_ref = $2, payment_url = $3 WHERE id = $1 AND status = 'pending'", [order.id, session.sessionId, session.url]);
     return { ...order, paymentUrl: session.url };
   } catch (e) {
-    await db.query("UPDATE orders SET status = 'cancelled' WHERE id = $1 AND status = 'pending'", [order.id]);
-    if (e instanceof GatewayError) {
-      console.error(`[payments] gagal membuat sesi bayar untuk ${order.id}:`, e.message);
-      throw new ApiError(502, "PAYMENT_UNAVAILABLE", "Pembayaran belum bisa dibuat saat ini. Coba lagi sebentar lagi.");
+    return abortCheckout(db, order, e);
+  }
+}
+
+/**
+ * QRIS Direct (IPAYMU_FLOW=qris): QR ditampilkan di halaman pesanan sendiri. Pelunasan memakai jalur yang sama
+ * dengan checkout biasa (callback -> Check Transaction -> pencocokan nominal), karena referenceId = nomor order.
+ * Gambar QR: URL gambar dari iPaymu bila ada; bila tidak, dirender dari payload QRIS asli (berawalan 000201).
+ * Teks demo sandbox pada QrString bukan payload asli dan tidak pernah dirender menjadi QR.
+ */
+export async function startQrisCheckout(db: Db, gateway: PaymentGateway, order: Order, urls: CheckoutUrls): Promise<Order> {
+  try {
+    if (!gateway.createDirectQris) throw new Error("Gateway ini tidak mendukung QRIS Direct (IPAYMU_FLOW=qris).");
+    const r = await gateway.createDirectQris({
+      orderId: order.id,
+      total: order.total,
+      buyerName: order.customerName,
+      buyerEmail: order.customerEmail,
+      buyerPhone: PLACEHOLDER_PHONE,
+      notifyUrl: `${urls.publicApiUrl}/webhooks/ipaymu`,
+    });
+    let imageUrl = r.qrImage;
+    if (!imageUrl && r.qrString?.startsWith("000201")) {
+      const png = await QRCode.toBuffer(r.qrString, { type: "png", width: 320, margin: 2, errorCorrectionLevel: "M" });
+      imageUrl = `data:image/png;base64,${png.toString("base64")}`;
     }
-    throw e;
+    if (!imageUrl) throw new GatewayError("iPaymu tidak mengembalikan QR yang bisa ditampilkan.");
+    const qr: OrderQr = { imageUrl, expiresAt: parseIpaymuTime(r.expired) };
+    await db.query("UPDATE orders SET payment_ref = $2, payment_qr = $3 WHERE id = $1 AND status = 'pending'", [order.id, String(r.transactionId), JSON.stringify(qr)]);
+    return { ...order, qr };
+  } catch (e) {
+    return abortCheckout(db, order, e);
   }
 }
 
@@ -73,10 +111,12 @@ export async function settleFromTransaction(db: Db, tx: TxInfo): Promise<SettleO
           return { kind: "pending" };
         }
         const order = (await getOrder(client, tx.referenceId))!;
+        // Dibuat sekali di sini lalu disimpan di outbox, sehingga pengiriman ulang ke n8n membawa kode yang sama.
+        const esim = await buildEsimActivations(client, order);
         await client.query(
           `INSERT INTO webhook_outbox (order_id, event, payload) VALUES ($1, 'order.paid', $2)
            ON CONFLICT (order_id, event) DO NOTHING`,
-          [order.id, JSON.stringify({ orderId: order.id, order })],
+          [order.id, JSON.stringify({ orderId: order.id, order, esim })],
         );
         outcome = { kind: "paid" };
       }

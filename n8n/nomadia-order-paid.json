@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const crypto = require('crypto');\nconst secret = $env.N8N_WEBHOOK_SECRET;\nconst h = $input.first().json.headers;\nconst body = $input.first().json.body;\n// Body dikirim API sebagai JSON.stringify; stringify ulang hasil parse menghasilkan byte yang sama.\nconst raw = JSON.stringify(body);\nconst ts = h['x-nomadia-timestamp'];\nconst expected = 'sha256=' + crypto.createHmac('sha256', secret).update(ts + '.' + raw).digest('hex');\nconst got = String(h['x-nomadia-signature'] || '');\nconst fresh = Math.abs(Date.now() / 1000 - Number(ts)) <= 300;\nconst same = got.length === expected.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(expected));\n// Tidak melempar galat: galat di node membuat n8n tetap membalas 200, sehingga API menganggap event terkirim.\n// Cabang IF di bawah membalas 401 supaya API mencatat kegagalan dan mencoba lagi.\nif (!fresh || !same) return [{ json: { valid: false } }];\nreturn [{ json: { valid: true, deliveryId: body.id, order: body.data.order } }];"
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.N8N_WEBHOOK_SECRET;\nconst h = $input.first().json.headers;\nconst body = $input.first().json.body;\n// Body dikirim API sebagai JSON.stringify; stringify ulang hasil parse menghasilkan byte yang sama.\nconst raw = JSON.stringify(body);\nconst ts = h['x-nomadia-timestamp'];\nconst expected = 'sha256=' + crypto.createHmac('sha256', secret).update(ts + '.' + raw).digest('hex');\nconst got = String(h['x-nomadia-signature'] || '');\nconst fresh = Math.abs(Date.now() / 1000 - Number(ts)) <= 300;\nconst same = got.length === expected.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(expected));\n// Tidak melempar galat: galat di node membuat n8n tetap membalas 200, sehingga API menganggap event terkirim.\n// Cabang IF di bawah membalas 401 supaya API mencatat kegagalan dan mencoba lagi.\nif (!fresh || !same) return [{ json: { valid: false } }];\nreturn [{ json: { valid: true, deliveryId: body.id, order: body.data.order, esim: body.data.esim || [] } }];"
       },
       "id": "a1000000-0000-4000-8000-000000000002",
       "name": "Verifikasi tanda tangan",
@@ -67,7 +67,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const o = $input.first().json.order;\nconst rp = (n) => 'Rp' + n.toLocaleString('id-ID');\nconst lines = o.items.map((i) => `- ${i.name} x${i.qty}: ${rp(i.unitPrice * i.qty)}`).join('\\n');\nreturn [{ json: {\n  to: o.customerEmail,\n  subject: `Pembayaran diterima - pesanan ${o.id}`,\n  text: `Halo ${o.customerName},\\n\\nPembayaran pesanan ${o.id} sebesar ${rp(o.total)} sudah kami terima.\\n\\n${lines}\\n\\nQR eSIM / info pengiriman menyusul di email berikutnya.\\n\\nSalam,\\nNomadia`,\n  telegramText: `Pesanan baru lunas: ${o.id}\\n${rp(o.total)} - ${o.customerName} (${o.customerEmail})\\n${lines}`,\n  orderId: o.id\n} }];"
+        "jsCode": "const { order: o, esim = [] } = $input.first().json;\nconst rp = (n) => 'Rp' + n.toLocaleString('id-ID');\nconst lines = o.items.map((i) => `- ${i.name} x${i.qty}: ${rp(i.unitPrice * i.qty)}`).join('\\n');\n\n// Satu lampiran PNG per unit eSIM (QR dibuat API saat pelunasan).\nconst binary = {};\nesim.forEach((e, i) => {\n  binary['esim' + (i + 1)] = { data: e.qrPng, mimeType: 'image/png', fileName: `esim-${i + 1}.png` };\n});\nconst esimBlock = esim.length\n  ? 'eSIM kamu\\nScan QR terlampir di Pengaturan > Seluler > Tambah eSIM, atau masukkan kode aktivasi secara manual.\\n\\n'\n    + esim.map((e, i) => `${i + 1}. ${e.productName} (unit ${e.unit})\\n   Kode aktivasi: ${e.code}\\n   QR: esim-${i + 1}.png (terlampir)`).join('\\n')\n    + '\\n\\n(Kode contoh untuk demo; tidak terhubung ke operator mana pun.)\\n\\n'\n  : '';\nconst hasPhysical = o.items.some((i) => !esim.some((e) => e.productId === i.productId));\nconst physicalNote = hasPhysical ? 'SIM Card / Portable WiFi dikirim fisik: info pengiriman menyusul di email berikutnya.\\n\\n' : '';\n\nreturn [{\n  json: {\n    to: o.customerEmail,\n    subject: `Pembayaran diterima - pesanan ${o.id}`,\n    text: `Halo ${o.customerName},\\n\\nPembayaran pesanan ${o.id} sebesar ${rp(o.total)} sudah kami terima.\\n\\n${lines}\\n\\n${esimBlock}${physicalNote}Salam,\\nNomadia`,\n    telegramText: `Pesanan baru lunas: ${o.id}\\n${rp(o.total)} - ${o.customerName} (${o.customerEmail})\\n${lines}`,\n    orderId: o.id,\n  },\n  binary,\n}];"
       },
       "id": "a1000000-0000-4000-8000-000000000003",
       "name": "Siapkan email konfirmasi",
@@ -86,7 +86,8 @@
         "emailFormat": "text",
         "text": "={{ $json.text }}",
         "options": {
-          "appendAttribution": false
+          "appendAttribution": false,
+          "attachments": "={{ Object.keys($binary || {}).join(',') }}"
         }
       },
       "id": "a1000000-0000-4000-8000-000000000007",

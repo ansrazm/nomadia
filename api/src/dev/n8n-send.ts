@@ -7,7 +7,9 @@
  *
  * Memakai N8N_WEBHOOK_URL dan N8N_WEBHOOK_SECRET dari env (api/.env, atau env container api).
  */
+import QRCode from "qrcode";
 import { loadConfig } from "../config.js";
+import { newActivationCode } from "../services/esim.js";
 import { signPayload } from "../services/outbox.js";
 
 const { n8n } = loadConfig();
@@ -18,6 +20,15 @@ if (!n8n) {
 
 const bad = process.argv.includes("--bad");
 const stale = process.argv.includes("--stale");
+
+// Dua unit eSIM contoh, sama bentuknya dengan yang dibuat API saat pelunasan.
+const esim = await Promise.all(
+  [1, 2].map(async (unit) => {
+    const code = newActivationCode();
+    const png = await QRCode.toBuffer(code, { type: "png", width: 240, margin: 2, errorCorrectionLevel: "M" });
+    return { productId: "jepang-esim-7", productName: "eSIM Jepang 7 hari", unit, code, qrPng: png.toString("base64") };
+  }),
+);
 
 const body = JSON.stringify({
   id: `evt_uji_${Date.now()}`,
@@ -32,6 +43,7 @@ const body = JSON.stringify({
       total: 242000,
       items: [{ productId: "jepang-esim-7", name: "eSIM Jepang 7 hari", unitPrice: 121000, qty: 2 }],
     },
+    esim,
   },
 });
 const timestamp = String(Math.floor(Date.now() / 1000) - (stale ? 900 : 0));

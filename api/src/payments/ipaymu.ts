@@ -14,6 +14,40 @@ export interface CheckoutInput {
   notifyUrl: string;
 }
 
+/** Pembayaran QRIS langsung (Direct Payment): QR ditampilkan di halaman sendiri, bukan halaman iPaymu. */
+export interface DirectQrisInput {
+  orderId: string;
+  total: number;
+  buyerName: string;
+  buyerEmail: string;
+  buyerPhone: string;
+  notifyUrl: string;
+}
+
+export interface DirectQrisResult {
+  transactionId: number;
+  referenceId: string;
+  via: string;
+  channel: string;
+  paymentNo: string | null;
+  url: string | null;
+  /** Isi QR. Di sandbox berupa teks demo, BUKAN payload QRIS asli; jangan dirender sendiri kecuali berawalan 000201. */
+  qrString: string | null;
+  /** URL gambar QR siap tampil (ada di sandbox). */
+  qrImage: string | null;
+  /** URL halaman QR berdesain (template) milik iPaymu. */
+  qrTemplate: string | null;
+  subTotal: number | null;
+  total: number;
+  fee: number;
+  feeDirection: string | null;
+  escrow: boolean | null;
+  /** Waktu kedaluwarsa dari iPaymu (teks asli, WIB tanpa zona). Sandbox terlihat memberi 24 jam; dokumentasi menyebut 5 menit untuk QRIS. */
+  expired: string | null;
+  /** Seluruh isi `Data` dari respons, untuk diperiksa saat integrasi. */
+  raw: Record<string, unknown>;
+}
+
 export interface TxInfo {
   trxId: number;
   referenceId: string;
@@ -21,9 +55,19 @@ export interface TxInfo {
   amount: number;
 }
 
+/** "2026-11-07 15:54:19" (WIB, tanpa zona) -> ISO UTC. null bila formatnya tidak dikenal. */
+export function parseIpaymuTime(s: string | null): string | null {
+  const m = s?.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}+07:00`);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 /** Antarmuka yang dipakai route; tes menyuntikkan gateway palsu, produksi memakai IpaymuClient. */
 export interface PaymentGateway {
   createCheckout(input: CheckoutInput): Promise<{ sessionId: string; url: string }>;
+  /** Opsional: hanya gateway yang mendukung QRIS Direct. Dipakai bila IPAYMU_FLOW=qris. */
+  createDirectQris?(input: DirectQrisInput): Promise<DirectQrisResult>;
   /** null = iPaymu menyatakan transaksi tidak ada. Galat jaringan/auth dilempar sebagai GatewayError. */
   checkTransaction(trxId: number): Promise<TxInfo | null>;
   /** true/false = hasil cek X-Signature callback. */
@@ -131,6 +175,48 @@ export class IpaymuClient implements PaymentGateway {
       throw new GatewayError(json?.Message ? `iPaymu: ${json.Message}` : `iPaymu menolak permintaan (HTTP ${status})`);
     }
     return { sessionId: String(d.SessionID ?? d.SessionId ?? ""), url: String(d.Url) };
+  }
+
+  /**
+   * POST /payment/direct dengan paymentMethod=qris, paymentChannel=mpm (daftar channel di dokumentasi resmi iPaymu).
+   * `expired` sengaja tidak dikirim: dokumentasi menyatakan masa berlaku QRIS tetap dan tidak bisa diubah; masa berlaku dibaca dari respons.
+   * referenceId = id order, jadi callback dan Check Transaction memakai alur pelunasan yang sama dengan checkout biasa.
+   */
+  async createDirectQris(i: DirectQrisInput): Promise<DirectQrisResult> {
+    const { status, json } = await this.post("/payment/direct", {
+      name: i.buyerName.slice(0, 60),
+      phone: i.buyerPhone,
+      email: i.buyerEmail,
+      amount: i.total,
+      notifyUrl: i.notifyUrl,
+      referenceId: i.orderId,
+      paymentMethod: "qris",
+      paymentChannel: "mpm",
+    });
+    const d = json?.Data;
+    const trx = Number(d?.TransactionId);
+    if (status < 200 || status >= 300 || json?.Success === false || !d || !Number.isFinite(trx)) {
+      throw new GatewayError(json?.Message ? `iPaymu: ${json.Message}` : `iPaymu menolak permintaan QRIS (HTTP ${status})`);
+    }
+    const str = (v: unknown) => (v === undefined || v === null || v === "" ? null : String(v));
+    return {
+      transactionId: trx,
+      referenceId: String(d.ReferenceId ?? i.orderId),
+      via: String(d.Via ?? ""),
+      channel: String(d.Channel ?? ""),
+      paymentNo: str(d.PaymentNo),
+      url: str(d.Url),
+      qrString: str(d.QrString),
+      qrImage: str(d.QrImage),
+      qrTemplate: str(d.QrTemplate),
+      subTotal: d.SubTotal === undefined || d.SubTotal === null ? null : Number(d.SubTotal),
+      total: Number(d.Total ?? i.total),
+      fee: Number(d.Fee ?? 0),
+      feeDirection: str(d.FeeDirection),
+      escrow: typeof d.Escrow === "boolean" ? d.Escrow : null,
+      expired: str(d.Expired),
+      raw: d as Record<string, unknown>,
+    };
   }
 
   async checkTransaction(trxId: number): Promise<TxInfo | null> {

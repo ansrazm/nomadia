@@ -30,6 +30,7 @@ services:
       IPAYMU_API_KEY: ${IPAYMU_API_KEY:-}
       IPAYMU_MODE: ${IPAYMU_MODE:-sandbox}
       IPAYMU_DEBUG: ${IPAYMU_DEBUG:-false}
+      IPAYMU_FLOW: ${IPAYMU_FLOW:-redirect}
       N8N_WEBHOOK_URL: http://n8n:5678/webhook/nomadia-order-paid
       N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:?isi N8N_WEBHOOK_SECRET di .env (minimal 16 karakter)}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}

@@ -11,6 +11,8 @@ const schema = z.object({
   IPAYMU_VA: z.string().optional(),
   IPAYMU_API_KEY: z.string().optional(),
   IPAYMU_MODE: z.enum(["sandbox", "live"]).default("sandbox"),
+  // redirect = halaman bayar iPaymu (default). qris = QRIS Direct: QR tampil di halaman pesanan sendiri.
+  IPAYMU_FLOW: z.enum(["redirect", "qris"]).default("redirect"),
   IPAYMU_DEBUG: z.enum(["true", "false", "1", "0"]).default("false"),
   N8N_WEBHOOK_URL: z.string().url().optional(),
   N8N_WEBHOOK_SECRET: z.string().min(16, "N8N_WEBHOOK_SECRET minimal 16 karakter").optional(),
@@ -26,6 +28,7 @@ export interface Config {
   corsOrigins: string[];
   publicApiUrl: string;
   webUrl: string;
+  checkoutFlow: "redirect" | "qris";
   ipaymu: { va: string; apiKey: string; mode: "sandbox" | "live"; debug: boolean } | null;
   n8n: { url: string; secret: string } | null;
   admin: { email: string; password: string; secret: string } | null;
@@ -51,6 +54,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     corsOrigins: d.CORS_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean),
     publicApiUrl: d.PUBLIC_API_URL.replace(/\/+$/, ""),
     webUrl: d.WEB_URL.replace(/\/+$/, ""),
+    checkoutFlow: d.IPAYMU_FLOW,
     ipaymu: d.IPAYMU_VA && d.IPAYMU_API_KEY ? { va: d.IPAYMU_VA, apiKey: d.IPAYMU_API_KEY, mode: d.IPAYMU_MODE, debug: d.IPAYMU_DEBUG === "true" || d.IPAYMU_DEBUG === "1" } : null,
     n8n: d.N8N_WEBHOOK_URL && d.N8N_WEBHOOK_SECRET ? { url: d.N8N_WEBHOOK_URL, secret: d.N8N_WEBHOOK_SECRET } : null,
     admin: d.ADMIN_EMAIL && d.ADMIN_PASSWORD && d.AUTH_SECRET ? { email: d.ADMIN_EMAIL, password: d.ADMIN_PASSWORD, secret: d.AUTH_SECRET } : null,

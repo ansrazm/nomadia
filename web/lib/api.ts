@@ -7,9 +7,17 @@ export interface CheckoutPayload {
   voucher?: string;
 }
 
+/** QR untuk pembayaran QRIS Direct (hanya bila API berjalan dengan IPAYMU_FLOW=qris). */
+export interface OrderQr {
+  imageUrl: string;
+  /** ISO UTC; null bila iPaymu tidak memberi waktu kedaluwarsa. */
+  expiresAt: string | null;
+}
+
 export interface CheckoutResult {
   orderId: string;
   paymentUrl: string | null;
+  qr: OrderQr | null;
 }
 
 /** Galat dari API yang pesannya aman ditampilkan ke pengguna (mis. voucher salah, produk tidak tersedia). */
@@ -44,7 +52,7 @@ export async function createOrder(payload: CheckoutPayload): Promise<CheckoutRes
     const e = json?.error;
     throw new ApiRequestError(res.status, e?.code ?? "UNKNOWN", e?.message ?? "Permintaan gagal.", e?.details);
   }
-  return { orderId: json.data.orderId, paymentUrl: json.data.paymentUrl ?? null };
+  return { orderId: json.data.orderId, paymentUrl: json.data.paymentUrl ?? null, qr: json.data.qr ?? null };
 }
 
 export interface QuoteLine {
@@ -97,6 +105,7 @@ export interface OrderView {
   total: number;
   voucher: string | null;
   paymentUrl: string | null;
+  qr: OrderQr | null;
   items: { productId: string; name: string; unitPrice: number; qty: number }[];
 }
 

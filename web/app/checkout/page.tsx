@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCart } from "@/components/CartProvider";
 import { ApiRequestError, createOrder, quoteCart, type CheckoutResult, type Quote } from "@/lib/api";
 import { idr } from "@/lib/format";
@@ -11,6 +11,7 @@ import { markPendingOrder } from "@/lib/pending-order";
 function CheckoutForm() {
   const { items } = useCart();
   const params = useSearchParams();
+  const router = useRouter();
   const [voucher, setVoucher] = useState<string | undefined>(params.get("voucher") ?? undefined);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteFailed, setQuoteFailed] = useState(false);
@@ -72,6 +73,12 @@ function CheckoutForm() {
     setBusy(true);
     try {
       const r = await createOrder({ name, email, items, voucher });
+      if (r.qr) {
+        // QRIS Direct: QR tampil di halaman pesanan sendiri. Keranjang tetap ada sampai pesanan lunas.
+        markPendingOrder(r.orderId);
+        router.push(`/orders/${r.orderId}`);
+        return;
+      }
       if (r.paymentUrl) {
         // Keranjang sengaja belum dikosongkan: dikosongkan di /orders/[id] setelah pengguna kembali.
         markPendingOrder(r.orderId);

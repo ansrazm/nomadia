@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Db } from "../db/pool.js";
 import { ApiError } from "../errors.js";
 import { createOrder, getOrder, maskEmail } from "../services/orders.js";
-import { startCheckout, type CheckoutUrls } from "../services/payments.js";
+import { startCheckout, startQrisCheckout, type CheckoutUrls } from "../services/payments.js";
 import type { PaymentGateway } from "../payments/ipaymu.js";
 import { cartItems, voucherField } from "./schemas.js";
 
@@ -14,7 +14,7 @@ const body = z.object({
   voucher: voucherField,
 });
 
-export function orderRoutes(db: Db, gateway: PaymentGateway | null, urls: CheckoutUrls) {
+export function orderRoutes(db: Db, gateway: PaymentGateway | null, urls: CheckoutUrls, flow: "redirect" | "qris" = "redirect") {
   const app = new Hono();
 
   app.post("/orders", async (c) => {
@@ -27,8 +27,8 @@ export function orderRoutes(db: Db, gateway: PaymentGateway | null, urls: Checko
     }
     let order = await createOrder(db, parsed.data);
     // Tanpa kredensial iPaymu (mode dev), order tetap dibuat dengan paymentUrl null.
-    if (gateway) order = await startCheckout(db, gateway, order, urls);
-    return c.json({ data: { orderId: order.id, status: order.status, subtotal: order.subtotal, discount: order.discount, total: order.total, paymentUrl: order.paymentUrl } }, 201);
+    if (gateway) order = flow === "qris" ? await startQrisCheckout(db, gateway, order, urls) : await startCheckout(db, gateway, order, urls);
+    return c.json({ data: { orderId: order.id, status: order.status, subtotal: order.subtotal, discount: order.discount, total: order.total, paymentUrl: order.paymentUrl, qr: order.qr } }, 201);
   });
 
   app.get("/orders/:id", async (c) => {

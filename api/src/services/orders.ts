@@ -11,6 +11,9 @@ export interface OrderInput {
   voucher?: string | undefined;
 }
 
+/** Data QR untuk pembayaran QRIS Direct. imageUrl bisa URL gambar iPaymu atau data URI PNG buatan kita. */
+export interface OrderQr { imageUrl: string; expiresAt: string | null }
+
 export interface Order {
   id: string;
   status: "pending" | "paid" | "expired" | "cancelled";
@@ -21,6 +24,7 @@ export interface Order {
   total: number;
   voucher: string | null;
   paymentUrl: string | null;
+  qr: OrderQr | null;
   createdAt: string;
   paidAt: string | null;
   items: { productId: string; name: string; unitPrice: number; qty: number }[];
@@ -75,7 +79,7 @@ export async function createOrder(db: Db, input: OrderInput): Promise<Order> {
 interface OrderRow {
   id: string; status: Order["status"]; customer_name: string; customer_email: string;
   subtotal: number; discount: number; total: number; voucher_code: string | null;
-  payment_url: string | null; created_at: Date; paid_at: Date | null;
+  payment_url: string | null; payment_qr: OrderQr | null; created_at: Date; paid_at: Date | null;
 }
 
 type Queryable = Pick<Db, "query">;
@@ -98,6 +102,7 @@ export async function getOrder(db: Queryable, id: string): Promise<Order | null>
     total: r.total,
     voucher: r.voucher_code,
     paymentUrl: r.payment_url,
+    qr: r.payment_qr,
     createdAt: r.created_at.toISOString(),
     paidAt: r.paid_at ? r.paid_at.toISOString() : null,
     items: items.rows.map((i) => ({ productId: i.product_id, name: i.product_name, unitPrice: i.unit_price, qty: i.qty })),

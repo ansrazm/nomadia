@@ -17,10 +17,11 @@ export interface AppDeps {
   outbox?: OutboxDispatcher | null;
   publicApiUrl?: string;
   webUrl?: string;
+  checkoutFlow?: "redirect" | "qris";
   admin?: AdminConfig | null;
 }
 
-export function createApp({ db, corsOrigins, gateway = null, outbox = null, publicApiUrl = "http://localhost:4000", webUrl = "http://localhost:3000", admin = null }: AppDeps) {
+export function createApp({ db, corsOrigins, gateway = null, outbox = null, publicApiUrl = "http://localhost:4000", webUrl = "http://localhost:3000", checkoutFlow = "redirect", admin = null }: AppDeps) {
   const app = new Hono();
 
   app.use("*", cors({ origin: corsOrigins, allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"], maxAge: 600 }));
@@ -32,7 +33,7 @@ export function createApp({ db, corsOrigins, gateway = null, outbox = null, publ
 
   app.route("/", catalogRoutes(db));
   app.route("/", quoteRoutes(db));
-  app.route("/", orderRoutes(db, gateway, { publicApiUrl, webUrl }));
+  app.route("/", orderRoutes(db, gateway, { publicApiUrl, webUrl }, checkoutFlow));
   app.route("/", webhookRoutes(db, gateway, outbox));
   if (admin) app.route("/", adminRoutes(db, admin));
 

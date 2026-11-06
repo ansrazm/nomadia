@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GatewayError, IpaymuClient, callbackSignature, normalizeCallback, signRequest, wibTimestamp } from "../src/payments/ipaymu.js";
+import { GatewayError, IpaymuClient, callbackSignature, normalizeCallback, parseIpaymuTime, signRequest, wibTimestamp } from "../src/payments/ipaymu.js";
 
 // Semua vektor di bawah dihitung terpisah dengan Python (hashlib/hmac), bukan dengan kode yang diuji.
 const VA = "1179000899";
@@ -91,6 +91,44 @@ describe("IpaymuClient.createCheckout", () => {
   });
 });
 
+describe("IpaymuClient.createDirectQris", () => {
+  const qris = { orderId: "NMD-ABCD2345", total: 19000, buyerName: "Budi", buyerEmail: "b@x.id", buyerPhone: "081234567890", notifyUrl: "https://api.example/webhooks/ipaymu" };
+  // Bentuk respons ASLI sandbox iPaymu (hasil probe, 2026-11-06).
+  const ok = { Status: 200, Success: true, Message: "Success", Data: { SessionId: "NMD-ABCD2345", TransactionId: 5150, ReferenceId: "NMD-ABCD2345", Via: "QRIS", Channel: "MPM", PaymentNo: "IPAYMU-SANDBOX-DEMO", QrString: "IPAYMU-SANDBOX-DEMO", PaymentName: "iPaymu", SubTotal: 19000, Fee: 95, Total: 19000, FeeDirection: "MERCHANT", Expired: "2026-11-07 15:54:19", QrImage: "https://sandbox.ipaymu.com/qris-basic/x", QrTemplate: "https://sandbox.ipaymu.com/qris/x", Terminal: "A01", Note: null, Escrow: false } };
+
+  it("kirim ke /payment/direct dengan method qris dan channel mpm, tanpa field expired", async () => {
+    const m = mockFetch(() => ({ body: ok }));
+    await new IpaymuClient({ va: VA, apiKey: KEY, mode: "sandbox", fetchImpl: m.fetchImpl }).createDirectQris(qris);
+    const { url, init } = m.calls[0]!;
+    expect(url).toBe("https://sandbox.ipaymu.com/api/v2/payment/direct");
+    expect(init.headers.signature).toBe(signRequest(VA, KEY, init.body));
+    const body = JSON.parse(init.body);
+    expect(body).toEqual({
+      name: "Budi", phone: "081234567890", email: "b@x.id", amount: 19000, notifyUrl: qris.notifyUrl,
+      referenceId: "NMD-ABCD2345", paymentMethod: "qris", paymentChannel: "mpm",
+    });
+    expect(body).not.toHaveProperty("expired");
+  });
+
+  it("menormalkan respons asli sandbox dan menyimpan Data apa adanya; field kosong jadi null", async () => {
+    const m = mockFetch(() => ({ body: ok }));
+    const r = await new IpaymuClient({ va: VA, apiKey: KEY, mode: "sandbox", fetchImpl: m.fetchImpl }).createDirectQris(qris);
+    expect(r).toMatchObject({
+      transactionId: 5150, referenceId: "NMD-ABCD2345", via: "QRIS", channel: "MPM", url: null,
+      qrImage: "https://sandbox.ipaymu.com/qris-basic/x", qrTemplate: "https://sandbox.ipaymu.com/qris/x", qrString: "IPAYMU-SANDBOX-DEMO",
+      subTotal: 19000, total: 19000, fee: 95, feeDirection: "MERCHANT", escrow: false, expired: "2026-11-07 15:54:19",
+    });
+    expect(r.raw.Note).toBeNull();
+  });
+
+  it("penolakan, respons tanpa TransactionId, dan jaringan putus -> GatewayError", async () => {
+    const mk = (h: Parameters<typeof mockFetch>[0]) => new IpaymuClient({ va: VA, apiKey: KEY, mode: "sandbox", fetchImpl: mockFetch(h).fetchImpl });
+    await expect(mk(() => ({ status: 400, body: { Success: false, Message: "Payment channel not active" } })).createDirectQris(qris)).rejects.toThrow(/Payment channel not active/);
+    await expect(mk(() => ({ body: { Success: true, Data: {} } })).createDirectQris(qris)).rejects.toBeInstanceOf(GatewayError);
+    await expect(mk(() => new Error("ECONNRESET")).createDirectQris(qris)).rejects.toThrow(/tidak terjangkau/);
+  });
+});
+
 describe("IpaymuClient.checkTransaction", () => {
   const client = (handler: Parameters<typeof mockFetch>[0]) => {
     const m = mockFetch(handler);
@@ -123,5 +161,13 @@ describe("IpaymuClient.checkTransaction", () => {
     expect(await client(() => ({ status: 404, body: { Message: "not found" } })).c.checkTransaction(1)).toBeNull();
     await expect(client(() => ({ status: 401, body: { Success: false, Message: "Unauthorized" } })).c.checkTransaction(1)).rejects.toBeInstanceOf(GatewayError);
     await expect(client(() => ({ status: 500, body: {} })).c.checkTransaction(1)).rejects.toBeInstanceOf(GatewayError);
+  });
+});
+
+describe("parseIpaymuTime", () => {
+  it("WIB tanpa zona -> ISO UTC; format lain -> null", () => {
+    expect(parseIpaymuTime("2026-11-07 15:54:19")).toBe("2026-11-07T08:54:19.000Z");
+    expect(parseIpaymuTime(null)).toBeNull();
+    expect(parseIpaymuTime("besok")).toBeNull();
   });
 });
