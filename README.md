@@ -4,17 +4,31 @@
 
 Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical test: **website + CMS**, **integrasi API**, **payment gateway**, dan **otomasi n8n**.
 
+**Demo langsung:** https://nomadia.dragonstorepb.com (CMS di `/admin`). Demo berjalan dari laptop lewat Cloudflare Tunnel, jadi sesekali bisa mati; bila begitu, ikuti [Cara menilai](#cara-menilai-10-menit-hanya-butuh-docker) yang hanya butuh Docker.
+
 > Catatan: ini proyek demo untuk keperluan technical test, bukan layanan komersial. Seluruh merek, copy, dan tampilan dibuat sendiri; semua data produk dan transaksi bersifat contoh, dan pembayaran hanya memakai sandbox.
 
 ## Ringkasan fitur
 
 | Kebutuhan test | Yang ada di proyek ini |
 |---|---|
-| Website | Storefront Next.js 14: pencarian destinasi, tab eSIM / SIM Card / WiFi, keranjang, voucher, checkout, halaman status pesanan yang memperbarui diri |
+| Website | Storefront Next.js 14: pencarian destinasi, tab eSIM / SIM Card / WiFi, keranjang, voucher, checkout, halaman status pesanan yang memperbarui diri, bagian FAQ, footer lengkap, header yang menempel saat scroll, tombol WhatsApp dan pusat bantuan melayang |
 | CMS | Area `/admin`: dashboard, CRUD destinasi, produk, dan voucher, daftar pesanan dengan filter dan pencarian, batalkan pesanan `pending` |
 | API Connection | Web membaca katalog dan harga dari REST API (Hono + PostgreSQL); API memanggil iPaymu |
 | Payment Gateway | iPaymu sandbox: tagihan dibuat di server, callback diverifikasi ulang lewat Check Transaction |
 | Automation (n8n) | Event `order.paid` dikirim ke n8n lewat outbox (tanda tangan HMAC, retry dengan backoff) |
+
+## Tampilan
+
+| Beranda | Katalog (filter, footer di dasar layar) |
+|---|---|
+| ![Beranda](docs/img/01-home.png) | ![Katalog](docs/img/02-destinations.png) |
+
+| FAQ (mobile) | CMS admin |
+|---|---|
+| ![FAQ](docs/img/03-faq-mobile.png) | ![Admin](docs/img/04-admin.png) |
+
+Tangkapan layar alur bayar iPaymu sandbox sampai email konfirmasi ada di [`docs/e2e/`](docs/e2e/README.md).
 
 ## Cara menilai (10 menit, hanya butuh Docker)
 
@@ -34,19 +48,24 @@ Urutan ini sudah dijalankan dari instalasi bersih. Tanpa kredensial iPaymu pun s
    ```
    Dalam ≤ 15 detik email "Pembayaran diterima" masuk di http://localhost:8025 (Mailpit), berisi kode aktivasi dan QR eSIM terlampir, dan halaman `/orders/NMD-XXXXXXXX` berubah menjadi "Pembayaran diterima". Perintah yang sama dijalankan lagi hasilnya `already_paid`: tidak ada email kedua.
 5. **Kelola katalog**: buka http://localhost:3000/admin (perlu `ADMIN_*` di `.env`), ubah harga satu produk, lalu lihat harganya ikut berubah di toko.
-6. **Tes otomatis** (PostgreSQL sungguhan): lihat [Menjalankan tanpa Docker](#menjalankan-tanpa-docker); `npm test` di `api/` menjalankan 142 tes.
+6. **Tes otomatis** (PostgreSQL sungguhan): lihat [Menjalankan tanpa Docker](#menjalankan-tanpa-docker); `npm test` di `api/` menjalankan seluruh tes API.
 
 Bila iPaymu sandbox aktif, langkah 4 diganti pembayaran sungguhan lewat halaman iPaymu (lihat [Tes end-to-end dengan iPaymu sandbox](#5-tes-end-to-end-dengan-ipaymu-sandbox-docker-compose)), atau pakai `mark-paid ... --force`.
 
 ## Arsitektur
 
-```
-                       ┌────────────────────────── docker compose ──────────────────────────┐
-Browser ──▶ web (Next.js :3000) ──▶ api (Hono :4000) ──▶ db (PostgreSQL)
-   │            server component membaca katalog │
-   │            (API_INTERNAL_URL)               ├──▶ iPaymu sandbox (buat tagihan, cek transaksi)
-   └──▶ iPaymu (halaman bayar)                   └──▶ n8n (:5678)  order.paid + HMAC
-                                  iPaymu ──callback──▶ api /webhooks/ipaymu
+```mermaid
+flowchart LR
+    B[Browser] -->|halaman| W["web<br/>Next.js :3000"]
+    W -->|"katalog (API_INTERNAL_URL)"| A["api<br/>Hono :4000"]
+    B -->|"quote, orders"| A
+    A --> D[("PostgreSQL")]
+    A -->|"buat tagihan, cek transaksi"| P["iPaymu sandbox"]
+    B -.->|halaman bayar| P
+    P -.->|"callback /webhooks/ipaymu"| A
+    A -->|"order.paid + HMAC (outbox)"| N["n8n :5678"]
+    N --> E["Email (Mailpit) + Telegram"]
+    C["CMS /admin"] -->|"/admin/* + token"| A
 ```
 
 ### Pembagian modul
@@ -54,8 +73,11 @@ Browser ──▶ web (Next.js :3000) ──▶ api (Hono :4000) ──▶ db (P
 ```
 web/                       Next.js 14 (App Router, Tailwind)
   app/                     halaman: /, /destinations, /destinations/[slug], /cart, /checkout, /orders/[id], /admin/*
-  components/              Hero, ProductTabs, CartProvider, SiteShell, admin/*
+  components/              Hero, ProductTabs, CartProvider, admin/*
+                           SiteShell (layout kolom setinggi layar: footer selalu di dasar), Header (sticky),
+                           FaqSection, Footer, FloatingActions (tombol WhatsApp + panel bantuan), CartToast, PromoModal
   lib/catalog.ts           pembaca katalog (server component) -> API
+  lib/faq.ts, contact.ts   sumber tunggal FAQ dan tautan WhatsApp (beranda, panel bantuan, footer)
   lib/api.ts               klien browser: /quote dan /orders (voucher dicek lewat /quote)
   lib/admin-api.ts         klien CMS (token, error validasi per kolom)
 api/                       Hono + PostgreSQL (TypeScript)
@@ -64,7 +86,7 @@ api/                       Hono + PostgreSQL (TypeScript)
   src/payments/ipaymu.ts   klien iPaymu (tanda tangan, buat tagihan, cek transaksi)
   src/db/                  migrasi SQL berurutan, seed katalog, pool
   src/dev/                 alat uji: n8n-send, mark-paid (lihat "Menguji n8n")
-  tests/                   vitest + PostgreSQL sungguhan (132 tes)
+  tests/                   vitest + PostgreSQL sungguhan
 n8n/                       workflow order.paid (import ke n8n)
 docker-compose.yml         db + api + web + n8n
 ```
@@ -80,6 +102,7 @@ docker compose exec api npx tsx src/db/seed.ts   # sekali saja: isi katalog (mig
 Web http://localhost:3000, API http://localhost:4000, n8n http://localhost:5678, CMS http://localhost:3000/admin.
 
 - `NEXT_PUBLIC_API_URL` ikut tertanam saat build web dan dipakai **browser**, jadi harus alamat API yang bisa dijangkau browser. Server web sendiri memakai `API_INTERNAL_URL` (`http://api:4000`, diisi otomatis oleh Compose).
+- `NEXT_PUBLIC_WHATSAPP_NUMBER` (format internasional tanpa `+`, mis. `6281234567890`) mengaktifkan tombol WhatsApp dan tautan chat di FAQ dan footer; kosong = semuanya disembunyikan. Nilainya ikut tertanam saat build (build arg di `web/Dockerfile`), jadi setelah mengubahnya jalankan `docker compose up -d --build web`.
 - Tanpa `IPAYMU_*`, order tetap dibuat tetapi tanpa tautan bayar.
 - Untuk n8n lihat bagian [Menguji n8n](#menguji-n8n).
 
@@ -354,6 +377,7 @@ Format galat: `{ "error": { "code", "message", "details?" } }`.
 - **Pembuatan order atomik** dalam satu transaksi; voucher atau produk tidak valid tidak meninggalkan data setengah jadi.
 - **Katalog dari database, dikelola lewat CMS.** `api/src/db/catalog-data.ts` hanya data awal (seed); migrasi SQL berurutan dengan kunci advisory, seed idempotent dan tidak menimpa perubahan harga. Halaman katalog dirender di server saat request (tidak di-prerender saat build, karena API belum ada saat `docker build`).
 - **Outbox untuk n8n** supaya perubahan status dan event tidak bisa terpisah, dan n8n yang sedang mati tidak membuat event hilang.
+- **Konten bantuan satu sumber.** FAQ dan nomor WhatsApp hanya didefinisikan di `lib/faq.ts` dan `lib/contact.ts`; beranda, panel bantuan, dan footer membacanya dari sana sehingga tidak bisa saling berbeda. Saat ini statis; memindahkannya ke database dan CMS adalah langkah lanjutan.
 - **Admin bisa dimatikan** lewat env kosong, sehingga deployment tanpa CMS tidak punya permukaan serangan `/admin`.
 
 ## Batasan yang diketahui
