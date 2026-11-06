@@ -22,7 +22,7 @@ services:
     environment:
       PORT: "4000"
       DATABASE_URL: postgres://nomadia:nomadia@db:5432/nomadia
-      CORS_ORIGINS: http://localhost:3000
+      CORS_ORIGINS: http://localhost:3000,https://nomadia.dragonstorepb.com
       # Alamat yang bisa dijangkau iPaymu. Di laptop, isi URL tunnel (mis. ngrok) agar callback sampai.
       PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:4000}
       WEB_URL: ${WEB_URL:-http://localhost:3000}
