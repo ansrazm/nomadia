@@ -30,14 +30,21 @@ export function StatusBadge({ status }: { status: OrderStatus }) {
 }
 
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
+    const ref = useRef<HTMLDivElement>(null);
+  // onClose biasanya fungsi inline yang identitasnya berubah tiap render. Simpan di ref supaya
+  // efek di bawah hanya jalan sekali saat modal dibuka; kalau tidak, setiap ketikan memicu
+  // render ulang dan fokus dipaksa kembali ke tombol tutup.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCloseRef.current(); };
     document.addEventListener("keydown", onKey);
-    ref.current?.querySelector<HTMLElement>("input,select,textarea,button")?.focus();
+    const root = ref.current;
+    (root?.querySelector<HTMLElement>("input:not([disabled]),select:not([disabled]),textarea:not([disabled])") ?? root?.querySelector<HTMLElement>("button"))?.focus();
     return () => { document.removeEventListener("keydown", onKey); prev?.focus(); };
-  }, [onClose]);
+  }, []);
+  
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 p-0 sm:items-center sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div ref={ref} role="dialog" aria-modal="true" aria-label={title} className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-6 shadow-lift sm:rounded-3xl">
