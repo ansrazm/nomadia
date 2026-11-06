@@ -14,6 +14,28 @@ Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical
 | Payment Gateway | iPaymu sandbox: tagihan dibuat di server, callback diverifikasi ulang lewat Check Transaction |
 | Automation (n8n) | Event `order.paid` dikirim ke n8n lewat outbox (tanda tangan HMAC, retry dengan backoff) |
 
+## Cara menilai (10 menit, hanya butuh Docker)
+
+Urutan ini sudah dijalankan dari instalasi bersih. Tanpa kredensial iPaymu pun seluruh alur bisa dicoba; bukti dengan iPaymu sandbox sungguhan ada di [`docs/e2e/`](docs/e2e/README.md).
+
+1. **Jalankan semua layanan**
+   ```bash
+   cp .env.example .env     # isi N8N_WEBHOOK_SECRET (min 16 karakter); ADMIN_* bila ingin mencoba CMS
+   docker compose up -d --build
+   docker compose exec api npx tsx src/db/seed.ts   # sekali saja: isi katalog
+   ```
+2. **Siapkan n8n (sekali)**: buka http://localhost:5678, buat akun pemilik, lalu jalankan empat perintah di [Menguji n8n](#1-siapkan-sekali).
+3. **Belanja**: buka http://localhost:3000, pilih destinasi, tambahkan produk ke keranjang (coba voucher), lalu checkout. Tanpa `IPAYMU_*`, pesanan dibuat tanpa tautan bayar dan statusnya `pending`; catat nomornya (`NMD-...`).
+4. **Lunasi tanpa iPaymu** (jalur kode yang sama seperti callback asli):
+   ```bash
+   docker compose exec api npx tsx src/dev/mark-paid.ts NMD-XXXXXXXX
+   ```
+   Dalam ≤ 15 detik email "Pembayaran diterima" masuk di http://localhost:8025 (Mailpit), dan halaman `/orders/NMD-XXXXXXXX` berubah menjadi "Pembayaran diterima". Perintah yang sama dijalankan lagi hasilnya `already_paid`: tidak ada email kedua.
+5. **Kelola katalog**: buka http://localhost:3000/admin (perlu `ADMIN_*` di `.env`), ubah harga satu produk, lalu lihat harganya ikut berubah di toko.
+6. **Tes otomatis** (PostgreSQL sungguhan): lihat [Menjalankan tanpa Docker](#menjalankan-tanpa-docker); `npm test` di `api/` menjalankan 116 tes.
+
+Bila iPaymu sandbox aktif, langkah 4 diganti pembayaran sungguhan lewat halaman iPaymu (lihat [Tes end-to-end dengan iPaymu sandbox](#5-tes-end-to-end-dengan-ipaymu-sandbox-docker-compose)), atau pakai `mark-paid ... --force`.
+
 ## Arsitektur
 
 ```
