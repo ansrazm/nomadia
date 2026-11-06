@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DestinationFaq } from "@/components/DestinationFaq";
+import { DestinationInfo } from "@/components/DestinationInfo";
 import { ProductTabs } from "@/components/ProductTabs";
 import { SignalBars } from "@/components/SignalBars";
 import { getDestination } from "@/lib/catalog";
 import { flagUrl } from "@/lib/catalog-types";
+import { destinationFaqs } from "@/lib/destination-info";
 
 // Katalog dibaca dari API saat request; slug tidak dikenal dijawab 404 oleh API lalu menjadi notFound().
 export const dynamic = "force-dynamic";
@@ -39,6 +42,12 @@ export default async function DestinationPage({ params }: { params: { slug: stri
           <p className="text-ink/70">Paket untuk {d.name} belum tersedia. Coba lagi nanti atau pilih destinasi lain.</p>
         )}
       </div>
+      {d.products.length > 0 && (
+        <>
+          <DestinationInfo destName={d.name} network={d.network} products={d.products} />
+          <DestinationFaq destName={d.name} faqs={destinationFaqs(d, d.products)} />
+        </>
+      )}
     </>
   );
 }

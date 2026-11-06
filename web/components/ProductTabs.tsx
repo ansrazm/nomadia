@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Product, ProductType, typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
@@ -27,6 +27,17 @@ export function ProductTabs({ products }: { products: Product[] }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const [barOn, setBarOn] = useState(true);
+
+  // Bar bawah hanya tampil selagi pemilih paket terlihat, jadi tidak menutupi info, FAQ, dan footer di bawahnya.
+  useEffect(() => {
+    const el = pickerRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => setBarOn(e.isIntersecting));
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   const selected = list.find((p) => p.id === picked) ?? pickDefault(list);
   const total = selected.price * qty;
@@ -37,7 +48,7 @@ export function ProductTabs({ products }: { products: Product[] }) {
   const changeTab = (t: ProductType) => { setTab(t); setPicked(null); setQty(1); };
 
   return (
-    <div className="pb-28 lg:pb-0">
+    <div id="paket" className="scroll-mt-24">
       <div role="tablist" aria-label="Jenis koneksi" className="inline-flex rounded-full border border-line bg-white p-1">
         {types.map((t) => (
           <button
@@ -53,7 +64,7 @@ export function ProductTabs({ products }: { products: Product[] }) {
       </div>
       <p className="mt-4 text-ink/70">{typeInfo[tab].short}. {typeInfo[tab].delivery}.</p>
 
-      <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
+      <div ref={pickerRef} className="mt-6 grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
         <div role="radiogroup" aria-label="Pilih paket" className="grid gap-4 sm:grid-cols-2">
           {list.map((p) => {
             const on = p.id === selected.id;
@@ -109,7 +120,7 @@ export function ProductTabs({ products }: { products: Product[] }) {
       </div>
 
       {/* Bar bawah untuk layar kecil; pr-24 menyisakan ruang untuk tombol WhatsApp/chat. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-line bg-white py-3 pl-5 pr-24 shadow-lift lg:hidden">
+      <div className={`fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-line bg-white py-3 pl-5 pr-24 shadow-lift transition-transform duration-300 lg:hidden ${barOn ? "translate-y-0" : "invisible translate-y-full"}`}>
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs text-ink/60">{selected.days} hari · {selected.data} × {qty}</p>
           <p className="font-display text-xl font-extrabold">{idr(total)}</p>
