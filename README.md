@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/logo.png" alt="Nomadia" width="240"></p>
+
 # Nomadia
 
 Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical test: **website + CMS**, **integrasi API**, **payment gateway**, dan **otomasi n8n**.
@@ -30,9 +32,9 @@ Urutan ini sudah dijalankan dari instalasi bersih. Tanpa kredensial iPaymu pun s
    ```bash
    docker compose exec api npx tsx src/dev/mark-paid.ts NMD-XXXXXXXX
    ```
-   Dalam ≤ 15 detik email "Pembayaran diterima" masuk di http://localhost:8025 (Mailpit), dan halaman `/orders/NMD-XXXXXXXX` berubah menjadi "Pembayaran diterima". Perintah yang sama dijalankan lagi hasilnya `already_paid`: tidak ada email kedua.
+   Dalam ≤ 15 detik email "Pembayaran diterima" masuk di http://localhost:8025 (Mailpit), berisi kode aktivasi dan QR eSIM terlampir, dan halaman `/orders/NMD-XXXXXXXX` berubah menjadi "Pembayaran diterima". Perintah yang sama dijalankan lagi hasilnya `already_paid`: tidak ada email kedua.
 5. **Kelola katalog**: buka http://localhost:3000/admin (perlu `ADMIN_*` di `.env`), ubah harga satu produk, lalu lihat harganya ikut berubah di toko.
-6. **Tes otomatis** (PostgreSQL sungguhan): lihat [Menjalankan tanpa Docker](#menjalankan-tanpa-docker); `npm test` di `api/` menjalankan 116 tes.
+6. **Tes otomatis** (PostgreSQL sungguhan): lihat [Menjalankan tanpa Docker](#menjalankan-tanpa-docker); `npm test` di `api/` menjalankan 132 tes.
 
 Bila iPaymu sandbox aktif, langkah 4 diganti pembayaran sungguhan lewat halaman iPaymu (lihat [Tes end-to-end dengan iPaymu sandbox](#5-tes-end-to-end-dengan-ipaymu-sandbox-docker-compose)), atau pakai `mark-paid ... --force`.
 
@@ -58,11 +60,11 @@ web/                       Next.js 14 (App Router, Tailwind)
   lib/admin-api.ts         klien CMS (token, error validasi per kolom)
 api/                       Hono + PostgreSQL (TypeScript)
   src/routes/              catalog, quote, orders, webhooks, admin, schemas (validasi zod bersama)
-  src/services/            pricing (satu-satunya tempat harga dihitung), orders, payments, outbox, auth
+  src/services/            pricing (satu-satunya tempat harga dihitung), orders, payments, outbox, auth, esim (kode aktivasi + QR contoh)
   src/payments/ipaymu.ts   klien iPaymu (tanda tangan, buat tagihan, cek transaksi)
   src/db/                  migrasi SQL berurutan, seed katalog, pool
   src/dev/                 alat uji: n8n-send, mark-paid (lihat "Menguji n8n")
-  tests/                   vitest + PostgreSQL sungguhan (116 tes)
+  tests/                   vitest + PostgreSQL sungguhan (132 tes)
 n8n/                       workflow order.paid (import ke n8n)
 docker-compose.yml         db + api + web + n8n
 ```
@@ -128,7 +130,7 @@ Token berlaku 8 jam. Login gagal 5x dari satu IP dalam 15 menit diblokir sementa
 
 ## Menguji n8n
 
-Workflow `n8n/nomadia-order-paid.json` menerima event `order.paid`, **memeriksa tanda tangan HMAC dan kesegaran timestamp** (5 menit), lalu mengirim email konfirmasi ke pelanggan (SMTP; di Compose ke Mailpit) dan notifikasi Telegram ke pemilik toko. Tanda tangan tidak sah dibalas **401** supaya pengirim mencatat kegagalan. Diuji dengan n8n 2.35.7.
+Workflow `n8n/nomadia-order-paid.json` menerima event `order.paid`, **memeriksa tanda tangan HMAC dan kesegaran timestamp** (5 menit), lalu mengirim email konfirmasi ke pelanggan (SMTP; di Compose ke Mailpit), lengkap dengan **kode aktivasi dan QR eSIM sebagai lampiran PNG** untuk setiap unit eSIM yang dibeli, dan notifikasi Telegram ke pemilik toko. Tanda tangan tidak sah dibalas **401** supaya pengirim mencatat kegagalan. Diuji dengan n8n 2.35.7.
 
 ### 1. Siapkan (sekali)
 
@@ -164,7 +166,7 @@ Lihat hasilnya di n8n → **Executions**.
    docker compose exec api npx tsx src/dev/mark-paid.ts NMD-XXXXXXXX
    # tanpa Docker: cd api && npm run dev:mark-paid -- NMD-XXXXXXXX
    ```
-3. Dalam ≤ 15 detik dispatcher API mengirim event. Buka http://localhost:8025: ada email "Pembayaran diterima" berisi rincian pesanan (dan notifikasi Telegram bila sudah disiapkan). Cek outbox:
+3. Dalam ≤ 15 detik dispatcher API mengirim event. Buka http://localhost:8025: ada email "Pembayaran diterima" berisi rincian pesanan, kode aktivasi, dan QR eSIM (`esim-1.png`, dst.) sebagai lampiran (dan notifikasi Telegram bila sudah disiapkan). Cek outbox:
    ```bash
    docker compose exec db psql -U nomadia -d nomadia -c "select order_id, attempts, delivered_at, last_error from webhook_outbox order by id desc limit 5"
    ```
@@ -236,6 +238,25 @@ Tangkapan layar satu putaran lengkap ada di `docs/e2e/` (urutan dan keterangan d
 | `HTTP 404` | workflow belum dipublish, atau URL yang dipakai adalah URL test |
 | `fetch failed` | n8n mati, atau URL salah (di Docker host-nya `n8n`, bukan `localhost`) |
 | Code node: akses `$env` atau `crypto` ditolak | env n8n `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` dan `NODE_FUNCTION_ALLOW_BUILTIN=crypto` belum terpasang (sudah ada di `docker-compose.yml`) |
+
+## QRIS Direct (opsional)
+
+Checkout normal memakai Redirect Payment (halaman bayar iPaymu). Dengan `IPAYMU_FLOW=qris` di `.env`, API memakai **Direct Payment** `POST /api/v2/payment/direct` (`paymentMethod=qris`, `paymentChannel=mpm`): QR tampil di halaman `/orders/[id]` sendiri dengan hitung mundur, dan keranjang dipertahankan sampai pesanan lunas supaya QR yang kedaluwarsa bisa diganti. Default tetap `redirect`; recreate `api` setelah mengubahnya.
+
+- **Pelunasan** memakai jalur yang sama dengan checkout biasa: `referenceId` = nomor order, callback ke `/webhooks/ipaymu`, lalu Check Transaction dan pencocokan nominal.
+- **Gambar QR** memakai `QrImage` dari iPaymu. Bila suatu saat tidak ada tetapi `QrString` berawalan `000201` (payload QRIS asli), API merender PNG sendiri. Di sandbox `QrString`/`PaymentNo` hanya teks demo ("THIS IS NOT A REAL QRIS") dan tidak pernah dirender menjadi QR.
+- **Kedaluwarsa** dibaca dari `Expired` di respons (WIB tanpa zona waktu, diubah ke UTC). Sandbox memberi sekitar 24 jam, sedangkan dokumentasi iPaymu menyebut QRIS tetap 5 menit dan tidak bisa diubah. Selisih ini belum dikonfirmasi di akun produksi; UI mengikuti nilai dari respons, bukan angka tetap.
+- **Biaya**: respons sandbox menunjukkan `FeeDirection=MERCHANT`, `Escrow=false`, dan `Total` = nominal tagihan (biaya ditanggung merchant), sehingga pencocokan nominal tetap lolos.
+- Migrasi `003_payment_qr.sql` menambah kolom `orders.payment_qr`; order Redirect tidak terpengaruh.
+
+### Probe respons QRIS (hanya sandbox)
+
+```bash
+cd api && npm run dev:qris-probe                  # QRIS Rp10.000; mencetak respons dan URL gambar QR
+npm run dev:qris-probe -- --amount 19000 --wait   # lalu cek status tiap 5 detik sampai tidak pending
+```
+
+Memakai `IPAYMU_VA` / `IPAYMU_API_KEY` dari `api/.env`; **menolak berjalan bila `IPAYMU_MODE=live`**. Tidak membuat order dan tidak menulis ke database.
 
 ## Alur pembayaran
 
@@ -339,7 +360,8 @@ Format galat: `{ "error": { "code", "message", "details?" } }`.
 - Pembatas login ada di memori dan membaca IP dari `x-forwarded-for`: cukup untuk satu instance, bukan proteksi penuh di balik proxy.
 - Membatalkan order dari admin hanya mengubah status di database, bukan membatalkan sesi bayar di iPaymu. Bila pelanggan terlanjur bayar sesudahnya, webhook mencatatnya ke log untuk ditinjau manual dan tidak mengembalikan status ke lunas.
 - Beberapa pesan validasi dari zod masih berbahasa Inggris.
-- Email konfirmasi memakai Mailpit (SMTP palsu) di Compose; untuk email sungguhan ganti kredensial SMTP di n8n. Isinya baru konfirmasi pembayaran; QR eSIM / info pengiriman belum dikirim otomatis.
+- Kode aktivasi dan QR eSIM di email adalah **contoh untuk demo**: acak, format `LPA:1$...`, dan tidak terhubung ke operator mana pun (SM-DP+ `smdp.nomadia.example` tidak ada). Di produksi, `services/esim.ts` diganti pemanggilan API pemasok eSIM. SIM Card dan Portable WiFi hanya mendapat catatan bahwa info pengiriman menyusul.
+- Email konfirmasi memakai Mailpit (SMTP palsu) di Compose; untuk email sungguhan ganti kredensial SMTP di n8n. Kode aktivasi dibuat sekali saat pelunasan dan disimpan di outbox, jadi pengiriman ulang ke n8n membawa kode yang sama; kode itu tidak ditampilkan di halaman pesanan.
 - Alur bayar iPaymu sandbox penuh (bayar sungguhan → callback → n8n) butuh kredensial sandbox dan tunnel publik; tes otomatis memakai gateway palsu.
 
 ## Alur kerja berbantuan AI
