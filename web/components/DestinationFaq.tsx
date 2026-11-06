@@ -13,7 +13,7 @@ export function DestinationFaq({ destName, faqs }: { destName: string; faqs: Faq
   return (
     <section aria-labelledby="dest-faq-heading" className="bg-white py-16">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
-      <div className="container-x grid gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+      <div className="container-wide grid gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <Reveal>
           <h2 id="dest-faq-heading" className="font-display text-3xl font-extrabold tracking-tight sm:text-4xl">Tanya jawab {destName}</h2>
           <p className="mt-3 max-w-md text-ink/70">Hal yang biasa ditanyakan sebelum memesan untuk {destName}.</p>

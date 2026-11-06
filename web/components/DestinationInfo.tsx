@@ -30,7 +30,7 @@ export function DestinationInfo({ destName, network, products }: { destName: str
   };
 
   return (
-    <section aria-labelledby="info-heading" className="container-x pb-16">
+    <section aria-labelledby="info-heading" className="container-wide pb-16">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 id="info-heading" className="font-display text-3xl font-extrabold tracking-tight sm:text-4xl">Sebelum kamu memilih</h2>

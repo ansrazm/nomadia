@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Product, ProductType, typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
+import { typeSpecs } from "@/lib/destination-info";
 import { useCart } from "./CartProvider";
 
 const perDay = (p: Product) => Math.round(p.price / p.days);
@@ -18,7 +19,7 @@ function badgeFor(p: Product, list: Product[]): string | null {
   return p.id === cheapest.id ? "Paling hemat" : null;
 }
 
-export function ProductTabs({ products }: { products: Product[] }) {
+export function ProductTabs({ products, network }: { products: Product[]; network: string }) {
   const router = useRouter();
   const { add } = useCart();
   const types = (Object.keys(typeInfo) as ProductType[]).filter((t) => products.some((p) => p.type === t));
@@ -64,8 +65,17 @@ export function ProductTabs({ products }: { products: Product[] }) {
       </div>
       <p className="mt-4 text-ink/70">{typeInfo[tab].short}. {typeInfo[tab].delivery}.</p>
 
-      <div ref={pickerRef} className="mt-6 grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
-        <div role="radiogroup" aria-label="Pilih paket" className="grid gap-4 sm:grid-cols-2">
+      <dl aria-label="Spesifikasi" className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {typeSpecs(tab, network).map((s) => (
+          <div key={s.label} className="rounded-2xl border border-line bg-white px-4 py-3">
+            <dt className="text-xs font-bold uppercase tracking-wider text-ink/55">{s.label}</dt>
+            <dd className="mt-1 text-sm font-semibold leading-snug">{s.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <div ref={pickerRef} className="mt-8 grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
+        <div role="radiogroup" aria-label="Pilih paket" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {list.map((p) => {
             const on = p.id === selected.id;
             const badge = badgeFor(p, list);

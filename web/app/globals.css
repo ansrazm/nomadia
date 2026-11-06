@@ -15,6 +15,8 @@ body { @apply bg-mist font-sans text-ink antialiased; }
   .btn-ink { @apply btn bg-ink text-white hover:bg-deep; }
   .btn-ghost { @apply btn border border-line bg-white text-ink hover:border-lagoon; }
   .container-x { @apply mx-auto w-full max-w-6xl px-5 sm:px-8; }
+  /* Halaman produk (destinasi dan daftarnya) lebih lebar: grid paket dan ringkasan pesanan butuh ruang. */
+  .container-wide { @apply mx-auto w-full max-w-7xl px-5 sm:px-8; }
 }
 
 /* signal bars: tinggi tiap batang naik bertahap saat level bertambah */

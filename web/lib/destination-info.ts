@@ -73,6 +73,26 @@ export const typeContent: Record<ProductType, TypeContent> = {
   },
 };
 
+/** Empat poin ringkas di atas pemilih paket. Isinya diturunkan dari konten tab di bawah, tanpa klaim baru. */
+export function typeSpecs(type: ProductType, network: string): { label: string; value: string }[] {
+  const activation: Record<ProductType, string> = {
+    esim: "Scan QR, masa aktif mulai saat tersambung",
+    sim: "Pasang kartu di ponsel saat tiba",
+    wifi: "Nyalakan alat, sambungkan perangkat",
+  };
+  const compat: Record<ProductType, string> = {
+    esim: "Ponsel eSIM, tidak terkunci operator",
+    sim: "Slot SIM fisik, tidak terkunci operator",
+    wifi: "Perangkat apa pun yang punya WiFi, hingga 5",
+  };
+  return [
+    { label: "Jaringan", value: network },
+    { label: "Aktivasi", value: activation[type] },
+    { label: "Pengiriman", value: typeInfo[type].delivery },
+    { label: "Kompatibilitas", value: compat[type] },
+  ];
+}
+
 export interface TypeStat { count: number; from: number; days: number[] }
 
 /** Ringkasan tiap jenis koneksi di satu destinasi: jumlah paket, harga mulai dari, dan pilihan durasi. */

@@ -20,7 +20,7 @@ export function DestinationBrowser({ destinations }: { destinations: Destination
   const shownRegions = regions.filter((r) => filtered.some((d) => d.region === r));
 
   return (
-    <div className="container-x py-12">
+    <div className="container-wide py-12">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-full lg:max-w-sm">
           <label htmlFor="dest-filter" className="sr-only">Cari destinasi</label>
