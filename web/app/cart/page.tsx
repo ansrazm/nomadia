@@ -143,10 +143,11 @@ export default function CartPage() {
                   );
                 })}
               </ul>
+              <Link href="/destinations" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-deep hover:underline">← Tambah paket lain</Link>
             </div>
 
             <aside className="h-fit rounded-3xl border border-line bg-white p-6" aria-busy={quoting}>
-              <h2 className="font-display text-xl font-bold">Ringkasan</h2>
+              <h2 className="font-display text-xl font-bold">Ringkasan <span className="text-base font-medium text-ink/55">· {items.reduce((n, i) => n + i.qty, 0)} paket</span></h2>
               <label htmlFor="voucher" className="mt-5 block text-sm font-semibold">Kode voucher</label>
               <div className="mt-2 flex gap-2">
                 <input

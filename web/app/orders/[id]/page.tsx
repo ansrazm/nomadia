@@ -15,7 +15,7 @@ function fmtRemaining(ms: number): string {
   const h = Math.floor(t / 3600);
   const mm = String(Math.floor((t % 3600) / 60)).padStart(2, "0");
   const ss = String(t % 60).padStart(2, "0");
-  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  return h > 0 ? `${h} jam ${mm} menit` : `${mm}:${ss}`;
 }
 
 /** QRIS Direct: QR di halaman sendiri dengan hitung mundur dari waktu kedaluwarsa yang diberikan iPaymu. */
@@ -53,6 +53,20 @@ function QrPanel({ qr, total }: { qr: OrderQr; total: number }) {
       <p className="mt-1 text-sm text-ink/70">Scan dengan aplikasi bank atau e-wallet yang mendukung QRIS.</p>
       {remaining !== null && <p className="mt-3 text-sm font-semibold" aria-live="off">Berlaku {fmtRemaining(remaining)} lagi</p>}
     </div>
+  );
+}
+
+function CopyOrderId({ id }: { id: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async () => { try { await navigator.clipboard.writeText(id); setDone(true); setTimeout(() => setDone(false), 1600); } catch { /* clipboard diblok */ } }}
+      className="ml-2 rounded-full border border-line px-2.5 py-0.5 text-xs font-semibold text-deep hover:border-lagoon"
+      aria-live="polite"
+    >
+      {done ? "Tersalin ✓" : "Salin"}
+    </button>
   );
 }
 
@@ -113,7 +127,7 @@ function OrderStatus() {
 
   return (
     <div className="mx-auto max-w-2xl rounded-3xl border border-line bg-white p-8 sm:p-10">
-      <p className="text-sm font-semibold text-ink/60">Nomor pesanan {order.id}</p>
+      <p className="text-sm font-semibold text-ink/60">Nomor pesanan {order.id}<CopyOrderId id={order.id} /></p>
       <h2 className="mt-2 font-display text-3xl font-extrabold" role="status">{headline}</h2>
       {order.status === "paid" && <p className="mt-3 text-ink/70">Terima kasih, {order.customerName}. QR eSIM dan bukti pembayaran dikirim ke {order.customerEmail}.</p>}
       {order.status === "pending" && <p className="mt-3 text-ink/70">Halaman ini diperbarui otomatis setelah pembayaran kamu terkonfirmasi.</p>}

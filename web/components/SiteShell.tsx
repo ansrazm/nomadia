@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
+import { CartToast } from "./CartToast";
+import { PromoModal } from "./PromoModal";
 
 /** Halaman toko memakai header + footer; area /admin punya kerangka sendiri. */
 export function SiteShell({ children }: { children: React.ReactNode }) {
@@ -13,6 +15,8 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       <Header />
       <main>{children}</main>
       <Footer />
+      <CartToast />
+      <PromoModal />
     </>
   );
 }

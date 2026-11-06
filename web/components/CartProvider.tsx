@@ -52,6 +52,9 @@ interface CartCtx {
   /** Kurangi keranjang dengan baris pesanan yang sudah dibuat/lunas. */
   settle: (ordered: { productId: string; qty: number }[]) => void;
   clear: () => void;
+  /** Paket yang baru saja ditambahkan, dipakai untuk toast. */
+  lastAdded: { name: string; at: number } | null;
+  dismissAdded: () => void;
 }
 
 const Ctx = createContext<CartCtx | null>(null);
@@ -60,6 +63,7 @@ const KEY = "nomadia-cart";
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, dispatch] = useReducer(reducer, []);
   const [ready, setReady] = useState(false);
+  const [lastAdded, setLastAdded] = useState<{ name: string; at: number } | null>(null);
 
   useEffect(() => {
     try {
@@ -80,10 +84,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [items, ready]);
 
-  const add = useCallback(
-    (p: Product) => dispatch({ t: "add", item: { id: p.id, name: p.name, type: p.type, destSlug: p.destSlug, price: p.price } }),
-    [],
-  );
+  const add = useCallback((p: Product) => {
+    dispatch({ t: "add", item: { id: p.id, name: p.name, type: p.type, destSlug: p.destSlug, price: p.price } });
+    setLastAdded({ name: p.name, at: Date.now() });
+  }, []);
+  const dismissAdded = useCallback(() => setLastAdded(null), []);
   const settle = useCallback((ordered: { productId: string; qty: number }[]) => dispatch({ t: "settle", ordered }), []);
   const value = useMemo<CartCtx>(
     () => ({
@@ -95,8 +100,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       remove: (id) => dispatch({ t: "remove", id }),
       settle,
       clear: () => dispatch({ t: "clear" }),
+      lastAdded,
+      dismissAdded,
     }),
-    [items, ready, add, settle],
+    [items, ready, add, settle, lastAdded, dismissAdded],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

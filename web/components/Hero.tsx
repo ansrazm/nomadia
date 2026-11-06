@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SignalBars } from "./SignalBars";
+import { HeroVisual } from "./HeroVisual";
 import { DestinationSummary, flagUrl } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 
@@ -16,6 +17,14 @@ export function Hero({ destinations }: { destinations: DestinationSummary[] }) {
   const [active, setActive] = useState(0);
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Saat belum ada destinasi dipilih, batang sinyal naik turun pelan supaya hero terasa hidup.
+  const [idle, setIdle] = useState(1);
+  useEffect(() => {
+    if (picked) return;
+    const t = setInterval(() => setIdle((v) => (v % 4) + 1), 900);
+    return () => clearInterval(t);
+  }, [picked]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -41,7 +50,8 @@ export function Hero({ destinations }: { destinations: DestinationSummary[] }) {
       <div aria-hidden className="pointer-events-none absolute -right-20 top-28 h-[26rem] w-[26rem] rounded-full border border-lagoon/25" />
       <div aria-hidden className="pointer-events-none absolute right-0 top-52 h-[18rem] w-[18rem] rounded-full border border-lagoon/30" />
 
-      <div className="container-x relative">
+      <div className="container-x relative grid items-center gap-14 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+        <div>
         <motion.h1
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
@@ -114,9 +124,9 @@ export function Hero({ destinations }: { destinations: DestinationSummary[] }) {
             })}
           </div>
 
-          <div className="mt-4 flex items-center gap-4 rounded-2xl bg-ink px-5 py-4 text-white">
-            <SignalBars level={picked ? 4 : 1} className="h-9" tone={picked ? "signal" : "lagoon"} />
-            <div className="min-w-0 flex-1" aria-live="polite">
+          <div className="mt-4 flex flex-wrap items-center gap-4 rounded-2xl bg-ink px-5 py-4 text-white sm:flex-nowrap">
+            <SignalBars level={picked ? 4 : idle} className="h-9" tone={picked ? "signal" : "lagoon"} />
+            <div className="min-w-0 flex-1 basis-40" aria-live="polite">
               <AnimatePresence mode="wait" initial={false}>
                 {picked ? (
                   <motion.div key={picked.slug} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
@@ -131,12 +141,18 @@ export function Hero({ destinations }: { destinations: DestinationSummary[] }) {
               </AnimatePresence>
             </div>
             {picked ? (
-              <Link href={`/destinations/${picked.slug}`} className="btn-signal shrink-0">Lihat paket</Link>
+              <Link href={`/destinations/${picked.slug}`} className="btn-signal w-full shrink-0 sm:w-auto">Lihat paket</Link>
             ) : (
-              <Link href="/destinations" className="btn-ghost shrink-0 !border-white/20 !bg-transparent !text-white hover:!border-lagoon">Semua destinasi</Link>
+              <Link href="/destinations" className="btn-ghost w-full shrink-0 sm:w-auto !border-white/20 !bg-transparent !text-white hover:!border-lagoon">Semua destinasi</Link>
             )}
           </div>
         </motion.div>
+        </div>
+        {destinations.length > 0 && (
+          <div className="hidden lg:block">
+            <HeroVisual dest={picked ?? destinations[0]} level={picked ? 4 : idle} />
+          </div>
+        )}
       </div>
     </section>
   );

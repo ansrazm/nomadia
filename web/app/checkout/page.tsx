@@ -58,6 +58,7 @@ function CheckoutForm() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<CheckoutResult | null>(null);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; email?: string }>({});
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -67,8 +68,14 @@ function CheckoutForm() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!name.trim()) return setError("Isi nama lengkap sesuai identitas.");
-    if (!/^\S+@\S+\.\S+$/.test(email)) return setError("Alamat email belum valid. Contoh: nama@email.com");
+    const fe: { name?: string; email?: string } = {};
+    if (!name.trim()) fe.name = "Isi nama lengkap sesuai identitas.";
+    if (!/^\S+@\S+\.\S+$/.test(email)) fe.email = "Alamat email belum valid. Contoh: nama@email.com";
+    setFieldErrors(fe);
+    if (fe.name || fe.email) {
+      document.getElementById(fe.name ? "name" : "email")?.focus();
+      return;
+    }
     if (!canPay) return setError("Total belum bisa dihitung. Tunggu sebentar atau periksa keranjang.");
     setBusy(true);
     try {
@@ -129,17 +136,22 @@ function CheckoutForm() {
         <h2 className="font-display text-2xl font-bold">Data pemesan</h2>
         <div>
           <label htmlFor="name" className="text-sm font-semibold">Nama lengkap</label>
-          <input id="name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" className="mt-2 w-full rounded-xl border border-line bg-mist px-4 py-3 outline-none focus:border-lagoon" />
+          <input id="name" value={name} onChange={(e) => { setName(e.target.value); if (fieldErrors.name) setFieldErrors((f) => ({ ...f, name: undefined })); }} autoComplete="name" aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? "name-err" : undefined} className={`mt-2 w-full rounded-xl border bg-mist px-4 py-3 outline-none focus:border-lagoon ${fieldErrors.name ? "border-coral" : "border-line"}`} />
+          {fieldErrors.name && <p id="name-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.name}</p>}
         </div>
         <div>
           <label htmlFor="email" className="text-sm font-semibold">Email</label>
-          <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" className="mt-2 w-full rounded-xl border border-line bg-mist px-4 py-3 outline-none focus:border-lagoon" />
-          <p className="mt-1 text-sm text-ink/60">QR eSIM dan bukti pembayaran dikirim ke email ini.</p>
+          <input id="email" type="email" inputMode="email" value={email} onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined })); }} autoComplete="email" aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? "email-err" : "email-hint"} className={`mt-2 w-full rounded-xl border bg-mist px-4 py-3 outline-none focus:border-lagoon ${fieldErrors.email ? "border-coral" : "border-line"}`} />
+          {fieldErrors.email ? <p id="email-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.email}</p> : <p id="email-hint" className="mt-1 text-sm text-ink/60">QR eSIM dan bukti pembayaran dikirim ke email ini.</p>}
         </div>
         {error && <p role="alert" className="text-sm font-medium text-coral">{error}</p>}
         <button className="btn-signal w-full disabled:opacity-60" disabled={busy || !canPay}>
           {busy ? "Membuat pesanan…" : quote ? `Bayar ${idr(quote.total)}` : "Menghitung total…"}
         </button>
+        <p className="flex items-center justify-center gap-2 text-center text-xs text-ink/55">
+          <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2" /><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg>
+          Pembayaran diproses aman lewat iPaymu
+        </p>
       </form>
       <aside className="h-fit rounded-3xl border border-line bg-white p-6">
         <h2 className="font-display text-xl font-bold">Pesananmu</h2>
