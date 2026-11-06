@@ -34,7 +34,7 @@ Urutan ini sudah dijalankan dari instalasi bersih. Tanpa kredensial iPaymu pun s
    ```
    Dalam ≤ 15 detik email "Pembayaran diterima" masuk di http://localhost:8025 (Mailpit), berisi kode aktivasi dan QR eSIM terlampir, dan halaman `/orders/NMD-XXXXXXXX` berubah menjadi "Pembayaran diterima". Perintah yang sama dijalankan lagi hasilnya `already_paid`: tidak ada email kedua.
 5. **Kelola katalog**: buka http://localhost:3000/admin (perlu `ADMIN_*` di `.env`), ubah harga satu produk, lalu lihat harganya ikut berubah di toko.
-6. **Tes otomatis** (PostgreSQL sungguhan): lihat [Menjalankan tanpa Docker](#menjalankan-tanpa-docker); `npm test` di `api/` menjalankan 132 tes.
+6. **Tes otomatis** (PostgreSQL sungguhan): lihat [Menjalankan tanpa Docker](#menjalankan-tanpa-docker); `npm test` di `api/` menjalankan 142 tes.
 
 Bila iPaymu sandbox aktif, langkah 4 diganti pembayaran sungguhan lewat halaman iPaymu (lihat [Tes end-to-end dengan iPaymu sandbox](#5-tes-end-to-end-dengan-ipaymu-sandbox-docker-compose)), atau pakai `mark-paid ... --force`.
 
