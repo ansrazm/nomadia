@@ -9,6 +9,7 @@ const links = [
   { href: "/destinations", label: "Destinasi" },
   { href: "/#cara-terhubung", label: "Pilihan koneksi" },
   { href: "/#cara-kerja", label: "Cara kerja" },
+  { href: "/#faq", label: "FAQ" },
 ];
 
 export function Header() {

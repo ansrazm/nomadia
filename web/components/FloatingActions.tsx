@@ -2,18 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-
-// Nomor tertanam saat build (NEXT_PUBLIC_*). Tanpa nomor yang valid, tombol WhatsApp tidak ditampilkan.
-const WA_NUMBER = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "").replace(/\D/g, "");
-const WA_TEXT = "Halo Nomadia, saya mau tanya soal paket eSIM / SIM Card / WiFi.";
-const WA_HREF = WA_NUMBER.length >= 8 ? `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(WA_TEXT)}` : null;
-
-const faqs = [
-  { q: "Bagaimana cara menerima eSIM?", a: "Setelah pembayaran berhasil, QR aktivasi dikirim ke email yang kamu isi saat checkout. Scan QR itu lewat pengaturan seluler di ponselmu." },
-  { q: "Di mana saya melihat status pesanan?", a: "Setelah checkout kamu diarahkan ke halaman status pesanan, dan statusnya diperbarui otomatis begitu pembayaran diterima. Simpan tautan halaman itu supaya bisa dibuka lagi." },
-  { q: "Bagaimana kalau pesanan belum dibayar?", a: "Pesanan yang belum dibayar punya batas waktu dan akan kedaluwarsa otomatis. Kalau sudah lewat, buat pesanan baru dari keranjang." },
-  { q: "Apakah ini toko sungguhan?", a: "Belum. Nomadia adalah proyek demo untuk technical test, jadi pembayaran memakai sandbox iPaymu dan tidak ada uang yang berpindah." },
-];
+import { WA_HREF } from "@/lib/contact";
+import { quickFaqs } from "@/lib/faq";
 
 function ChatIcon({ className = "h-6 w-6" }: { className?: string }) {
   return (
@@ -79,7 +69,7 @@ export function FloatingActions() {
               <p className="text-sm text-white/70">Jawaban cepat untuk pertanyaan yang sering muncul.</p>
             </div>
             <div className="max-h-[50vh] divide-y divide-line overflow-y-auto">
-              {faqs.map((f) => (
+              {quickFaqs.map((f) => (
                 <details key={f.q} className="group px-5 py-3">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold">
                     {f.q}

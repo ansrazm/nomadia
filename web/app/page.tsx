@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FaqSection } from "@/components/FaqSection";
 import { Hero } from "@/components/Hero";
 import { Reveal } from "@/components/Reveal";
 import { getDestinations } from "@/lib/catalog";
@@ -144,6 +145,8 @@ export default async function Home() {
           ))}
         </ol>
       </section>
+
+      <FaqSection />
     </>
   );
 }

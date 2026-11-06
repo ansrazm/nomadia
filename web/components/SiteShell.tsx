@@ -13,9 +13,11 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
   if (path === "/admin" || path.startsWith("/admin/")) return <>{children}</>;
   return (
     <>
-      <Header />
-      <main>{children}</main>
-      <Footer />
+      <div className="flex min-h-screen flex-col">
+        <Header />
+        <main className="flex-1">{children}</main>
+        <Footer />
+      </div>
       <CartToast />
       <PromoModal />
       <FloatingActions />
