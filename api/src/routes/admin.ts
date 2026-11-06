@@ -1,0 +1,282 @@
+import { Hono, type Context } from "hono";
+import { z, type ZodTypeAny } from "zod";
+import type { Db } from "../db/pool.js";
+import { ApiError } from "../errors.js";
+import { LoginLimiter, safeEqual, signToken, verifyToken } from "../services/auth.js";
+
+export interface AdminConfig { email: string; password: string; secret: string }
+
+const slug = z.string().trim().min(1).max(80).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Hanya huruf kecil, angka, dan tanda hubung");
+const text = (max: number) => z.string().trim().min(1).max(max);
+
+const destCreate = z.object({
+  slug,
+  name: text(80),
+  code: z.string().trim().toLowerCase().regex(/^[a-z]{2}$/, "Kode negara 2 huruf"),
+  region: text(40),
+  network: text(80),
+  factor: z.number().min(0.01).max(99.99),
+  position: z.number().int().min(0).max(9999).optional(),
+});
+const destPatch = destCreate.omit({ slug: true }).partial();
+
+const productCreate = z.object({
+  id: slug,
+  destSlug: slug,
+  type: z.enum(["esim", "sim", "wifi"]),
+  name: text(120),
+  days: z.number().int().min(1).max(365),
+  data: text(40),
+  price: z.number().int().min(0).max(100_000_000),
+  note: z.string().trim().max(200).default(""),
+  active: z.boolean().default(true),
+});
+const productPatch = productCreate.omit({ id: true }).partial();
+
+const voucherCode = z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{3,32}$/, "3-32 karakter: huruf, angka, _ atau -");
+const voucherCreate = z.object({ code: voucherCode, percent: z.number().int().min(1).max(100), active: z.boolean().default(true) });
+const voucherPatch = voucherCreate.omit({ code: true }).partial();
+
+const orderQuery = z.object({
+  status: z.enum(["pending", "paid", "expired", "cancelled"]).optional(),
+  q: z.string().trim().max(80).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+const pgCode = (e: unknown) => (e as { code?: string })?.code;
+
+async function body<S extends ZodTypeAny>(c: Context, schema: S): Promise<z.infer<S>> {
+  const raw = await c.req.json().catch(() => {
+    throw new ApiError(400, "INVALID_JSON", "Body harus berupa JSON.");
+  });
+  const r = schema.safeParse(raw);
+  if (!r.success) throw new ApiError(422, "VALIDATION_FAILED", "Data tidak valid.", r.error.flatten().fieldErrors);
+  return r.data;
+}
+
+/** UPDATE parsial: hanya kolom yang ada di daftar putih yang disentuh. */
+function buildUpdate(table: string, key: string, keyVal: string, patch: Record<string, unknown>, cols: Record<string, string>) {
+  const sets: string[] = [];
+  const params: unknown[] = [keyVal];
+  for (const [field, col] of Object.entries(cols)) {
+    if (patch[field] !== undefined) { params.push(patch[field]); sets.push(`${col} = $${params.length}`); }
+  }
+  if (!sets.length) throw new ApiError(422, "VALIDATION_FAILED", "Tidak ada field yang diubah.");
+  return { sql: `UPDATE ${table} SET ${sets.join(", ")} WHERE ${key} = $1 RETURNING *`, params };
+}
+
+const destDto = (r: any) => ({ slug: r.slug, name: r.name, code: r.code, region: r.region, network: r.network, factor: Number(r.factor), position: r.position, ...(r.product_count !== undefined ? { productCount: r.product_count } : {}) });
+const productDto = (r: any) => ({ id: r.id, destSlug: r.dest_slug, type: r.type, name: r.name, days: r.days, data: r.data, price: r.price, note: r.note, active: r.active });
+const voucherDto = (r: any) => ({ code: r.code, percent: r.percent, active: r.active, ...(r.used !== undefined ? { used: r.used } : {}) });
+const orderDto = (r: any) => ({ id: r.id, status: r.status, customerName: r.customer_name, customerEmail: r.customer_email, subtotal: r.subtotal, discount: r.discount, total: r.total, voucher: r.voucher_code, createdAt: r.created_at, paidAt: r.paid_at });
+
+export function adminRoutes(db: Db, cfg: AdminConfig) {
+  const app = new Hono();
+  const limiter = new LoginLimiter();
+
+  app.post("/admin/login", async (c) => {
+    const key = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+    if (limiter.blocked(key)) throw new ApiError(429, "TOO_MANY_ATTEMPTS", "Terlalu banyak percobaan login. Coba lagi beberapa menit lagi.");
+    const { email, password } = await body(c, z.object({ email: z.string().max(200), password: z.string().max(200) }));
+    // Dua perbandingan selalu dijalankan agar waktu respons tidak membocorkan mana yang salah.
+    const okEmail = safeEqual(email.trim().toLowerCase(), cfg.email.toLowerCase());
+    const okPass = safeEqual(password, cfg.password);
+    if (!(okEmail && okPass)) {
+      limiter.fail(key);
+      throw new ApiError(401, "INVALID_CREDENTIALS", "Email atau password salah.");
+    }
+    limiter.reset(key);
+    const { token, expiresAt } = signToken(cfg.secret, cfg.email);
+    return c.json({ data: { token, expiresAt: new Date(expiresAt).toISOString(), email: cfg.email } });
+  });
+
+  // Semua rute /admin lain wajib membawa Authorization: Bearer <token>.
+  app.use("/admin/*", async (c, next) => {
+    const h = c.req.header("authorization") ?? "";
+    const token = h.startsWith("Bearer ") ? h.slice(7).trim() : "";
+    const who = token ? verifyToken(cfg.secret, token) : null;
+    if (!who) throw new ApiError(401, "UNAUTHORIZED", "Sesi admin tidak valid atau sudah berakhir. Silakan login lagi.");
+    c.set("admin" as never, who.sub as never);
+    await next();
+  });
+
+  app.get("/admin/me", (c) => c.json({ data: { email: c.get("admin" as never) as string } }));
+
+  app.get("/admin/stats", async (c) => {
+    const [orders, rev, cat] = await Promise.all([
+      db.query<{ status: string; n: number }>("SELECT status, count(*)::int AS n FROM orders GROUP BY status"),
+      db.query<{ revenue: number }>("SELECT COALESCE(sum(total),0)::bigint AS revenue FROM orders WHERE status = 'paid'"),
+      db.query<{ destinations: number; products: number; vouchers: number }>(
+        "SELECT (SELECT count(*) FROM destinations)::int AS destinations, (SELECT count(*) FROM products WHERE active)::int AS products, (SELECT count(*) FROM vouchers WHERE active)::int AS vouchers",
+      ),
+    ]);
+    const byStatus = { pending: 0, paid: 0, expired: 0, cancelled: 0 } as Record<string, number>;
+    for (const r of orders.rows) byStatus[r.status] = r.n;
+    return c.json({ data: { orders: byStatus, paidRevenue: Number(rev.rows[0]!.revenue), ...cat.rows[0] } });
+  });
+
+  // ---- Destinasi ----
+  app.get("/admin/destinations", async (c) => {
+    const r = await db.query(
+      `SELECT d.*, (SELECT count(*)::int FROM products p WHERE p.dest_slug = d.slug) AS product_count FROM destinations d ORDER BY d.position, d.name`,
+    );
+    return c.json({ data: r.rows.map(destDto) });
+  });
+
+  app.post("/admin/destinations", async (c) => {
+    const d = await body(c, destCreate);
+    try {
+      const pos = d.position ?? (await db.query<{ n: number }>("SELECT COALESCE(max(position),-1)+1 AS n FROM destinations")).rows[0]!.n;
+      const r = await db.query("INSERT INTO destinations (slug,name,code,region,network,factor,position) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *", [d.slug, d.name, d.code, d.region, d.network, d.factor, pos]);
+      return c.json({ data: destDto(r.rows[0]) }, 201);
+    } catch (e) {
+      if (pgCode(e) === "23505") throw new ApiError(409, "SLUG_TAKEN", "Slug destinasi sudah dipakai.");
+      throw e;
+    }
+  });
+
+  app.patch("/admin/destinations/:slug", async (c) => {
+    const patch = await body(c, destPatch);
+    const u = buildUpdate("destinations", "slug", c.req.param("slug"), patch, { name: "name", code: "code", region: "region", network: "network", factor: "factor", position: "position" });
+    const r = await db.query(u.sql, u.params);
+    if (!r.rows[0]) throw new ApiError(404, "DESTINATION_NOT_FOUND", "Destinasi tidak ditemukan.");
+    return c.json({ data: destDto(r.rows[0]) });
+  });
+
+  app.delete("/admin/destinations/:slug", async (c) => {
+    try {
+      const r = await db.query("DELETE FROM destinations WHERE slug = $1", [c.req.param("slug")]);
+      if (!r.rowCount) throw new ApiError(404, "DESTINATION_NOT_FOUND", "Destinasi tidak ditemukan.");
+      return c.json({ data: { deleted: true } });
+    } catch (e) {
+      if (pgCode(e) === "23503") throw new ApiError(409, "IN_USE", "Destinasi punya produk yang pernah dipesan, jadi tidak bisa dihapus. Nonaktifkan produknya saja.");
+      throw e;
+    }
+  });
+
+  // ---- Produk ----
+  app.get("/admin/products", async (c) => {
+    const dest = c.req.query("dest")?.trim();
+    const r = await db.query(
+      `SELECT * FROM products ${dest ? "WHERE dest_slug = $1" : ""} ORDER BY dest_slug, CASE type WHEN 'esim' THEN 0 WHEN 'sim' THEN 1 ELSE 2 END, days`,
+      dest ? [dest] : [],
+    );
+    return c.json({ data: r.rows.map(productDto) });
+  });
+
+  app.post("/admin/products", async (c) => {
+    const p = await body(c, productCreate);
+    try {
+      const r = await db.query(
+        "INSERT INTO products (id,dest_slug,type,name,days,data,price,note,active) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
+        [p.id, p.destSlug, p.type, p.name, p.days, p.data, p.price, p.note, p.active],
+      );
+      return c.json({ data: productDto(r.rows[0]) }, 201);
+    } catch (e) {
+      if (pgCode(e) === "23505") throw new ApiError(409, "ID_TAKEN", "ID produk sudah dipakai.");
+      if (pgCode(e) === "23503") throw new ApiError(422, "DESTINATION_NOT_FOUND", "Destinasi tidak ditemukan.");
+      throw e;
+    }
+  });
+
+  app.patch("/admin/products/:id", async (c) => {
+    const patch = await body(c, productPatch);
+    const u = buildUpdate("products", "id", c.req.param("id"), patch, { destSlug: "dest_slug", type: "type", name: "name", days: "days", data: "data", price: "price", note: "note", active: "active" });
+    try {
+      const r = await db.query(u.sql, u.params);
+      if (!r.rows[0]) throw new ApiError(404, "PRODUCT_NOT_FOUND", "Produk tidak ditemukan.");
+      return c.json({ data: productDto(r.rows[0]) });
+    } catch (e) {
+      if (pgCode(e) === "23503") throw new ApiError(422, "DESTINATION_NOT_FOUND", "Destinasi tidak ditemukan.");
+      throw e;
+    }
+  });
+
+  app.delete("/admin/products/:id", async (c) => {
+    try {
+      const r = await db.query("DELETE FROM products WHERE id = $1", [c.req.param("id")]);
+      if (!r.rowCount) throw new ApiError(404, "PRODUCT_NOT_FOUND", "Produk tidak ditemukan.");
+      return c.json({ data: { deleted: true } });
+    } catch (e) {
+      if (pgCode(e) === "23503") throw new ApiError(409, "IN_USE", "Produk ini pernah dipesan, jadi tidak bisa dihapus. Nonaktifkan saja.");
+      throw e;
+    }
+  });
+
+  // ---- Voucher ----
+  app.get("/admin/vouchers", async (c) => {
+    const r = await db.query("SELECT v.*, (SELECT count(*)::int FROM orders o WHERE o.voucher_code = v.code) AS used FROM vouchers v ORDER BY v.code");
+    return c.json({ data: r.rows.map(voucherDto) });
+  });
+
+  app.post("/admin/vouchers", async (c) => {
+    const v = await body(c, voucherCreate);
+    try {
+      const r = await db.query("INSERT INTO vouchers (code,percent,active) VALUES ($1,$2,$3) RETURNING *", [v.code, v.percent, v.active]);
+      return c.json({ data: voucherDto(r.rows[0]) }, 201);
+    } catch (e) {
+      if (pgCode(e) === "23505") throw new ApiError(409, "CODE_TAKEN", "Kode voucher sudah ada.");
+      throw e;
+    }
+  });
+
+  app.patch("/admin/vouchers/:code", async (c) => {
+    const patch = await body(c, voucherPatch);
+    const u = buildUpdate("vouchers", "code", c.req.param("code").toUpperCase(), patch, { percent: "percent", active: "active" });
+    const r = await db.query(u.sql, u.params);
+    if (!r.rows[0]) throw new ApiError(404, "VOUCHER_NOT_FOUND", "Voucher tidak ditemukan.");
+    return c.json({ data: voucherDto(r.rows[0]) });
+  });
+
+  app.delete("/admin/vouchers/:code", async (c) => {
+    try {
+      const r = await db.query("DELETE FROM vouchers WHERE code = $1", [c.req.param("code").toUpperCase()]);
+      if (!r.rowCount) throw new ApiError(404, "VOUCHER_NOT_FOUND", "Voucher tidak ditemukan.");
+      return c.json({ data: { deleted: true } });
+    } catch (e) {
+      if (pgCode(e) === "23503") throw new ApiError(409, "IN_USE", "Voucher ini sudah dipakai di order, jadi tidak bisa dihapus. Nonaktifkan saja.");
+      throw e;
+    }
+  });
+
+  // ---- Order ----
+  app.get("/admin/orders", async (c) => {
+    const parsed = orderQuery.safeParse(c.req.query());
+    if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Parameter tidak valid.", parsed.error.flatten().fieldErrors);
+    const { status, q, limit, offset } = parsed.data;
+    const params: unknown[] = [];
+    const where: string[] = [];
+    if (status) { params.push(status); where.push(`status = $${params.length}`); }
+    if (q) { params.push(`%${q.replace(/[\\%_]/g, "\\$&")}%`); where.push(`(id ILIKE $${params.length} OR customer_email ILIKE $${params.length} OR customer_name ILIKE $${params.length})`); }
+    const w = where.length ? "WHERE " + where.join(" AND ") : "";
+    const total = (await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM orders ${w}`, params)).rows[0]!.n;
+    const rows = await db.query(`SELECT * FROM orders ${w} ORDER BY created_at DESC, id LIMIT $${params.length + 1} OFFSET $${params.length + 2}`, [...params, limit, offset]);
+    return c.json({ data: rows.rows.map(orderDto), total, limit, offset });
+  });
+
+  app.get("/admin/orders/:id", async (c) => {
+    const o = (await db.query("SELECT * FROM orders WHERE id = $1", [c.req.param("id")])).rows[0];
+    if (!o) throw new ApiError(404, "ORDER_NOT_FOUND", "Order tidak ditemukan.");
+    const items = await db.query("SELECT product_id, product_name, unit_price, qty FROM order_items WHERE order_id = $1 ORDER BY id", [o.id]);
+    return c.json({
+      data: {
+        ...orderDto(o),
+        paymentRef: o.payment_ref,
+        paymentUrl: o.payment_url,
+        items: items.rows.map((i) => ({ productId: i.product_id, name: i.product_name, unitPrice: i.unit_price, qty: i.qty })),
+      },
+    });
+  });
+
+  // Batalkan order pending. Order paid/expired/cancelled tidak boleh diubah dari sini.
+  app.post("/admin/orders/:id/cancel", async (c) => {
+    const r = await db.query("UPDATE orders SET status = 'cancelled' WHERE id = $1 AND status = 'pending' RETURNING *", [c.req.param("id")]);
+    if (r.rows[0]) return c.json({ data: orderDto(r.rows[0]) });
+    const exists = await db.query("SELECT status FROM orders WHERE id = $1", [c.req.param("id")]);
+    if (!exists.rows[0]) throw new ApiError(404, "ORDER_NOT_FOUND", "Order tidak ditemukan.");
+    throw new ApiError(409, "ORDER_NOT_PENDING", `Hanya order pending yang bisa dibatalkan (status sekarang: ${exists.rows[0]!.status}).`);
+  });
+
+  return app;
+}

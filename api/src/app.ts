@@ -8,6 +8,7 @@ import { ApiError } from "./errors.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import type { PaymentGateway } from "./payments/ipaymu.js";
 import type { OutboxDispatcher } from "./services/outbox.js";
+import { adminRoutes, type AdminConfig } from "./routes/admin.js";
 
 export interface AppDeps {
   db: Db;
@@ -16,12 +17,13 @@ export interface AppDeps {
   outbox?: OutboxDispatcher | null;
   publicApiUrl?: string;
   webUrl?: string;
+  admin?: AdminConfig | null;
 }
 
-export function createApp({ db, corsOrigins, gateway = null, outbox = null, publicApiUrl = "http://localhost:4000", webUrl = "http://localhost:3000" }: AppDeps) {
+export function createApp({ db, corsOrigins, gateway = null, outbox = null, publicApiUrl = "http://localhost:4000", webUrl = "http://localhost:3000", admin = null }: AppDeps) {
   const app = new Hono();
 
-  app.use("*", cors({ origin: corsOrigins, allowMethods: ["GET", "POST", "OPTIONS"], maxAge: 600 }));
+  app.use("*", cors({ origin: corsOrigins, allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"], maxAge: 600 }));
 
   app.get("/health", async (c) => {
     await db.query("SELECT 1");
@@ -32,6 +34,7 @@ export function createApp({ db, corsOrigins, gateway = null, outbox = null, publ
   app.route("/", quoteRoutes(db));
   app.route("/", orderRoutes(db, gateway, { publicApiUrl, webUrl }));
   app.route("/", webhookRoutes(db, gateway, outbox));
+  if (admin) app.route("/", adminRoutes(db, admin));
 
   app.notFound((c) => c.json({ error: { code: "NOT_FOUND", message: "Endpoint tidak ditemukan." } }, 404));
 

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { CartProvider } from "@/components/CartProvider";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
+import { SiteShell } from "@/components/SiteShell";
 
 export const metadata: Metadata = {
   title: "Nomadia — eSIM, SIM Card & WiFi untuk perjalanan",
@@ -22,9 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <CartProvider>
-          <Header />
-          <main>{children}</main>
-          <Footer />
+          <SiteShell>{children}</SiteShell>
         </CartProvider>
       </body>
     </html>

@@ -61,35 +61,6 @@ npm run dev                   # http://localhost:3000
 Halaman: `/`, `/destinations`, `/destinations/[slug]`, `/cart`, `/checkout`.
 Checkout memanggil API; jika order punya `paymentUrl`, pengguna diarahkan ke halaman bayar iPaymu lalu kembali ke `/orders/[id]` (memperbarui status otomatis). Halaman katalog masih membaca `web/lib/data.ts`.
 
-## Expose ke internet (Cloudflare Tunnel)
-Untuk demo atau uji iPaymu sandbox dari laptop, web dan API di-expose lewat dua tunnel:
-
-| Layanan | Lokal | Domain publik |
-|---|---|---|
-| Web (Next.js) | http://localhost:3000 | https://nomadia.dragonstorepb.com |
-| API | http://localhost:4000 | https://nomadia-api.dragonstorepb.com |
-
-Env yang harus cocok:
-- `api/.env`: `WEB_URL`, `PUBLIC_API_URL`, dan `CORS_ORIGINS` (harus memuat domain web)
-- `web/.env.local`: `NEXT_PUBLIC_API_URL=https://nomadia-api.dragonstorepb.com`
-
-Setup sekali (per tunnel):
-```bash
-cloudflared tunnel create nomadia-web
-cloudflared tunnel route dns nomadia-web nomadia.dragonstorepb.com
-cloudflared tunnel create nomadia-api
-cloudflared tunnel route dns nomadia-api nomadia-api.dragonstorepb.com
-```
-
-Menjalankan (4 terminal):
-```bash
-cd api && npm run dev                                          # :4000
-cd web && npm run dev                                          # :3000
-cloudflared tunnel run --url http://localhost:4000 nomadia-api
-cloudflared tunnel run --url http://localhost:3000 nomadia-web
-```
-Setelah mengubah `NEXT_PUBLIC_API_URL`, restart `npm run dev` web.
-
 ## API
 | Method | Path | Keterangan |
 |---|---|---|
@@ -100,6 +71,26 @@ Setelah mengubah `NEXT_PUBLIC_API_URL`, restart `npm run dev` web.
 | POST | `/orders` | Buat order `{name, email, items:[{productId, qty}], voucher?}` |
 | GET | `/orders/:id` | Detail order (email disamarkan) |
 | POST | `/webhooks/ipaymu` | Callback iPaymu (form atau JSON) |
+
+### Endpoint admin (CMS)
+
+Aktif hanya bila `ADMIN_EMAIL`, `ADMIN_PASSWORD` (min 12 karakter), dan `AUTH_SECRET` (min 32 karakter, `openssl rand -hex 32`) diisi. Login menghasilkan token berlaku 8 jam; kirim sebagai `Authorization: Bearer <token>`. Login gagal 5x dari satu IP dalam 15 menit diblokir sementara (429).
+
+| Method | Path | Keterangan |
+|---|---|---|
+| POST | `/admin/login` | `{email, password}` → `{token, expiresAt}` |
+| GET | `/admin/me`, `/admin/stats` | Sesi aktif; jumlah order per status, omzet lunas, jumlah katalog |
+| GET/POST | `/admin/destinations` | Daftar (dengan `productCount`) / tambah |
+| PATCH/DELETE | `/admin/destinations/:slug` | Ubah sebagian / hapus |
+| GET/POST | `/admin/products?dest=` | Daftar (termasuk nonaktif) / tambah |
+| PATCH/DELETE | `/admin/products/:id` | Ubah (harga, `active`, dll.) / hapus |
+| GET/POST | `/admin/vouchers` | Daftar (dengan `used`) / tambah |
+| PATCH/DELETE | `/admin/vouchers/:code` | Ubah persen atau `active` / hapus |
+| GET | `/admin/orders?status=&q=&limit=&offset=` | Daftar order + `total`; `q` mencari id, nama, email |
+| GET | `/admin/orders/:id` | Detail lengkap (email tidak disamarkan) + item |
+| POST | `/admin/orders/:id/cancel` | Batalkan order `pending` saja |
+
+Produk, voucher, atau destinasi yang sudah terpakai di order tidak bisa dihapus (409 `IN_USE`); nonaktifkan lewat `active: false`. Harga di order lama tidak berubah karena disalin saat order dibuat.
 
 Format galat: `{ "error": { "code", "message", "details?" } }`.
 

@@ -32,6 +32,9 @@ services:
       IPAYMU_DEBUG: ${IPAYMU_DEBUG:-false}
       N8N_WEBHOOK_URL: http://n8n:5678/webhook/nomadia-order-paid
       N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:?isi N8N_WEBHOOK_SECRET di .env (minimal 16 karakter)}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      AUTH_SECRET: ${AUTH_SECRET:-}
     ports:
       - "4000:4000"
 
