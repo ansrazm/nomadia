@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { CartProvider } from "@/components/CartProvider";
+import { PendingOrderSync } from "@/components/PendingOrderSync";
 import { SiteShell } from "@/components/SiteShell";
 
 export const metadata: Metadata = {
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <CartProvider>
+          <PendingOrderSync />
           <SiteShell>{children}</SiteShell>
         </CartProvider>
       </body>

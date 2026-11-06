@@ -53,15 +53,17 @@ function OrderStatus() {
   const cancelled = useSearchParams().get("cancelled") === "1";
   const [order, setOrder] = useState<OrderView | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
-  const { clear } = useCart();
+  const { settle } = useCart();
 
-  // Redirect: pengguna kembali dari iPaymu (bukan batal), pesanan sudah di tangan iPaymu, jadi keranjang dikosongkan.
+  // Redirect: pengguna kembali dari iPaymu (bukan batal), pesanan sudah di tangan iPaymu, jadi barisnya keluar dari keranjang.
   // QRIS: keranjang dipertahankan sampai lunas, supaya QR yang kedaluwarsa bisa diganti tanpa mengisi ulang keranjang.
+  // Hanya baris pesanan ini yang dikurangi; paket yang ditambahkan sesudah checkout tetap ada.
+  // Kalau halaman ini tidak sempat terbuka saat lunas, PendingOrderSync (di layout) yang membereskannya.
   useEffect(() => {
     if (cancelled || !order) return;
     const settled = order.status === "paid" || (order.status === "pending" && !order.qr);
-    if (settled && consumePendingOrder(order.id)) clear();
-  }, [cancelled, order, clear]);
+    if (settled && consumePendingOrder(order.id)) settle(order.items);
+  }, [cancelled, order, settle]);
 
   useEffect(() => {
     let stop = false;
