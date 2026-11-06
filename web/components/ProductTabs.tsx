@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Product, ProductType, typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
-import { typeSpecs } from "@/lib/destination-info";
+import { typeContent, typeSpecs } from "@/lib/destination-info";
+import { CompareDialog } from "./CompareDialog";
 import { useCart } from "./CartProvider";
 
 const perDay = (p: Product) => Math.round(p.price / p.days);
@@ -19,7 +20,7 @@ function badgeFor(p: Product, list: Product[]): string | null {
   return p.id === cheapest.id ? "Paling hemat" : null;
 }
 
-export function ProductTabs({ products, network }: { products: Product[]; network: string }) {
+export function ProductTabs({ products, network, destName }: { products: Product[]; network: string; destName: string }) {
   const router = useRouter();
   const { add } = useCart();
   const types = (Object.keys(typeInfo) as ProductType[]).filter((t) => products.some((p) => p.type === t));
@@ -30,6 +31,11 @@ export function ProductTabs({ products, network }: { products: Product[]; networ
   const [added, setAdded] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const [barOn, setBarOn] = useState(true);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const canCompare = types.length > 1;
+  // Slot kosong di baris terakhir grid (2 kolom di sm, 3 kolom di xl) diisi kartu ajakan membandingkan.
+  const fillSm = list.length % 2 === 1;
+  const fillXl = list.length % 3 === 2;
 
   // Bar bawah hanya tampil selagi pemilih paket terlihat, jadi tidak menutupi info, FAQ, dan footer di bawahnya.
   useEffect(() => {
@@ -74,6 +80,23 @@ export function ProductTabs({ products, network }: { products: Product[]; networ
         ))}
       </dl>
 
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <ol aria-label="Cara kerja" className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-ink/75">
+          {typeContent[tab].steps.map((s, i) => (
+            <li key={s.title} className="flex items-center gap-2">
+              <span aria-hidden className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-ink text-xs font-bold text-signal">{i + 1}</span>
+              {s.title}
+            </li>
+          ))}
+        </ol>
+        {canCompare && (
+          <button type="button" onClick={() => setCompareOpen(true)} className="text-sm font-semibold text-deep underline-offset-4 hover:underline">
+            Bandingkan eSIM, SIM Card, WiFi
+          </button>
+        )}
+      </div>
+      <p className="mt-2 text-sm text-ink/60">Cek dulu: {typeContent[tab].checks[0]}.</p>
+
       <div ref={pickerRef} className="mt-8 grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
         <div role="radiogroup" aria-label="Pilih paket" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {list.map((p) => {
@@ -102,6 +125,17 @@ export function ProductTabs({ products, network }: { products: Product[]; networ
               </button>
             );
           })}
+          {canCompare && (
+            <button
+              type="button"
+              onClick={() => setCompareOpen(true)}
+              className={`hidden flex-col justify-center rounded-3xl border-2 border-dashed border-line bg-white/60 p-5 text-left transition-colors hover:border-lagoon ${fillSm ? "sm:flex" : ""} ${fillXl ? "xl:flex" : "xl:hidden"}`}
+            >
+              <span className="font-display text-xl font-bold">Bingung pilih mana?</span>
+              <span className="mt-2 text-sm text-ink/65">Bandingkan eSIM, SIM Card, dan Portable WiFi untuk {destName}.</span>
+              <span className="mt-4 text-sm font-semibold text-deep">Lihat perbandingan →</span>
+            </button>
+          )}
         </div>
 
         <aside className="hidden rounded-3xl border border-line bg-white p-6 lg:sticky lg:top-24 lg:block" aria-label="Ringkasan pesanan">
@@ -138,6 +172,7 @@ export function ProductTabs({ products, network }: { products: Product[]; networ
         <button type="button" onClick={addOnly} className={added ? "btn bg-lagoon px-4 py-2.5 text-sm text-ink" : "btn-ghost px-4 py-2.5 text-sm"} aria-live="polite">{added ? "Masuk" : "Keranjang"}</button>
         <button type="button" onClick={buyNow} className="btn-signal px-4 py-2.5 text-sm">Beli</button>
       </div>
+      {compareOpen && <CompareDialog destName={destName} products={products} onClose={() => setCompareOpen(false)} />}
     </div>
   );
 }

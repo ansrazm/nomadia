@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DestinationFaq } from "@/components/DestinationFaq";
-import { DestinationInfo } from "@/components/DestinationInfo";
 import { ProductTabs } from "@/components/ProductTabs";
 import { SignalBars } from "@/components/SignalBars";
 import { getDestination } from "@/lib/catalog";
@@ -62,7 +61,7 @@ export default async function DestinationPage({ params }: { params: { slug: stri
       </section>
       <div className="container-wide py-12">
         {d.products.length > 0 ? (
-          <ProductTabs products={d.products} network={d.network} />
+          <ProductTabs products={d.products} network={d.network} destName={d.name} />
         ) : (
           <p className="text-ink/70">Paket untuk {d.name} belum tersedia. Coba lagi nanti atau pilih destinasi lain.</p>
         )}
@@ -78,12 +77,7 @@ export default async function DestinationPage({ params }: { params: { slug: stri
           </div>
         </aside>
       )}
-      {d.products.length > 0 && (
-        <>
-          <DestinationInfo destName={d.name} network={d.network} products={d.products} />
-          <DestinationFaq destName={d.name} faqs={destinationFaqs(d, d.products)} />
-        </>
-      )}
+      {d.products.length > 0 && <DestinationFaq destName={d.name} faqs={destinationFaqs(d, d.products)} />}
     </>
   );
 }

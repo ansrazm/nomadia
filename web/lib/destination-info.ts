@@ -21,7 +21,7 @@ interface TypeContent {
   checks: string[]; // hal yang perlu dicek dulu
 }
 
-/** Isi tab Detail, Cara aktivasi, dan Kompatibilitas per jenis koneksi. */
+/** Langkah cara kerja dan catatan kompatibilitas per jenis koneksi (features dan fits kini tidak dipakai di UI). */
 export const typeContent: Record<ProductType, TypeContent> = {
   esim: {
     features: [
@@ -147,7 +147,7 @@ export function destinationFaqs(d: { name: string; network: string }, products: 
   if (stats.esim) {
     list.push({
       q: `Apakah ponsel saya bisa memakai eSIM untuk ${d.name}?`,
-      a: `Ponselmu harus mendukung eSIM dan tidak terkunci ke satu operator. Cek opsi tambah eSIM di pengaturan seluler, atau lihat tab Kompatibilitas di atas.`,
+      a: `Ponselmu harus mendukung eSIM dan tidak terkunci ke satu operator. Cek opsi tambah eSIM di pengaturan seluler, atau lihat baris Kompatibilitas di atas pilihan paket.`,
     });
   }
   if (stats.wifi) {
@@ -163,7 +163,7 @@ export function destinationFaqs(d: { name: string; network: string }, products: 
     if (stats.wifi) tips.push("Kalau berangkat bersama keluarga atau teman, Portable WiFi menghemat karena dipakai bersama.");
     list.push({
       q: `Mana yang sebaiknya saya pilih untuk ke ${d.name}?`,
-      a: `${tips.join(" ")} Tab Bandingkan di atas merangkum perbedaannya.`,
+      a: `${tips.join(" ")} Tombol Bandingkan di atas pilihan paket merangkum perbedaannya.`,
     });
   }
   return list;
