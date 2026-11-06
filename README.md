@@ -106,7 +106,7 @@ Token berlaku 8 jam. Login gagal 5x dari satu IP dalam 15 menit diblokir sementa
 
 ## Menguji n8n
 
-Workflow `n8n/nomadia-order-paid.json` menerima event `order.paid`, **memeriksa tanda tangan HMAC dan kesegaran timestamp** (5 menit), lalu menyusun email konfirmasi. Tanda tangan tidak sah dibalas **401** supaya pengirim mencatat kegagalan. Diuji dengan n8n 2.35.7.
+Workflow `n8n/nomadia-order-paid.json` menerima event `order.paid`, **memeriksa tanda tangan HMAC dan kesegaran timestamp** (5 menit), lalu mengirim email konfirmasi ke pelanggan (SMTP; di Compose ke Mailpit) dan notifikasi Telegram ke pemilik toko. Tanda tangan tidak sah dibalas **401** supaya pengirim mencatat kegagalan. Diuji dengan n8n 2.35.7.
 
 ### 1. Siapkan (sekali)
 
@@ -116,6 +116,7 @@ Workflow `n8n/nomadia-order-paid.json` menerima event `order.paid`, **memeriksa 
 
 Alternatif lewat CLI (urutan ini diuji di n8n 2.35.7 di luar Docker):
 ```bash
+docker compose exec n8n n8n import:credentials --input=/workflows/credentials-mailpit.json
 docker compose exec n8n n8n import:workflow --input=/workflows/nomadia-order-paid.json
 docker compose exec n8n n8n publish:workflow --id=nomadiaOrderPaid1
 docker compose restart n8n
@@ -141,7 +142,7 @@ Lihat hasilnya di n8n → **Executions**.
    docker compose exec api npx tsx src/dev/mark-paid.ts NMD-XXXXXXXX
    # tanpa Docker: cd api && npm run dev:mark-paid -- NMD-XXXXXXXX
    ```
-3. Dalam ≤ 15 detik dispatcher API mengirim event. Di n8n → Executions, buka node **Siapkan email konfirmasi**: ada `to`, `subject`, dan `text` berisi rincian pesanan. Cek outbox:
+3. Dalam ≤ 15 detik dispatcher API mengirim event. Buka http://localhost:8025: ada email "Pembayaran diterima" berisi rincian pesanan (dan notifikasi Telegram bila sudah disiapkan). Cek outbox:
    ```bash
    docker compose exec db psql -U nomadia -d nomadia -c "select order_id, attempts, delivered_at, last_error from webhook_outbox order by id desc limit 5"
    ```
@@ -213,8 +214,6 @@ Tangkapan layar satu putaran lengkap ada di `docs/e2e/` (urutan dan keterangan d
 | `HTTP 404` | workflow belum dipublish, atau URL yang dipakai adalah URL test |
 | `fetch failed` | n8n mati, atau URL salah (di Docker host-nya `n8n`, bukan `localhost`) |
 | Code node: akses `$env` atau `crypto` ditolak | env n8n `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` dan `NODE_FUNCTION_ALLOW_BUILTIN=crypto` belum terpasang (sudah ada di `docker-compose.yml`) |
-
-Email belum benar-benar terkirim: workflow berhenti di penyusunan isi email. Untuk mengirim, ganti/tambah node **Send Email (SMTP)** setelah node **Siapkan email konfirmasi** dengan kredensial milikmu.
 
 ## Alur pembayaran
 
@@ -318,7 +317,7 @@ Format galat: `{ "error": { "code", "message", "details?" } }`.
 - Pembatas login ada di memori dan membaca IP dari `x-forwarded-for`: cukup untuk satu instance, bukan proteksi penuh di balik proxy.
 - Membatalkan order dari admin hanya mengubah status di database, bukan membatalkan sesi bayar di iPaymu. Bila pelanggan terlanjur bayar sesudahnya, webhook mencatatnya ke log untuk ditinjau manual dan tidak mengembalikan status ke lunas.
 - Beberapa pesan validasi dari zod masih berbahasa Inggris.
-- Email konfirmasi di n8n baru disusun, belum dikirim lewat SMTP (lihat "Menguji n8n").
+- Email konfirmasi memakai Mailpit (SMTP palsu) di Compose; untuk email sungguhan ganti kredensial SMTP di n8n. Isinya baru konfirmasi pembayaran; QR eSIM / info pengiriman belum dikirim otomatis.
 - Alur bayar iPaymu sandbox penuh (bayar sungguhan → callback → n8n) butuh kredensial sandbox dan tunnel publik; tes otomatis memakai gateway palsu.
 
 ## Alur kerja berbantuan AI
