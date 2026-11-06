@@ -158,6 +158,53 @@ docker compose exec db psql -U nomadia -d nomadia -c "update webhook_outbox set 
 # dalam ≤ 15 detik: delivered_at terisi, attempts=2
 ```
 
+### 5. Tes end-to-end dengan iPaymu sandbox (Docker Compose)
+
+Berbeda dengan langkah 3, di sini pembayaran lewat iPaymu sandbox sungguhan. Syaratnya iPaymu bisa memanggil API dari internet (Cloudflare Tunnel, lihat bagian "Expose ke internet").
+
+**Siapkan `.env` di root repo** (dibaca Docker Compose; `api/.env` hanya terbaca bila API dijalankan tanpa Docker):
+
+```
+WEB_URL=https://nomadia.dragonstorepb.com
+PUBLIC_API_URL=https://nomadia-api.dragonstorepb.com
+NEXT_PUBLIC_API_URL=https://nomadia-api.dragonstorepb.com
+IPAYMU_VA=<VA akun sandbox>
+IPAYMU_API_KEY=<API key akun sandbox>
+```
+
+- `IPAYMU_VA` dan `IPAYMU_API_KEY` harus **diisi berpasangan** (atau dikosongkan keduanya); jika tidak, API menolak start.
+- `WEB_URL` dan `PUBLIC_API_URL` harus URL publik: iPaymu menolak `localhost` untuk `returnUrl`, `cancelUrl`, dan `notifyUrl`.
+- `CORS_ORIGINS` di `docker-compose.yml` harus memuat `http://localhost:3000` dan `https://nomadia.dragonstorepb.com`.
+- `NEXT_PUBLIC_*` ditanam saat build, jadi setelah mengubahnya: `docker compose up -d --build web`.
+
+```bash
+docker compose up -d --build web
+docker compose up -d --force-recreate api
+docker compose exec api printenv PUBLIC_API_URL   # harus URL tunnel
+docker compose logs api --tail 10                 # "iPaymu: sandbox | n8n: aktif", tanpa error
+```
+
+**Langkah tes**
+
+1. Buka https://nomadia.dragonstorepb.com, tambahkan produk ke keranjang, lalu checkout.
+2. Browser diarahkan ke halaman bayar sandbox iPaymu. Pilih QRIS dan catat **Ref ID** (trx_id).
+3. Klik **Klik Disini** di banner kuning sandbox, isi trx_id, status **Success**, lalu **SUBMIT**. Respons callback harus `200` dengan `{"data":{"status":"paid"}}`.
+4. Dalam ≤ 15 detik: email "Pembayaran diterima" masuk di Mailpit (http://localhost:8025) dan notifikasi Telegram terkirim.
+5. SUBMIT callback yang sama sekali lagi: tetap `200`, tidak ada email atau pesan Telegram kedua (idempoten).
+
+Catatan nominal: iPaymu bisa menambahkan biaya (mis. escrow 1,8%) sehingga `Total` di halaman bayar lebih besar dari `orders.total`. API tidak memakai angka dari callback; ia membaca ulang transaksi lewat Check Transaction dan membandingkan `SubTotal` dengan `orders.total`.
+
+Tangkapan layar satu putaran lengkap ada di `docs/e2e/` (urutan dan keterangan di `docs/e2e/README.md`).
+
+**Bila iPaymu gagal**
+
+| Pesan di log API | Penyebab | Perbaikan |
+|---|---|---|
+| `notifyUrl must be a public http(s) URL` | `PUBLIC_API_URL` masih `localhost` atau tidak terbaca (salah nama variabel / ada di `api/.env`) | Isi `PUBLIC_API_URL` di `.env` root, recreate `api` |
+| `returnUrl must be a public http(s) URL` | `WEB_URL` masih `localhost` | Isi `WEB_URL` dengan domain web publik, recreate `api` |
+| `IPAYMU_VA dan IPAYMU_API_KEY harus diisi berpasangan` | Hanya satu yang terisi | Isi keduanya atau kosongkan keduanya, recreate `api` |
+| Web: "Periksa koneksi", Console `ERR_CONNECTION_REFUSED` | Container `api` crash saat start | `docker compose ps` dan `docker compose logs api` |
+
 ### Bila gagal
 
 | Gejala di `webhook_outbox.last_error` / n8n | Penyebab |
@@ -201,7 +248,7 @@ Untuk demo atau uji iPaymu sandbox dari laptop, web dan API di-expose lewat dua 
 | Web (Next.js) | http://localhost:3000 | https://nomadia.dragonstorepb.com |
 | API | http://localhost:4000 | https://nomadia-api.dragonstorepb.com |
 
-Env yang harus cocok:
+Env yang harus cocok (jalan tanpa Docker; dengan Docker Compose pakai `.env` di root, lihat langkah 5 di "Menguji n8n"):
 - `api/.env`: `WEB_URL`, `PUBLIC_API_URL`, dan `CORS_ORIGINS` (harus memuat domain web)
 - `web/.env.local`: `NEXT_PUBLIC_API_URL=https://nomadia-api.dragonstorepb.com`
 
