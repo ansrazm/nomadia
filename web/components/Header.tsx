@@ -17,10 +17,13 @@ export function Header() {
   return (
     <header className="absolute inset-x-0 top-0 z-30">
       <div className="container-x flex items-center justify-between py-5 text-white">
-        <Link href="/" className="flex items-center gap-2 font-display text-2xl font-bold tracking-tight">
+        {/* <a> biasa (bukan <Link>): logo selalu memuat ulang beranda penuh, jadi tetap jalan dari halaman mana pun
+            walau navigasi sisi-klien tertahan (mis. halaman resi yang sedang polling, atau proxy/tunnel yang menahan request RSC). */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+        <a href="/" className="flex items-center gap-2 font-display text-2xl font-bold tracking-tight">
           <SignalBars level={4} className="h-5" />
           nomadia
-        </Link>
+        </a>
         <nav aria-label="Utama" className="hidden items-center gap-8 md:flex">
           {links.map((l) => (
             <Link key={l.href} href={l.href} className="text-sm font-medium text-white/85 hover:text-white">
