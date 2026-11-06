@@ -27,6 +27,7 @@ function QrPanel({ qr, total }: { qr: OrderQr; total: number }) {
     return () => clearInterval(t);
   }, [qr.expiresAt]);
 
+  const [imgBroken, setImgBroken] = useState(false);
   const remaining = qr.expiresAt ? new Date(qr.expiresAt).getTime() - now : null;
   if (remaining !== null && remaining <= 0) {
     return (
@@ -39,8 +40,15 @@ function QrPanel({ qr, total }: { qr: OrderQr; total: number }) {
   }
   return (
     <div className="mt-6 rounded-2xl bg-mist p-6 text-center">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={qr.imageUrl} alt={`Kode QRIS untuk membayar ${idr(total)}`} width={256} height={256} className="mx-auto h-64 w-64 rounded-xl bg-white object-contain p-2" />
+      {imgBroken ? (
+        <div className="mx-auto flex h-64 w-64 flex-col items-center justify-center gap-3 rounded-xl bg-white p-4 text-sm" role="alert">
+          <p>Gambar QR tidak bisa ditampilkan di sini.</p>
+          {/^https?:/.test(qr.imageUrl) && <a href={qr.imageUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-deep underline">Buka QR di tab baru</a>}
+        </div>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={qr.imageUrl} onError={() => setImgBroken(true)} alt={`Kode QRIS untuk membayar ${idr(total)}`} width={256} height={256} className="mx-auto h-64 w-64 rounded-xl bg-white object-contain p-2" />
+      )}
       <p className="mt-4 font-display text-xl font-bold">Bayar {idr(total)}</p>
       <p className="mt-1 text-sm text-ink/70">Scan dengan aplikasi bank atau e-wallet yang mendukung QRIS.</p>
       {remaining !== null && <p className="mt-3 text-sm font-semibold" aria-live="off">Berlaku {fmtRemaining(remaining)} lagi</p>}

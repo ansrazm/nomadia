@@ -129,6 +129,42 @@ describe("IpaymuClient.createDirectQris", () => {
   });
 });
 
+describe("IpaymuClient.resolveQrImage", () => {
+  const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+  const make = (res: Response | Error) => {
+    const calls: string[] = [];
+    const fetchImpl = (async (url: string) => { calls.push(url); if (res instanceof Error) throw res; return res.clone(); }) as unknown as typeof fetch;
+    return { calls, c: new IpaymuClient({ va: VA, apiKey: KEY, mode: "sandbox", fetchImpl }) };
+  };
+  const U = "https://sandbox.ipaymu.com/qris-basic/261106-95704-248414-173500";
+  const html = (body: string, type = "text/html; charset=UTF-8") => new Response(body, { headers: { "content-type": type } });
+
+  it("halaman HTML sandbox berisi <img> data URI -> dikembalikan sebagai data URI", async () => {
+    const { c, calls } = make(html(`<img src="${PNG}" style="max-width:300px;">`));
+    expect(await c.resolveQrImage(U)).toBe(PNG);
+    expect(calls).toEqual([U]);
+  });
+  it("HTML tanpa gambar, respons bukan HTML, status galat, atau jaringan putus -> URL asli", async () => {
+    expect(await make(html("<p>tidak ada gambar</p>")).c.resolveQrImage(U)).toBe(U);
+    expect(await make(html("\x89PNG", "image/png")).c.resolveQrImage(U)).toBe(U);
+    expect(await make(new Response("x", { status: 404, headers: { "content-type": "text/html" } })).c.resolveQrImage(U)).toBe(U);
+    expect(await make(new Error("ECONNRESET")).c.resolveQrImage(U)).toBe(U);
+  });
+  it("data URI dilewatkan tanpa fetch; host non-iPaymu atau non-HTTPS tidak pernah diambil", async () => {
+    const m = make(html(`<img src="${PNG}">`));
+    expect(await m.c.resolveQrImage(PNG)).toBe(PNG);
+    expect(await m.c.resolveQrImage("https://evil.example.com/qris-basic/1")).toBe("https://evil.example.com/qris-basic/1");
+    expect(await m.c.resolveQrImage("https://ipaymu.com.evil.example/x")).toBe("https://ipaymu.com.evil.example/x");
+    expect(await m.c.resolveQrImage("http://sandbox.ipaymu.com/qris-basic/1")).toBe("http://sandbox.ipaymu.com/qris-basic/1");
+    expect(await m.c.resolveQrImage("http://169.254.169.254/latest")).toBe("http://169.254.169.254/latest");
+    expect(m.calls).toEqual([]);
+  });
+  it("hanya data URI gambar yang diambil: skrip atau SVG/URL lain di dalam HTML diabaikan", async () => {
+    const { c } = make(html(`<img src="javascript:alert(1)"><img src="data:text/html;base64,PGI+"><script>1</script>`));
+    expect(await c.resolveQrImage(U)).toBe(U);
+  });
+});
+
 describe("IpaymuClient.checkTransaction", () => {
   const client = (handler: Parameters<typeof mockFetch>[0]) => {
     const m = mockFetch(handler);

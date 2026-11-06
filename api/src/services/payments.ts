@@ -62,6 +62,7 @@ export async function startQrisCheckout(db: Db, gateway: PaymentGateway, order: 
       notifyUrl: `${urls.publicApiUrl}/webhooks/ipaymu`,
     });
     let imageUrl = r.qrImage;
+    if (imageUrl && gateway.resolveQrImage) imageUrl = await gateway.resolveQrImage(imageUrl);
     if (!imageUrl && r.qrString?.startsWith("000201")) {
       const png = await QRCode.toBuffer(r.qrString, { type: "png", width: 320, margin: 2, errorCorrectionLevel: "M" });
       imageUrl = `data:image/png;base64,${png.toString("base64")}`;

@@ -27,6 +27,13 @@ class QrisGateway implements PaymentGateway {
   verifyCallback() { return true; }
 }
 
+const DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+/** Gateway yang, seperti IpaymuClient asli, mengubah URL halaman QR sandbox menjadi gambar yang bisa dipakai <img>. */
+class ResolvingGateway extends QrisGateway {
+  resolved: string[] = [];
+  async resolveQrImage(url: string) { this.resolved.push(url); return DATA_URI; }
+}
+
 let db: Db, gw: QrisGateway, call: ReturnType<typeof appFor>["call"];
 beforeAll(async () => { db = await freshDb(); });
 afterAll(() => db.end());
@@ -47,6 +54,16 @@ describe("alur QRIS Direct (IPAYMU_FLOW=qris)", () => {
     expect(gw.qrisCalls[0]).toMatchObject({ orderId: r.json.data.orderId, total: 242000, notifyUrl: "https://api.test/webhooks/ipaymu" });
     const row = (await db.query("SELECT payment_ref, payment_url, status FROM orders WHERE id = $1", [r.json.data.orderId])).rows[0];
     expect(row).toEqual({ payment_ref: String(gw.next), payment_url: null, status: "pending" });
+  });
+
+  it("URL gambar iPaymu diselesaikan jadi data URI sebelum disimpan, sehingga <img> bisa menampilkannya", async () => {
+    const rg = new ResolvingGateway();
+    const c = appFor(db, { gateway: rg, checkoutFlow: "qris", publicApiUrl: "https://api.test", webUrl: "https://web.test" }).call;
+    const r = await c("POST", "/orders", { name: "Budi", email: "budi@example.com", items: [{ productId: "jepang-esim-7", qty: 1 }] });
+    expect(r.json.data.qr.imageUrl).toBe(DATA_URI);
+    expect(rg.resolved).toEqual([expect.stringMatching(/^https:\/\/sandbox\.ipaymu\.com\/qris-basic\//)]);
+    const g = await c("GET", `/orders/${r.json.data.orderId}`);
+    expect(g.json.data.qr.imageUrl).toBe(DATA_URI);
   });
 
   it("GET /orders/:id mengembalikan qr selama pending", async () => {

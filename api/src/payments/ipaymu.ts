@@ -68,6 +68,11 @@ export interface PaymentGateway {
   createCheckout(input: CheckoutInput): Promise<{ sessionId: string; url: string }>;
   /** Opsional: hanya gateway yang mendukung QRIS Direct. Dipakai bila IPAYMU_FLOW=qris. */
   createDirectQris?(input: DirectQrisInput): Promise<DirectQrisResult>;
+  /**
+   * Opsional: ubah `QrImage` dari iPaymu menjadi sesuatu yang bisa dipakai sebagai <img src>. Di sandbox, URL itu
+   * adalah halaman HTML yang membungkus gambar (data URI), bukan file gambar, sehingga <img> langsung gagal tampil.
+   */
+  resolveQrImage?(url: string): Promise<string>;
   /** null = iPaymu menyatakan transaksi tidak ada. Galat jaringan/auth dilempar sebagai GatewayError. */
   checkTransaction(trxId: number): Promise<TxInfo | null>;
   /** true/false = hasil cek X-Signature callback. */
@@ -217,6 +222,26 @@ export class IpaymuClient implements PaymentGateway {
       expired: str(d.Expired),
       raw: d as Record<string, unknown>,
     };
+  }
+
+  /**
+   * Mengambil gambar QR dari URL `QrImage`. Kalau URL itu halaman HTML berisi <img src="data:image/...;base64,...">
+   * (perilaku sandbox), gambar di dalamnya dikembalikan sebagai data URI. Selain itu, atau bila gagal, URL asli
+   * dikembalikan apa adanya. Hanya host ipaymu.com lewat HTTPS yang diambil.
+   */
+  async resolveQrImage(url: string): Promise<string> {
+    if (url.startsWith("data:image/")) return url;
+    try {
+      const u = new URL(url);
+      if (u.protocol !== "https:" || !(u.hostname === "ipaymu.com" || u.hostname.endsWith(".ipaymu.com"))) return url;
+      const res = await this.fetchImpl(url, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok || !(res.headers.get("content-type") ?? "").toLowerCase().includes("text/html")) return url;
+      const html = (await res.text()).slice(0, 2_000_000);
+      const m = /<img[^>]+src=["'](data:image\/(?:png|jpe?g|gif);base64,[A-Za-z0-9+/=]+)["']/i.exec(html);
+      return m?.[1] ?? url;
+    } catch {
+      return url;
+    }
   }
 
   async checkTransaction(trxId: number): Promise<TxInfo | null> {
