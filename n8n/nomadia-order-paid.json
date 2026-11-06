@@ -1,5 +1,4 @@
 {
-  "id": "nomadiaOrderPaid1",
   "name": "Nomadia - order paid",
   "nodes": [
     {
@@ -33,14 +32,6 @@
       ]
     },
     {
-      "id": "a1000000-0000-4000-8000-000000000005",
-      "name": "Tanda tangan sah?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        480,
-        0
-      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -64,11 +55,19 @@
           "combinator": "and"
         },
         "options": {}
-      }
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Tanda tangan sah?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const o = $input.first().json.order;\nconst rp = (n) => 'Rp' + n.toLocaleString('id-ID');\nconst lines = o.items.map((i) => `- ${i.name} x${i.qty}: ${rp(i.unitPrice * i.qty)}`).join('\\n');\nreturn [{ json: {\n  to: o.customerEmail,\n  subject: `Pembayaran diterima - pesanan ${o.id}`,\n  text: `Halo ${o.customerName},\\n\\nPembayaran pesanan ${o.id} sebesar ${rp(o.total)} sudah kami terima.\\n\\n${lines}\\n\\nQR eSIM / info pengiriman menyusul di email berikutnya.\\n\\nSalam,\\nNomadia`,\n  orderId: o.id\n} }];"
+        "jsCode": "const o = $input.first().json.order;\nconst rp = (n) => 'Rp' + n.toLocaleString('id-ID');\nconst lines = o.items.map((i) => `- ${i.name} x${i.qty}: ${rp(i.unitPrice * i.qty)}`).join('\\n');\nreturn [{ json: {\n  to: o.customerEmail,\n  subject: `Pembayaran diterima - pesanan ${o.id}`,\n  text: `Halo ${o.customerName},\\n\\nPembayaran pesanan ${o.id} sebesar ${rp(o.total)} sudah kami terima.\\n\\n${lines}\\n\\nQR eSIM / info pengiriman menyusul di email berikutnya.\\n\\nSalam,\\nNomadia`,\n  telegramText: `Pesanan baru lunas: ${o.id}\\n${rp(o.total)} - ${o.customerName} (${o.customerEmail})\\n${lines}`,\n  orderId: o.id\n} }];"
       },
       "id": "a1000000-0000-4000-8000-000000000003",
       "name": "Siapkan email konfirmasi",
@@ -76,13 +75,96 @@
       "typeVersion": 2,
       "position": [
         720,
-        -100
+        -96
       ]
     },
     {
       "parameters": {
+        "fromEmail": "Nomadia <no-reply@nomadia.local>",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Kirim email ke pelanggan",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        960,
+        -96
+      ],
+      "webhookId": "54ea5732-e727-4692-8429-a2f4307a7905",
+      "credentials": {
+        "smtp": {
+          "id": "WnfEOfKo3CYns4VT",
+          "name": "Mailpit SMTP"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b1000000-0000-4000-8000-000000000002",
+              "leftValue": "={{ !!$env.TELEGRAM_BOT_TOKEN && !!$env.TELEGRAM_CHAT_ID }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "Telegram aktif?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.TELEGRAM_API_BASE || 'https://api.telegram.org') + '/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TELEGRAM_CHAT_ID, text: $('Siapkan email konfirmasi').first().json.telegramText }) }}",
+        "options": {
+          "timeout": 8000
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "name": "Notifikasi Telegram ke pemilik",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        -208
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"ok\": true, \"orderId\": $json.orderId } }}",
+        "responseBody": "={{ { \"ok\": true, \"orderId\": $('Siapkan email konfirmasi').first().json.orderId } }}",
         "options": {
           "responseCode": 200
         }
@@ -92,28 +174,46 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        960,
-        -100
+        1680,
+        -96
       ]
     },
     {
-      "id": "a1000000-0000-4000-8000-000000000006",
-      "name": "Balas 401",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [
-        720,
-        120
-      ],
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ { \"ok\": false, \"error\": \"signature_invalid\" } }}",
         "options": {
           "responseCode": 401
         }
-      }
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Balas 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": false, \"error\": \"email_failed\" } }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000010",
+      "name": "Balas 500",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        128
+      ]
     }
   ],
+  "pinData": {},
   "connections": {
     "Webhook order.paid": {
       "main": [
@@ -159,6 +259,53 @@
       "main": [
         [
           {
+            "node": "Kirim email ke pelanggan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kirim email ke pelanggan": {
+      "main": [
+        [
+          {
+            "node": "Telegram aktif?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Balas 500",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram aktif?": {
+      "main": [
+        [
+          {
+            "node": "Notifikasi Telegram ke pemilik",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Balas 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notifikasi Telegram ke pemilik": {
+      "main": [
+        [
+          {
             "node": "Balas 200",
             "type": "main",
             "index": 0
@@ -167,7 +314,16 @@
       ]
     }
   },
+  "active": true,
   "settings": {
-    "executionOrder": "v1"
-  }
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "04f15c6c-52f8-413e-990e-04fc251ee52f",
+  "meta": {
+    "instanceId": "c016fbb8c791395df61812354dde9e1e26b26d2a3f81ba54c4734061de292408"
+  },
+  "nodeGroups": [],
+  "id": "nomadiaOrderPaid1",
+  "tags": []
 }
