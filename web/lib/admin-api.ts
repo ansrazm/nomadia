@@ -66,3 +66,12 @@ export interface AdminVoucher { code: string; percent: number; active: boolean; 
 export type OrderStatus = "pending" | "paid" | "expired" | "cancelled";
 export interface AdminOrder { id: string; status: OrderStatus; customerName: string; customerEmail: string; subtotal: number; discount: number; total: number; voucher: string | null; createdAt: string; paidAt: string | null }
 export interface AdminOrderDetail extends AdminOrder { paymentRef: string | null; paymentUrl: string | null; items: { productId: string; name: string; unitPrice: number; qty: number }[] }
+export type CheckoutFlow = "redirect" | "qris";
+export interface AdminSettings {
+  checkoutFlow: CheckoutFlow;
+  /** "database" = dipilih di admin; "env" = belum pernah diubah, mengikuti IPAYMU_FLOW. */
+  source: "database" | "env";
+  envDefault: CheckoutFlow;
+  gatewayConfigured: boolean;
+  qrisSupported: boolean;
+}

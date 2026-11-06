@@ -125,6 +125,7 @@ Aktif hanya bila `ADMIN_EMAIL`, `ADMIN_PASSWORD` (min 12 karakter), dan `AUTH_SE
 - **Dashboard**: omzet lunas, jumlah pesanan per status, jumlah katalog, 5 pesanan terbaru.
 - **Destinasi / Produk / Voucher**: tambah, ubah, hapus, dan saklar Aktif. Harga yang diubah langsung tampil di toko. Item yang sudah terpakai di pesanan tidak bisa dihapus (nonaktifkan saja).
 - **Pesanan**: filter status, cari nomor/nama/email, detail dengan email utuh, batalkan pesanan `pending`.
+- **Pengaturan**: pilih alur pembayaran (halaman bayar iPaymu atau QRIS di halaman toko) tanpa restart. Aktif hanya bila iPaymu sudah dikonfigurasi.
 
 Token berlaku 8 jam. Login gagal 5x dari satu IP dalam 15 menit diblokir sementara (429).
 
@@ -241,7 +242,7 @@ Tangkapan layar satu putaran lengkap ada di `docs/e2e/` (urutan dan keterangan d
 
 ## QRIS Direct (opsional)
 
-Checkout normal memakai Redirect Payment (halaman bayar iPaymu). Dengan `IPAYMU_FLOW=qris` di `.env`, API memakai **Direct Payment** `POST /api/v2/payment/direct` (`paymentMethod=qris`, `paymentChannel=mpm`): QR tampil di halaman `/orders/[id]` sendiri dengan hitung mundur, dan keranjang dipertahankan sampai pesanan lunas supaya QR yang kedaluwarsa bisa diganti. Default tetap `redirect`; recreate `api` setelah mengubahnya.
+Checkout normal memakai Redirect Payment (halaman bayar iPaymu). Dengan `IPAYMU_FLOW=qris` di `.env`, API memakai **Direct Payment** `POST /api/v2/payment/direct` (`paymentMethod=qris`, `paymentChannel=mpm`): QR tampil di halaman `/orders/[id]` sendiri dengan hitung mundur, dan keranjang dipertahankan sampai pesanan lunas supaya QR yang kedaluwarsa bisa diganti. Default tetap `redirect`. Nilai itu hanya titik awal: alur juga bisa diganti dari **/admin/settings** tanpa restart. Pilihan admin disimpan di tabel `settings`, menimpa `IPAYMU_FLOW`, dan berlaku untuk pesanan berikutnya (pesanan yang sudah dibuat tidak berubah). Tombol "Kembalikan ke nilai awal" menghapus pilihan itu sehingga kembali mengikuti `.env`.
 
 - **Pelunasan** memakai jalur yang sama dengan checkout biasa: `referenceId` = nomor order, callback ke `/webhooks/ipaymu`, lalu Check Transaction dan pencocokan nominal.
 - **Gambar QR** memakai `QrImage` dari iPaymu. Bila suatu saat tidak ada tetapi `QrString` berawalan `000201` (payload QRIS asli), API merender PNG sendiri. Di sandbox `QrString`/`PaymentNo` hanya teks demo ("THIS IS NOT A REAL QRIS") dan tidak pernah dirender menjadi QR.
@@ -336,6 +337,7 @@ Login menghasilkan token; kirim sebagai `Authorization: Bearer <token>`.
 | PATCH/DELETE | `/admin/destinations/:slug` | Ubah sebagian / hapus |
 | GET/POST | `/admin/products?dest=` | Daftar (termasuk nonaktif) / tambah |
 | PATCH/DELETE | `/admin/products/:id` | Ubah (harga, `active`, dll.) / hapus |
+| GET/PATCH | `/admin/settings` | Baca / ubah alur pembayaran `{checkoutFlow: "redirect"\|"qris"\|null}`; `null` kembali ke `IPAYMU_FLOW`. 409 bila iPaymu belum dikonfigurasi |
 | GET/POST | `/admin/vouchers` | Daftar (dengan `used`) / tambah |
 | PATCH/DELETE | `/admin/vouchers/:code` | Ubah persen atau `active` / hapus |
 | GET | `/admin/orders?status=&q=&limit=&offset=` | Daftar order + `total`; `q` mencari id, nama, email |

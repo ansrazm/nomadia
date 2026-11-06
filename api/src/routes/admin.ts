@@ -3,8 +3,13 @@ import { z, type ZodTypeAny } from "zod";
 import type { Db } from "../db/pool.js";
 import { ApiError } from "../errors.js";
 import { LoginLimiter, safeEqual, signToken, verifyToken } from "../services/auth.js";
+import type { PaymentGateway } from "../payments/ipaymu.js";
+import { CHECKOUT_FLOWS, getCheckoutFlow, setCheckoutFlow, type CheckoutFlow } from "../services/settings.js";
 
 export interface AdminConfig { email: string; password: string; secret: string }
+
+/** Konteks pembayaran untuk halaman pengaturan: gateway ada/tidaknya dan nilai awal dari env. */
+export interface AdminPaymentContext { gateway: PaymentGateway | null; defaultFlow: CheckoutFlow }
 
 const slug = z.string().trim().min(1).max(80).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Hanya huruf kecil, angka, dan tanda hubung");
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -71,7 +76,7 @@ const productDto = (r: any) => ({ id: r.id, destSlug: r.dest_slug, type: r.type,
 const voucherDto = (r: any) => ({ code: r.code, percent: r.percent, active: r.active, ...(r.used !== undefined ? { used: r.used } : {}) });
 const orderDto = (r: any) => ({ id: r.id, status: r.status, customerName: r.customer_name, customerEmail: r.customer_email, subtotal: r.subtotal, discount: r.discount, total: r.total, voucher: r.voucher_code, createdAt: r.created_at, paidAt: r.paid_at });
 
-export function adminRoutes(db: Db, cfg: AdminConfig) {
+export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext = { gateway: null, defaultFlow: "redirect" }) {
   const app = new Hono();
   const limiter = new LoginLimiter();
 
@@ -114,6 +119,32 @@ export function adminRoutes(db: Db, cfg: AdminConfig) {
     const byStatus = { pending: 0, paid: 0, expired: 0, cancelled: 0 } as Record<string, number>;
     for (const r of orders.rows) byStatus[r.status] = r.n;
     return c.json({ data: { orders: byStatus, paidRevenue: Number(rev.rows[0]!.revenue), ...cat.rows[0] } });
+  });
+
+  // ---- Pengaturan: alur pembayaran ----
+  const settingsView = async () => {
+    const { flow, source } = await getCheckoutFlow(db, pay.defaultFlow);
+    return {
+      checkoutFlow: flow,
+      source,
+      envDefault: pay.defaultFlow,
+      gatewayConfigured: !!pay.gateway,
+      qrisSupported: !!pay.gateway?.createDirectQris,
+      flows: CHECKOUT_FLOWS,
+    };
+  };
+
+  app.get("/admin/settings", async (c) => c.json({ data: await settingsView() }));
+
+  // checkoutFlow: "redirect" | "qris" menyimpan pilihan; null menghapusnya (kembali mengikuti env). Berlaku untuk order berikutnya.
+  app.patch("/admin/settings", async (c) => {
+    const { checkoutFlow } = await body(c, z.object({ checkoutFlow: z.enum(["redirect", "qris"]).nullable() }));
+    if (checkoutFlow !== null) {
+      if (!pay.gateway) throw new ApiError(409, "PAYMENT_NOT_CONFIGURED", "iPaymu belum dikonfigurasi (isi IPAYMU_VA dan IPAYMU_API_KEY di .env, lalu restart API), jadi alur pembayaran belum bisa diubah.");
+      if (checkoutFlow === "qris" && !pay.gateway.createDirectQris) throw new ApiError(409, "FLOW_UNSUPPORTED", "Gateway pembayaran yang aktif tidak mendukung QRIS Direct.");
+    }
+    await setCheckoutFlow(db, checkoutFlow);
+    return c.json({ data: await settingsView() });
   });
 
   // ---- Destinasi ----

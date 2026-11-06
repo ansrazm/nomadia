@@ -12,6 +12,7 @@ const nav = [
   { href: "/admin/products", label: "Produk" },
   { href: "/admin/destinations", label: "Destinasi" },
   { href: "/admin/vouchers", label: "Voucher" },
+  { href: "/admin/settings", label: "Pengaturan" },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
