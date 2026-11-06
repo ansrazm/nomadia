@@ -62,11 +62,22 @@ services:
       NODE_FUNCTION_ALLOW_BUILTIN: crypto
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET}
+      # Notifikasi Telegram ke pemilik toko (opsional; kosong = dilewati).
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     volumes:
       - n8n_data:/home/node/.n8n
       - ./n8n:/workflows:ro
+    depends_on:
+      - mailpit
     ports:
       - "5678:5678"
+
+  # SMTP palsu untuk demo: email konfirmasi dari n8n tidak keluar ke internet, tapi bisa dibaca di http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025"
 
 volumes:
   pgdata:
