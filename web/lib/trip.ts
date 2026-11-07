@@ -2,7 +2,7 @@ import { Product, ProductType, productTypes } from "./catalog-types";
 
 /**
  * Rute perjalanan multi-destinasi: sepenuhnya lapisan tampilan. Keranjang, harga, dan pesanan tidak berubah:
- * rute hanya membantu memilih satu paket per destinasi lalu memasukkannya ke keranjang yang sama.
+ * rute hanya membantu memilih paket di tiap destinasi (satu atau beberapa) lalu memasukkannya ke keranjang yang sama.
  * Fungsi di sini murni (tanpa React, tanpa fetch), aman dipakai di server maupun client.
  */
 export const MAX_STOPS = 3;

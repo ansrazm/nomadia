@@ -14,16 +14,15 @@ import { useFooterOnScreen, useOnScreen } from "./useOnScreen";
 const perDay = (p: Product) => Math.round(p.price / p.days);
 
 const hasStock = (d: DestinationDetail, ty: ProductType) => d.products.some((p) => p.type === ty && !p.soldOut);
-const selKey = (slug: string, ty: ProductType) => `${slug}:${ty}`;
+const typeRank = (ty: ProductType) => productTypes.indexOf(ty);
 /** Sama dengan batas per paket di keranjang, halaman destinasi, dan API. */
 const MAX_QTY = 9;
 
 /**
  * Pemilih paket untuk rute multi-destinasi. Tab di atas hanya memilih jenis koneksi yang sedang dilihat; yang dibeli
- * ditentukan oleh centang. Satu tujuan boleh punya satu paket per jenis (misalnya eSIM dan Portable WiFi sekaligus),
- * klik paket yang sama sekali lagi untuk membatalkan, dan tujuan tanpa centang tidak ikut ke keranjang.
- * Jumlah tiap paket diatur di ringkasan (misalnya 3 SIM Card untuk keluarga); jumlahnya melekat pada jenis di tujuan itu,
- * jadi mengganti paket sejenis tidak mereset jumlah, dan membatalkan paket menghapusnya.
+ * ditentukan oleh centang. Satu tujuan boleh punya beberapa paket, termasuk beberapa paket sejenis (misalnya eSIM 3 hari
+ * dan eSIM 15 hari untuk dua tahap perjalanan) maupun jenis berbeda. Klik paket lagi untuk membatalkan; tujuan tanpa
+ * centang tidak ikut ke keranjang. Jumlah tiap paket diatur di ringkasan (misalnya 3 SIM Card untuk keluarga).
  * Data produk datang dari server; di sini hanya pilihan dan tampilan. Harga di keranjang tetap dihitung ulang server saat checkout.
  */
 export function TripPlanner({ destinations, initialType }: { destinations: DestinationDetail[]; initialType: ProductType }) {
@@ -33,17 +32,15 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
   const ct = useCatalogText();
   const [stops, setStops] = useState(() => destinations.map((d) => d.slug));
   const [tab, setTab] = useState<ProductType>(initialType);
-  // Pilihan: "slug:jenis" -> id paket. Tidak ada kunci = belum dipilih. Awalnya paket bawaan untuk jenis dari URL.
-  const [sel, setSel] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {};
+  // Pilihan: id paket -> jumlah. Ada kunci = dipilih. Awalnya paket bawaan untuk jenis dari URL, masing-masing 1.
+  const [picks, setPicks] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
     for (const d of destinations) {
       const stocked = d.products.filter((p) => p.type === initialType && !p.soldOut);
-      if (stocked.length) init[selKey(d.slug, initialType)] = pickDefault(stocked).id;
+      if (stocked.length) init[pickDefault(stocked).id] = 1;
     }
     return init;
   });
-  // Jumlah per "slug:jenis"; tidak ada kunci = 1.
-  const [qty, setQtyMap] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const summaryRef = useRef<HTMLElement>(null);
   const summaryOn = useOnScreen(summaryRef);
@@ -53,11 +50,10 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
   // Satu baris per tujuan: paket jenis yang sedang dilihat (tab), dan semua paket yang sudah dipilih di tujuan itu.
   const rows = shown.map((d) => {
     const list = d.products.filter((p) => p.type === tab);
-    const picked = productTypes.flatMap((ty) => {
-      const id = sel[selKey(d.slug, ty)];
-      const p = id ? d.products.find((x) => x.id === id && !x.soldOut) : undefined;
-      return p ? [{ p, q: qty[selKey(d.slug, ty)] ?? 1 }] : [];
-    });
+    const picked = d.products
+      .filter((p) => !p.soldOut && picks[p.id])
+      .sort((a, b) => typeRank(a.type) - typeRank(b.type) || a.days - b.days)
+      .map((p) => ({ p, q: picks[p.id] }));
     return { d, list, picked };
   });
   const chosen = rows.flatMap((r) => r.picked);
@@ -73,21 +69,15 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
     window.history.replaceState(window.history.state, "", url);
   };
   const changeTab = (ty: ProductType) => { setTab(ty); syncUrl(stops, ty); };
-  const toggle = (slug: string, p: Product) => {
-    const k = selKey(slug, p.type);
-    // Mengganti ke paket lain di jenis yang sama mempertahankan jumlah; membatalkan menghapusnya.
-    if (sel[k] === p.id) setQtyMap((q) => { const next = { ...q }; delete next[k]; return next; });
-    setSel((s) => {
+  // Klik paket: pilih (jumlah 1) atau batalkan. Paket lain, sejenis atau tidak, tidak terpengaruh.
+  const toggle = (p: Product) =>
+    setPicks((s) => {
       const next = { ...s };
-      if (next[k] === p.id) delete next[k];
-      else next[k] = p.id;
+      if (next[p.id]) delete next[p.id];
+      else next[p.id] = 1;
       return next;
     });
-  };
-  const setQty = (slug: string, p: Product, n: number) => {
-    const next = Math.min(MAX_QTY, Math.max(1, n));
-    setQtyMap((q) => ({ ...q, [selKey(slug, p.type)]: next }));
-  };
+  const setQty = (p: Product, n: number) => setPicks((s) => (s[p.id] ? { ...s, [p.id]: Math.min(MAX_QTY, Math.max(1, n)) } : s));
   const removeStop = (slug: string) => {
     const next = stops.filter((s) => s !== slug);
     if (!next.length) { router.push("/destinations"); return; }
@@ -157,7 +147,7 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
                     {others.map(({ p, q }) => (
                       <span key={p.id} className="inline-flex items-center gap-1 rounded-[3px] bg-mist py-0.5 pl-2.5 pr-0.5 font-semibold">
                         {lineLabel(p)}{q > 1 && ` × ${q}`}
-                        <button type="button" onClick={() => toggle(d.slug, p)} aria-label={t("trip.removeLine", { label: lineLabel(p), name: d.name })} className="grid h-6 w-6 place-items-center rounded-[3px] text-base leading-none text-ink/55 hover:bg-white hover:text-ink">×</button>
+                        <button type="button" onClick={() => toggle(p)} aria-label={t("trip.removeLine", { label: lineLabel(p), name: d.name })} className="grid h-6 w-6 place-items-center rounded-[3px] text-base leading-none text-ink/55 hover:bg-white hover:text-ink">×</button>
                       </span>
                     ))}
                   </div>
@@ -175,13 +165,13 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
                           </div>
                         );
                       }
-                      const on = sel[selKey(d.slug, tab)] === p.id;
+                      const on = !!picks[p.id];
                       return (
                         <button
                           key={p.id}
                           type="button"
                           aria-pressed={on}
-                          onClick={() => toggle(d.slug, p)}
+                          onClick={() => toggle(p)}
                           className={`relative rounded-[4px] border-2 bg-white p-3 text-left transition-all ${on ? "border-ink shadow-lift" : "border-line hover:-translate-y-0.5 hover:border-lagoon"}`}
                         >
                           <span aria-hidden className={`absolute right-2.5 top-2.5 grid h-5 w-5 place-items-center rounded-[3px] border-2 text-[11px] font-bold ${on ? "border-ink bg-ink text-white" : "border-line text-transparent"}`}>✓</span>
@@ -219,15 +209,15 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
                         <span className="min-w-0 text-sm text-ink/60">{lineLabel(p)} · {ct.data(p.data)}</span>
                         <span className="flex shrink-0 items-center gap-1">
                           <span className="font-semibold">{idr(p.price * q)}</span>
-                          <button type="button" onClick={() => toggle(d.slug, p)} aria-label={t("trip.removeLine", { label: lineLabel(p), name: d.name })} className="grid h-6 w-6 place-items-center rounded-[3px] text-base leading-none text-ink/55 hover:bg-mist hover:text-ink">×</button>
+                          <button type="button" onClick={() => toggle(p)} aria-label={t("trip.removeLine", { label: lineLabel(p), name: d.name })} className="grid h-6 w-6 place-items-center rounded-[3px] text-base leading-none text-ink/55 hover:bg-mist hover:text-ink">×</button>
                         </span>
                       </div>
                       <div className="mt-1.5 flex items-center justify-between gap-3">
                         <span className="text-xs text-ink/55">{q > 1 ? `${idr(p.price)} × ${q}` : t("tabs.qty")}</span>
                         <div className="inline-flex items-center rounded-[4px] border border-line" role="group" aria-label={t("trip.qtyAria", { label: lineLabel(p), name: d.name })}>
-                          <button type="button" aria-label={t("trip.qtyDec", { label: lineLabel(p), name: d.name })} disabled={q <= 1} onClick={() => setQty(d.slug, p, q - 1)} className="h-8 w-8 rounded-[3px] text-lg leading-none disabled:opacity-35">−</button>
+                          <button type="button" aria-label={t("trip.qtyDec", { label: lineLabel(p), name: d.name })} disabled={q <= 1} onClick={() => setQty(p, q - 1)} className="h-8 w-8 rounded-[3px] text-lg leading-none disabled:opacity-35">−</button>
                           <span className="w-7 text-center text-sm font-semibold" aria-live="polite">{q}</span>
-                          <button type="button" aria-label={t("trip.qtyInc", { label: lineLabel(p), name: d.name })} disabled={q >= MAX_QTY} onClick={() => setQty(d.slug, p, q + 1)} className="h-8 w-8 rounded-[3px] text-lg leading-none disabled:opacity-35">+</button>
+                          <button type="button" aria-label={t("trip.qtyInc", { label: lineLabel(p), name: d.name })} disabled={q >= MAX_QTY} onClick={() => setQty(p, q + 1)} className="h-8 w-8 rounded-[3px] text-lg leading-none disabled:opacity-35">+</button>
                         </div>
                       </div>
                     </div>
