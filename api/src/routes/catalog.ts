@@ -4,17 +4,17 @@ import { ApiError } from "../errors.js";
 import { getHomeBannerId, mediaPath } from "../services/media.js";
 
 interface DestRow { slug: string; name: string; code: string; region: string; network: string; factor: string; thumb_media: string | null; banner_media: string | null }
-interface ProductRow { id: string; dest_slug: string; type: string; name: string; days: number; data: string; price: number; note: string }
+interface ProductRow { id: string; dest_slug: string; type: string; name: string; days: number; data: string; price: number; note: string; sold_out: boolean }
 
 const destDto = (d: DestRow) => ({ slug: d.slug, name: d.name, code: d.code, region: d.region, network: d.network, factor: Number(d.factor), thumbUrl: mediaPath(d.thumb_media), bannerUrl: mediaPath(d.banner_media) });
 const PRODUCT_TYPES: string[] = ["esim", "sim", "wifi"];
-const productDto = (p: ProductRow) => ({ id: p.id, destSlug: p.dest_slug, type: p.type, name: p.name, days: p.days, data: p.data, price: p.price, note: p.note });
+const productDto = (p: ProductRow) => ({ id: p.id, destSlug: p.dest_slug, type: p.type, name: p.name, days: p.days, data: p.data, price: p.price, note: p.note, soldOut: p.sold_out });
 
 export function catalogRoutes(db: Db) {
   const app = new Hono();
 
   // Daftar destinasi + harga mulai dari. Filter opsional: ?region=Asia&q=jep&type=esim
-  // Dengan ?type=, hanya destinasi yang punya paket aktif jenis itu yang tampil, dan harga mulai dari dihitung dari jenis itu saja.
+  // Dengan ?type=, hanya destinasi yang punya paket aktif jenis itu yang tampil (paket kosong tetap dihitung ada), dan harga mulai dari dihitung dari paket yang bisa dibeli saja.
   app.get("/destinations", async (c) => {
     const region = c.req.query("region")?.trim();
     const q = c.req.query("q")?.trim();
@@ -34,7 +34,7 @@ export function catalogRoutes(db: Db) {
     }
     const rows = await db.query<DestRow & { starting_price: number | null }>(
       `SELECT d.slug, d.name, d.code, d.region, d.network, d.factor, d.thumb_media, d.banner_media,
-              (SELECT min(p.price) FROM products p WHERE p.dest_slug = d.slug AND p.active ${typeSql}) AS starting_price
+              (SELECT min(p.price) FROM products p WHERE p.dest_slug = d.slug AND p.active AND NOT p.sold_out ${typeSql}) AS starting_price
          FROM destinations d
         ${where.length ? "WHERE " + where.join(" AND ") : ""}
         ORDER BY d.position, d.name`,
@@ -49,7 +49,7 @@ export function catalogRoutes(db: Db) {
     const dest = d.rows[0];
     if (!dest) throw new ApiError(404, "DESTINATION_NOT_FOUND", "Destinasi tidak ditemukan.");
     const p = await db.query<ProductRow>(
-      `SELECT id, dest_slug, type, name, days, data, price, note FROM products
+      `SELECT id, dest_slug, type, name, days, data, price, note, sold_out FROM products
         WHERE dest_slug = $1 AND active
         ORDER BY CASE type WHEN 'esim' THEN 0 WHEN 'sim' THEN 1 ELSE 2 END, days`,
       [slug],

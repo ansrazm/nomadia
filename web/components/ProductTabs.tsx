@@ -10,6 +10,7 @@ import { PurchaseBar } from "./PurchaseBar";
 import { useCart } from "./CartProvider";
 import { useLang } from "./LanguageProvider";
 import { useCatalogText } from "./useCatalogText";
+import { waLink } from "@/lib/contact";
 
 const perDay = (p: Product) => Math.round(p.price / p.days);
 
@@ -29,24 +30,30 @@ export function ProductTabs({ products, network, destName, initialType = null }:
   const { lang, t } = useLang();
   const content = getTypeContent(lang);
   const ct = useCatalogText();
+  // Jenis yang kosong tetap punya tab (ditandai "Kosong"), supaya pelanggan tahu jenis itu ada, bukan tidak dijual.
   const types = (Object.keys(typeInfo) as ProductType[]).filter((ty) => products.some((p) => p.type === ty));
-  // ?type= di URL memilih tab awal (dipakai tautan dari beranda dan daftar destinasi); jika destinasi ini tidak punya jenis itu, jatuh ke tab pertama.
-  const [tab, setTab] = useState<ProductType>(initialType && types.includes(initialType) ? initialType : types[0]);
+  const hasStock = (ty: ProductType) => products.some((p) => p.type === ty && !p.soldOut);
+  // ?type= di URL memilih tab awal (dipakai tautan dari beranda dan daftar destinasi); jika destinasi ini tidak punya jenis itu, jatuh ke jenis pertama yang ada stoknya.
+  const [tab, setTab] = useState<ProductType>(initialType && types.includes(initialType) ? initialType : types.find(hasStock) ?? types[0]);
   const list = useMemo(() => products.filter((p) => p.type === tab), [products, tab]);
+  const stocked = useMemo(() => list.filter((p) => !p.soldOut), [list]);
+  const comparable = useMemo(() => products.filter((p) => !p.soldOut), [products]);
   const [picked, setPicked] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const summaryRef = useRef<HTMLElement>(null);
   const [compareOpen, setCompareOpen] = useState(false);
-  const canCompare = types.length > 1;
+  const canCompare = new Set(comparable.map((p) => p.type)).size > 1;
+  const altType = types.find((ty) => ty !== tab && hasStock(ty)) ?? null;
   // Slot kosong di baris terakhir grid (2 kolom di sm, 3 kolom di xl) diisi kartu ajakan membandingkan.
   const fillSm = list.length % 2 === 1;
   const fillXl = list.length % 3 === 2;
 
-  const selected = list.find((p) => p.id === picked) ?? pickDefault(list);
-  const total = selected.price * qty;
+  // null bila semua paket jenis ini kosong: ringkasan pesanan dan bar beli tidak ditampilkan.
+  const selected: Product | null = stocked.length ? stocked.find((p) => p.id === picked) ?? pickDefault(stocked) : null;
+  const total = selected ? selected.price * qty : 0;
 
-  const putInCart = () => { for (let i = 0; i < qty; i++) add(selected); };
+  const putInCart = () => { if (!selected) return; for (let i = 0; i < qty; i++) add(selected); };
   const addOnly = () => { putInCart(); setAdded(true); setTimeout(() => setAdded(false), 1600); };
   const buyNow = () => { putInCart(); router.push("/cart"); };
   const changeTab = (ty: ProductType) => {
@@ -69,6 +76,7 @@ export function ProductTabs({ products, network, destName, initialType = null }:
             className={`rounded-[3px] px-5 py-2.5 text-sm font-semibold transition-colors ${tab === ty ? "bg-signal text-ink" : "text-ink/70 hover:text-ink"}`}
           >
             {typeInfo[ty].label}
+            {!hasStock(ty) && <span className="ml-2 rounded-[3px] bg-ink/10 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-ink/60">{t("tabs.soldOut")}</span>}
           </button>
         ))}
       </div>
@@ -111,11 +119,38 @@ export function ProductTabs({ products, network, destName, initialType = null }:
         )}
       </div>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
+      {!selected && (
+        <div role="status" className="mt-6 rounded-[4px] border-2 border-dashed border-line bg-white p-5">
+          <p className="font-display text-xl font-bold">{t("tabs.soldOutTitle", { type: typeInfo[tab].label, name: destName })}</p>
+          <p className="mt-1 max-w-xl text-ink/70">{t("tabs.soldOutBody")}</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            {waLink(t("tabs.soldOutWaText", { type: typeInfo[tab].label, name: destName })) && (
+              <a href={waLink(t("tabs.soldOutWaText", { type: typeInfo[tab].label, name: destName }))!} target="_blank" rel="noopener noreferrer" className="btn-signal">{t("tabs.soldOutNotify")}</a>
+            )}
+            {altType && <button type="button" onClick={() => changeTab(altType)} className="btn-ghost">{t("tabs.soldOutSwitch", { type: typeInfo[altType].label })}</button>}
+          </div>
+        </div>
+      )}
+
+      <div className={`mt-8 grid gap-8 ${selected ? "lg:grid-cols-[1fr_22rem] lg:items-start" : ""}`}>
         <div role="radiogroup" aria-label={t("tabs.pickAria")} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {list.map((p) => {
-            const on = p.id === selected.id;
-            const badge = badgeFor(p, list);
+            if (p.soldOut) {
+              return (
+                <button key={p.id} type="button" role="radio" aria-checked={false} aria-disabled disabled className="relative cursor-not-allowed rounded-[4px] border-2 border-line bg-mist/60 p-5 text-left text-ink/50">
+                  <span className="absolute -top-3 left-5 rounded-[3px] bg-ink/15 px-3 py-1 text-xs font-bold text-ink/70">{t("tabs.soldOut")}</span>
+                  <h3 className="font-display text-3xl font-extrabold">{p.days} <span className="text-lg font-bold">{t("unit.days")}</span></h3>
+                  <p className="mt-1 font-semibold">{ct.data(p.data)}</p>
+                  <p className="mt-3 text-sm">{ct.note(p.note)}</p>
+                  <div className="mt-5 flex items-end justify-between border-t border-line pt-4">
+                    <p className="font-display text-2xl font-bold line-through decoration-ink/30">{idr(p.price)}</p>
+                    <p className="text-sm">{t("unit.perDay", { price: idr(perDay(p)) })}</p>
+                  </div>
+                </button>
+              );
+            }
+            const on = p.id === selected?.id;
+            const badge = badgeFor(p, stocked);
             return (
               <button
                 key={p.id}
@@ -152,7 +187,7 @@ export function ProductTabs({ products, network, destName, initialType = null }:
           )}
         </div>
 
-        <aside ref={summaryRef} className="hidden rounded-[4px] border border-t-[3px] border-line border-t-signal bg-white p-6 lg:sticky lg:top-24 lg:block" aria-label={t("tabs.orderSummary")}>
+        {selected && <aside ref={summaryRef} className="hidden rounded-[4px] border border-t-[3px] border-line border-t-signal bg-white p-6 lg:sticky lg:top-24 lg:block" aria-label={t("tabs.orderSummary")}>
           <p className="text-xs font-bold uppercase tracking-wider text-ink/55">{t("tabs.orderSummary")}</p>
           <h3 className="mt-3 font-display text-xl font-bold">{ct.name(selected.name)}</h3>
           <p className="mt-1 text-sm text-ink/65">{typeInfo[selected.type].label} · {selected.days} {t("unit.days")} · {ct.data(selected.data)}</p>
@@ -174,21 +209,23 @@ export function ProductTabs({ products, network, destName, initialType = null }:
           <button type="button" onClick={addOnly} aria-live="polite" className={`mt-3 w-full ${added ? "btn bg-lagoon text-ink" : "btn-ghost"}`}>
             {added ? t("tabs.inCart") : t("tabs.addToCart")}
           </button>
-        </aside>
+        </aside>}
       </div>
 
-      <PurchaseBar
-        name={ct.name(selected.name)}
-        detail={`${typeInfo[selected.type].label} · ${selected.days} ${t("unit.days")} · ${ct.data(selected.data)} × ${qty}`}
-        qty={qty}
-        total={total}
-        added={added}
-        summaryRef={summaryRef}
-        onQty={setQty}
-        onAdd={addOnly}
-        onBuy={buyNow}
-      />
-      {compareOpen && <CompareDialog destName={destName} products={products} onClose={() => setCompareOpen(false)} />}
+      {selected && (
+        <PurchaseBar
+          name={ct.name(selected.name)}
+          detail={`${typeInfo[selected.type].label} · ${selected.days} ${t("unit.days")} · ${ct.data(selected.data)} × ${qty}`}
+          qty={qty}
+          total={total}
+          added={added}
+          summaryRef={summaryRef}
+          onQty={setQty}
+          onAdd={addOnly}
+          onBuy={buyNow}
+        />
+      )}
+      {compareOpen && <CompareDialog destName={destName} products={comparable} onClose={() => setCompareOpen(false)} />}
     </div>
   );
 }

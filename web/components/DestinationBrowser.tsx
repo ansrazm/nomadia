@@ -79,12 +79,14 @@ export function DestinationBrowser({ destinations, type = null }: { destinations
                         <span className="block font-semibold leading-snug">{d.name}</span>
                         <span className="block text-sm text-ink/60">{d.network}</span>
                       </span>
-                      {d.startingPrice != null && (
+                      {d.startingPrice != null ? (
                         <span className="text-right text-sm">
                           <span className="block text-xs text-ink/50">{t("browser.from")}</span>
                           <span className="font-semibold">{idr(d.startingPrice)}</span>
                         </span>
-                      )}
+                      ) : type ? (
+                        <span className="rounded-[3px] bg-ink/10 px-2 py-1 text-xs font-bold uppercase tracking-wide text-ink/60">{t("browser.soldOut")}</span>
+                      ) : null}
                       <span aria-hidden className="text-ink/30 transition-transform group-hover:translate-x-0.5 group-hover:text-lagoon">→</span>
                     </Link>
                   </li>

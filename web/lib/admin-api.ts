@@ -63,7 +63,7 @@ export const fmtDate = (iso: string | null) =>
   iso ? new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date(iso)) : "—";
 
 export interface AdminDestination { slug: string; name: string; code: string; region: string; network: string; factor: number; position: number; thumbUrl: string | null; bannerUrl: string | null; productCount?: number }
-export interface AdminProduct { id: string; destSlug: string; type: "esim" | "sim" | "wifi"; name: string; days: number; data: string; price: number; note: string; active: boolean }
+export interface AdminProduct { id: string; destSlug: string; type: "esim" | "sim" | "wifi"; name: string; days: number; data: string; price: number; note: string; active: boolean; soldOut: boolean }
 export interface AdminVoucher { code: string; percent: number; active: boolean; used?: number }
 export type OrderStatus = "pending" | "paid" | "expired" | "cancelled";
 export interface AdminOrder { id: string; status: OrderStatus; customerName: string; customerEmail: string; subtotal: number; discount: number; total: number; voucher: string | null; createdAt: string; paidAt: string | null }

@@ -36,6 +36,8 @@ export interface Product {
   data: string;
   price: number;
   note: string;
+  /** Kosong sementara: tetap ditampilkan, tetapi tidak bisa dibeli. */
+  soldOut?: boolean;
 }
 
 /** Respons GET /destinations/:slug. */

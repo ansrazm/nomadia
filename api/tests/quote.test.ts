@@ -68,6 +68,17 @@ describe("POST /quote", () => {
     expect(r.json.error.details.productIds.sort()).toEqual(["jepang-wifi-14", "ngawur"]);
   });
 
+  it("produk kosong (sold_out) ditolak seperti produk yang tidak ada", async () => {
+    await db.query("UPDATE products SET sold_out = true WHERE id = 'jepang-wifi-14'");
+    const r = await call("POST", "/quote", { items: [{ productId: "jepang-wifi-14", qty: 1 }] });
+    const o = await call("POST", "/orders", { name: "Budi", email: "budi@example.com", items: [{ productId: "jepang-wifi-14", qty: 1 }] });
+    await db.query("UPDATE products SET sold_out = false WHERE id = 'jepang-wifi-14'");
+    expect(r.status).toBe(422);
+    expect(r.json.error.code).toBe("PRODUCT_NOT_FOUND");
+    expect(o.status).toBe(422);
+    expect(o.json.error.code).toBe("PRODUCT_NOT_FOUND");
+  });
+
   it("voucher tidak dikenal -> 422 VOUCHER_INVALID", async () => {
     const r = await call("POST", "/quote", { items: [{ productId: "jepang-esim-7", qty: 1 }], voucher: "GRATIS" });
     expect(r.status).toBe(422);

@@ -45,7 +45,7 @@ export async function priceCart(db: Queryable, items: CartItemInput[], voucherCo
 
   const ids = [...qtyById.keys()];
   const found = await db.query<{ id: string; name: string; price: number }>(
-    "SELECT id, name, price FROM products WHERE id = ANY($1::text[]) AND active",
+    "SELECT id, name, price FROM products WHERE id = ANY($1::text[]) AND active AND NOT sold_out",
     [ids],
   );
   const byId = new Map(found.rows.map((r) => [r.id, r]));

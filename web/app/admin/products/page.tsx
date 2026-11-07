@@ -3,18 +3,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { adminFetch, errMsg, fieldErrors, type AdminDestination, type AdminProduct } from "@/lib/admin-api";
 import { idr } from "@/lib/format";
-import { Card, ConfirmModal, Field, Modal, Notice, PageHead, Toggle, inputCls } from "@/components/admin/ui";
+import { Card, ConfirmModal, Field, Modal, Notice, PageHead, inputCls } from "@/components/admin/ui";
 
 const TYPES = { esim: "eSIM", sim: "SIM Card", wifi: "Portable WiFi" } as const;
-type Form = { id: string; destSlug: string; type: AdminProduct["type"]; name: string; days: string; data: string; price: string; note: string; active: boolean };
-const empty = (destSlug: string, type: AdminProduct["type"] = "esim"): Form => ({ id: "", destSlug, type, name: "", days: "1", data: "", price: "", note: "", active: true });
+// Tiga status: aktif (bisa dibeli), kosong (tetap tampil di toko tetapi tidak bisa dibeli), sembunyi (tidak tampil sama sekali).
+type Status = "active" | "soldout" | "hidden";
+const STATUS_LABEL: Record<Status, string> = { active: "Aktif", soldout: "Kosong", hidden: "Sembunyi" };
+const STATUS_HINT: Record<Status, string> = { active: "Tampil dan bisa dibeli.", soldout: "Tampil di toko dengan tanda Kosong, tidak bisa dibeli. Pakai untuk stok habis sementara.", hidden: "Tidak tampil di toko. Pakai untuk produk yang tidak dijual lagi." };
+const statusOf = (p: Pick<AdminProduct, "active" | "soldOut">): Status => (!p.active ? "hidden" : p.soldOut ? "soldout" : "active");
+const flagsOf = (s: Status) => ({ active: s !== "hidden", soldOut: s === "soldout" });
+type Form = { id: string; destSlug: string; type: AdminProduct["type"]; name: string; days: string; data: string; price: string; note: string; status: Status };
+const empty = (destSlug: string, type: AdminProduct["type"] = "esim"): Form => ({ id: "", destSlug, type, name: "", days: "1", data: "", price: "", note: "", status: "active" });
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<AdminProduct[] | null>(null);
   const [dests, setDests] = useState<AdminDestination[]>([]);
   const [dest, setDest] = useState("");
   const [type, setType] = useState<"" | AdminProduct["type"]>("");
-  const [status, setStatus] = useState<"" | "active" | "inactive">("");
+  const [status, setStatus] = useState<"" | Status>("");
   const [q, setQ] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -37,7 +43,7 @@ export default function ProductsPage() {
     (p) =>
       (!dest || p.destSlug === dest) &&
       (!type || p.type === type) &&
-      (!status || (status === "active") === p.active) &&
+      (!status || statusOf(p) === status) &&
       (!q || `${p.name} ${p.id}`.toLowerCase().includes(q.toLowerCase())),
   );
   const filtered = !!(dest || type || status || q);
@@ -49,7 +55,7 @@ export default function ProductsPage() {
   async function save() {
     if (!editing) return;
     const f = editing.form;
-    const body = { destSlug: f.destSlug, type: f.type, name: f.name, days: Number(f.days), data: f.data, price: Number(f.price), note: f.note, active: f.active };
+    const body = { destSlug: f.destSlug, type: f.type, name: f.name, days: Number(f.days), data: f.data, price: Number(f.price), note: f.note, ...flagsOf(f.status) };
     setBusy(true); setErrs({}); setFormError("");
     try {
       if (editing.mode === "new") await adminFetch("/admin/products", { method: "POST", body: { id: f.id, ...body } });
@@ -62,9 +68,10 @@ export default function ProductsPage() {
     } finally { setBusy(false); }
   }
 
-  async function toggle(p: AdminProduct, active: boolean) {
-    setProducts((list) => list && list.map((x) => (x.id === p.id ? { ...x, active } : x)));
-    try { await adminFetch(`/admin/products/${encodeURIComponent(p.id)}`, { method: "PATCH", body: { active } }); setNotice(""); }
+  async function changeStatus(p: AdminProduct, s: Status) {
+    const flags = flagsOf(s);
+    setProducts((list) => list && list.map((x) => (x.id === p.id ? { ...x, ...flags } : x)));
+    try { await adminFetch(`/admin/products/${encodeURIComponent(p.id)}`, { method: "PATCH", body: flags }); setNotice(""); }
     catch (e) { setError(errMsg(e)); await load(); }
   }
 
@@ -90,8 +97,7 @@ export default function ProductsPage() {
         </select>
         <select className={`${inputCls} sm:max-w-[11rem]`} aria-label="Filter status" value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
           <option value="">Semua status</option>
-          <option value="active">Aktif</option>
-          <option value="inactive">Nonaktif</option>
+          {(Object.keys(STATUS_LABEL) as Status[]).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
         </select>
         <input className={`${inputCls} sm:max-w-xs`} type="search" placeholder="Cari nama atau ID" aria-label="Cari produk" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
@@ -108,7 +114,7 @@ export default function ProductsPage() {
         {products && shown.length === 0 && <p className="p-6 text-sm text-ink/60">{filtered ? "Tidak ada produk yang cocok dengan filter." : "Tidak ada produk."}</p>}
         {shown.length > 0 && (
           <table className="w-full min-w-[46rem] text-left text-sm">
-            <thead className="border-b border-line text-xs uppercase tracking-wide text-ink/50"><tr><th className="p-4">Produk</th><th className="p-4">Destinasi</th><th className="p-4">Paket</th><th className="p-4">Harga</th><th className="p-4">Aktif</th><th className="p-4 text-right">Aksi</th></tr></thead>
+            <thead className="border-b border-line text-xs uppercase tracking-wide text-ink/50"><tr><th className="p-4">Produk</th><th className="p-4">Destinasi</th><th className="p-4">Paket</th><th className="p-4">Harga</th><th className="p-4">Status</th><th className="p-4 text-right">Aksi</th></tr></thead>
             <tbody>
               {shown.map((p) => (
                 <tr key={p.id} className={`border-b border-line last:border-0 ${p.active ? "" : "bg-mist/70 text-ink/60"}`}>
@@ -116,9 +122,13 @@ export default function ProductsPage() {
                   <td className="p-4">{destName.get(p.destSlug) ?? p.destSlug}</td>
                   <td className="p-4">{TYPES[p.type]} · {p.days} hari · {p.data}</td>
                   <td className="p-4 font-semibold">{idr(p.price)}</td>
-                  <td className="p-4"><Toggle on={p.active} label={`${p.active ? "Nonaktifkan" : "Aktifkan"} ${p.name}`} onChange={(v) => toggle(p, v)} /></td>
+                  <td className="p-4">
+                    <select className={`${inputCls} !w-auto !py-1.5 text-sm`} aria-label={`Status ${p.name}`} value={statusOf(p)} onChange={(e) => changeStatus(p, e.target.value as Status)}>
+                      {(Object.keys(STATUS_LABEL) as Status[]).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+                    </select>
+                  </td>
                   <td className="whitespace-nowrap p-4 text-right">
-                    <button className="font-semibold text-deep hover:underline" onClick={() => open("edit", { id: p.id, destSlug: p.destSlug, type: p.type, name: p.name, days: String(p.days), data: p.data, price: String(p.price), note: p.note, active: p.active })}>Ubah</button>
+                    <button className="font-semibold text-deep hover:underline" onClick={() => open("edit", { id: p.id, destSlug: p.destSlug, type: p.type, name: p.name, days: String(p.days), data: p.data, price: String(p.price), note: p.note, status: statusOf(p) })}>Ubah</button>
                     <button className="ml-4 font-semibold text-coral hover:underline" onClick={() => setDel(p)}>Hapus</button>
                   </td>
                 </tr>
@@ -149,7 +159,11 @@ export default function ProductsPage() {
               <Field label="Harga (Rp)" error={errs.price}><input className={inputCls} type="number" min={0} step={500} value={editing.form.price} onChange={(e) => set({ price: e.target.value })} required /></Field>
             </div>
             <Field label="Catatan" error={errs.note}><input className={inputCls} value={editing.form.note} onChange={(e) => set({ note: e.target.value })} /></Field>
-            <label className="flex items-center gap-3 text-sm font-semibold"><Toggle on={editing.form.active} label="Aktif" onChange={(v) => set({ active: v })} /> Tampil di toko</label>
+            <Field label="Status" error={errs.active ?? errs.soldOut} hint={STATUS_HINT[editing.form.status]}>
+              <select className={inputCls} value={editing.form.status} onChange={(e) => set({ status: e.target.value as Status })}>
+                {(Object.keys(STATUS_LABEL) as Status[]).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+              </select>
+            </Field>
             {formError && <p role="alert" className="text-sm font-medium text-coral">{formError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" className="btn-ghost !py-2 text-sm" onClick={() => setEditing(null)}>Batal</button>
@@ -159,7 +173,7 @@ export default function ProductsPage() {
         </Modal>
       )}
       {del && <ConfirmModal title="Hapus produk?" danger busy={busy} confirmLabel="Hapus" onClose={() => setDel(null)} onConfirm={remove}
-        message={`“${del.name}” akan dihapus permanen. Produk yang pernah dipesan tidak bisa dihapus; untuk itu pakai saklar Aktif.`} />}
+        message={`“${del.name}” akan dihapus permanen. Produk yang pernah dipesan tidak bisa dihapus; untuk itu ubah statusnya jadi Sembunyi.`} />}
     </>
   );
 }

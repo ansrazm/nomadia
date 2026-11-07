@@ -25,9 +25,12 @@ export default async function DestinationPage({ params, searchParams }: { params
   const { t, lang } = getT();
   const d = await getDestination(params.slug);
   if (!d) notFound();
+  // Paket kosong tetap tampil di pemilih paket, tetapi tidak dihitung sebagai harga mulai dari, jumlah paket, atau bahan FAQ.
+  const available = d.products.filter((p) => !p.soldOut);
   const stats = typeStats(d.products);
+  const stocked = typeStats(available);
   const present = typeOrder.filter((ty) => stats[ty]);
-  const cheapest = d.products.length ? Math.min(...d.products.map((p) => p.price)) : null;
+  const cheapest = available.length ? Math.min(...available.map((p) => p.price)) : null;
   // Kartu "cakupan lebih luas" hanya muncul bila ada produk regional yang benar-benar ada di katalog.
   const regional = d.slug !== "eropa" && d.regionId === "Eropa" ? { slug: "eropa", name: t("detail.europeName") } : null;
   return (
@@ -52,19 +55,21 @@ export default async function DestinationPage({ params, searchParams }: { params
               <SignalBars level={4} className="h-5" /> {t("detail.network", { network: d.network })}
             </p>
           </div>
-          {cheapest != null && (
+          {d.products.length > 0 && (
             <ul aria-label={t("detail.summaryAria")} className="flex flex-wrap gap-3">
-              <li className="rounded-[4px] bg-white/10 px-5 py-3">
-                <span className="block text-xs text-white/60">{t("detail.startFrom")}</span>
-                <span className="font-display text-xl font-bold">{idr(cheapest)}</span>
-              </li>
+              {cheapest != null && (
+                <li className="rounded-[4px] bg-white/10 px-5 py-3">
+                  <span className="block text-xs text-white/60">{t("detail.startFrom")}</span>
+                  <span className="font-display text-xl font-bold">{idr(cheapest)}</span>
+                </li>
+              )}
               <li className="rounded-[4px] bg-white/10 px-5 py-3">
                 <span className="block text-xs text-white/60">{t("type.connection")}</span>
-                <span className="font-display text-xl font-bold">{present.map((ty) => typeInfo[ty].label).join(" · ")}</span>
+                <span className="font-display text-xl font-bold">{present.map((ty) => (stocked[ty] ? typeInfo[ty].label : t("detail.typeSoldOut", { type: typeInfo[ty].label }))).join(" · ")}</span>
               </li>
               <li className="rounded-[4px] bg-white/10 px-5 py-3">
                 <span className="block text-xs text-white/60">{t("detail.planCount")}</span>
-                <span className="font-display text-xl font-bold">{d.products.length}</span>
+                <span className="font-display text-xl font-bold">{available.length}</span>
               </li>
             </ul>
           )}
@@ -88,7 +93,7 @@ export default async function DestinationPage({ params, searchParams }: { params
           </div>
         </aside>
       )}
-      {d.products.length > 0 && <DestinationFaq destName={d.name} faqs={destinationFaqs(d, d.products, t, lang)} />}
+      {available.length > 0 && <DestinationFaq destName={d.name} faqs={destinationFaqs(d, available, t, lang)} />}
     </>
   );
 }

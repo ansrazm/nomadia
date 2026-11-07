@@ -40,7 +40,7 @@ describe("isi database sama dengan data awal (seed)", () => {
       const got = r.json.data.products.map((p: any) => p);
       const want = webProductsFor(d);
       expect(got.length).toBe(want.length);
-      for (const w of want) expect(got).toContainEqual(w);
+      for (const w of want) expect(got).toContainEqual({ ...w, soldOut: false });
       expect(r.json.data).toMatchObject({ slug: d.slug, name: d.name, code: d.code, region: d.region, network: d.network, factor: d.factor });
     }
   });
@@ -154,6 +154,21 @@ describe("GET /destinations?type=", () => {
     const esim = await call("GET", "/destinations?type=esim");
     expect(esim.json.data.some((d: any) => d.slug === "jepang")).toBe(true);
     await db.query("UPDATE products SET active = true WHERE dest_slug = 'jepang' AND type = 'wifi'");
+  });
+
+  it("paket kosong tetap tampil di detail destinasi dengan soldOut = true, dan tidak dihitung sebagai harga mulai dari", async () => {
+    await db.query("UPDATE products SET sold_out = true WHERE dest_slug = 'jepang' AND type = 'wifi'");
+    const detail = await call("GET", "/destinations/jepang");
+    const wifi = detail.json.data.products.filter((p: any) => p.type === "wifi");
+    expect(wifi.length).toBeGreaterThan(0);
+    expect(wifi.every((p: any) => p.soldOut === true)).toBe(true);
+    expect(detail.json.data.products.filter((p: any) => p.type === "esim").every((p: any) => p.soldOut === false)).toBe(true);
+    // Filter jenis: Jepang tetap muncul di daftar WiFi, tetapi tanpa harga mulai dari.
+    const list = await call("GET", "/destinations?type=wifi");
+    const row = list.json.data.find((d: any) => d.slug === "jepang");
+    expect(row).toBeTruthy();
+    expect(row.startingPrice).toBeNull();
+    await db.query("UPDATE products SET sold_out = false WHERE dest_slug = 'jepang' AND type = 'wifi'");
   });
 
   it("bisa digabung dengan region dan pencarian", async () => {

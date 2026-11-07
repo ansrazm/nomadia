@@ -80,6 +80,18 @@ describe("destinasi & produk", () => {
     expect((await call("GET", "/destinations/uji-negara")).json.data.products).toHaveLength(0);
     expect((await call("POST", "/quote", { items: [{ productId: "uji-esim-1", qty: 1 }] })).status).not.toBe(200);
   });
+  it("menandai produk kosong: tetap tampil di katalog tetapi tidak bisa dibeli; sembunyikan menghilangkannya", async () => {
+    const soldOut = await call("PATCH", "/admin/products/uji-esim-1", { active: true, soldOut: true }, auth);
+    expect(soldOut.json.data).toMatchObject({ active: true, soldOut: true });
+    const shown = (await call("GET", "/destinations/uji-negara")).json.data.products;
+    expect(shown).toHaveLength(1);
+    expect(shown[0].soldOut).toBe(true);
+    expect((await call("POST", "/quote", { items: [{ productId: "uji-esim-1", qty: 1 }] })).status).toBe(422);
+    const back = await call("PATCH", "/admin/products/uji-esim-1", { soldOut: false }, auth);
+    expect(back.json.data).toMatchObject({ active: true, soldOut: false });
+    expect((await call("POST", "/quote", { items: [{ productId: "uji-esim-1", qty: 1 }] })).status).toBe(200);
+    await call("PATCH", "/admin/products/uji-esim-1", { active: false }, auth);
+  });
   it("validasi: slug, harga negatif, destinasi tidak ada, patch kosong", async () => {
     expect((await call("POST", "/admin/products", { id: "Bad ID", destSlug: "uji-negara", type: "esim", name: "n", days: 1, data: "1 GB", price: 1 }, auth)).status).toBe(422);
     expect((await call("POST", "/admin/products", { id: "neg-1", destSlug: "uji-negara", type: "esim", name: "n", days: 1, data: "1 GB", price: -5 }, auth)).status).toBe(422);

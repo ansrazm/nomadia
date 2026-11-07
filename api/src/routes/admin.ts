@@ -56,6 +56,7 @@ const productCreate = z.object({
   price: z.number().int().min(0).max(100_000_000),
   note: z.string().trim().max(200).default(""),
   active: z.boolean().default(true),
+  soldOut: z.boolean().default(false),
 });
 const productPatch = productCreate.omit({ id: true }).partial();
 
@@ -93,7 +94,7 @@ function buildUpdate(table: string, key: string, keyVal: string, patch: Record<s
 }
 
 const destDto = (r: any) => ({ slug: r.slug, name: r.name, code: r.code, region: r.region, network: r.network, factor: Number(r.factor), position: r.position, thumbUrl: mediaPath(r.thumb_media), bannerUrl: mediaPath(r.banner_media), ...(r.product_count !== undefined ? { productCount: r.product_count } : {}) });
-const productDto = (r: any) => ({ id: r.id, destSlug: r.dest_slug, type: r.type, name: r.name, days: r.days, data: r.data, price: r.price, note: r.note, active: r.active });
+const productDto = (r: any) => ({ id: r.id, destSlug: r.dest_slug, type: r.type, name: r.name, days: r.days, data: r.data, price: r.price, note: r.note, active: r.active, soldOut: r.sold_out });
 const voucherDto = (r: any) => ({ code: r.code, percent: r.percent, active: r.active, ...(r.used !== undefined ? { used: r.used } : {}) });
 const orderDto = (r: any) => ({ id: r.id, status: r.status, customerName: r.customer_name, customerEmail: r.customer_email, subtotal: r.subtotal, discount: r.discount, total: r.total, voucher: r.voucher_code, createdAt: r.created_at, paidAt: r.paid_at });
 
@@ -266,8 +267,8 @@ export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext =
     const p = await body(c, productCreate);
     try {
       const r = await db.query(
-        "INSERT INTO products (id,dest_slug,type,name,days,data,price,note,active) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
-        [p.id, p.destSlug, p.type, p.name, p.days, p.data, p.price, p.note, p.active],
+        "INSERT INTO products (id,dest_slug,type,name,days,data,price,note,active,sold_out) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *",
+        [p.id, p.destSlug, p.type, p.name, p.days, p.data, p.price, p.note, p.active, p.soldOut],
       );
       return c.json({ data: productDto(r.rows[0]) }, 201);
     } catch (e) {
@@ -279,7 +280,7 @@ export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext =
 
   app.patch("/admin/products/:id", async (c) => {
     const patch = await body(c, productPatch);
-    const u = buildUpdate("products", "id", c.req.param("id"), patch, { destSlug: "dest_slug", type: "type", name: "name", days: "days", data: "data", price: "price", note: "note", active: "active" });
+    const u = buildUpdate("products", "id", c.req.param("id"), patch, { destSlug: "dest_slug", type: "type", name: "name", days: "days", data: "data", price: "price", note: "note", active: "active", soldOut: "sold_out" });
     try {
       const r = await db.query(u.sql, u.params);
       if (!r.rows[0]) throw new ApiError(404, "PRODUCT_NOT_FOUND", "Produk tidak ditemukan.");
