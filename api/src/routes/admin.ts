@@ -1,9 +1,11 @@
 import { Hono, type Context } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { z, type ZodTypeAny } from "zod";
 import type { Db } from "../db/pool.js";
 import { ApiError } from "../errors.js";
 import { LoginLimiter, safeEqual, signToken, verifyToken } from "../services/auth.js";
 import type { PaymentGateway } from "../payments/ipaymu.js";
+import { MAX_IMAGE_BYTES, clearDestinationImage, isImageKind, mediaPath, setDestinationImage, sniffImage } from "../services/media.js";
 import { CHECKOUT_FLOWS, getCheckoutFlow, setCheckoutFlow, type CheckoutFlow } from "../services/settings.js";
 
 export interface AdminConfig { email: string; password: string; secret: string }
@@ -71,7 +73,7 @@ function buildUpdate(table: string, key: string, keyVal: string, patch: Record<s
   return { sql: `UPDATE ${table} SET ${sets.join(", ")} WHERE ${key} = $1 RETURNING *`, params };
 }
 
-const destDto = (r: any) => ({ slug: r.slug, name: r.name, code: r.code, region: r.region, network: r.network, factor: Number(r.factor), position: r.position, ...(r.product_count !== undefined ? { productCount: r.product_count } : {}) });
+const destDto = (r: any) => ({ slug: r.slug, name: r.name, code: r.code, region: r.region, network: r.network, factor: Number(r.factor), position: r.position, thumbUrl: mediaPath(r.thumb_media), bannerUrl: mediaPath(r.banner_media), ...(r.product_count !== undefined ? { productCount: r.product_count } : {}) });
 const productDto = (r: any) => ({ id: r.id, destSlug: r.dest_slug, type: r.type, name: r.name, days: r.days, data: r.data, price: r.price, note: r.note, active: r.active });
 const voucherDto = (r: any) => ({ code: r.code, percent: r.percent, active: r.active, ...(r.used !== undefined ? { used: r.used } : {}) });
 const orderDto = (r: any) => ({ id: r.id, status: r.status, customerName: r.customer_name, customerEmail: r.customer_email, subtotal: r.subtotal, discount: r.discount, total: r.total, voucher: r.voucher_code, createdAt: r.created_at, paidAt: r.paid_at });
@@ -177,13 +179,53 @@ export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext =
 
   app.delete("/admin/destinations/:slug", async (c) => {
     try {
-      const r = await db.query("DELETE FROM destinations WHERE slug = $1", [c.req.param("slug")]);
+      const slug = c.req.param("slug");
+      const media = await db.query<{ thumb_media: string | null; banner_media: string | null }>("SELECT thumb_media, banner_media FROM destinations WHERE slug = $1", [slug]);
+      const r = await db.query("DELETE FROM destinations WHERE slug = $1", [slug]);
       if (!r.rowCount) throw new ApiError(404, "DESTINATION_NOT_FOUND", "Destinasi tidak ditemukan.");
+      // Gambar yang dipakai destinasi ini tidak punya pemilik lagi.
+      const ids = [media.rows[0]?.thumb_media, media.rows[0]?.banner_media].filter((x): x is string => !!x);
+      if (ids.length) await db.query("DELETE FROM media WHERE id = ANY($1)", [ids]);
       return c.json({ data: { deleted: true } });
     } catch (e) {
       if (pgCode(e) === "23503") throw new ApiError(409, "IN_USE", "Destinasi punya produk yang pernah dipesan, jadi tidak bisa dihapus. Nonaktifkan produknya saja.");
       throw e;
     }
+  });
+
+  // Gambar destinasi: kind = thumb (kartu) atau banner (kepala halaman destinasi). Unggahan baru menggantikan yang lama.
+  app.post(
+    "/admin/destinations/:slug/image/:kind",
+    bodyLimit({
+      maxSize: MAX_IMAGE_BYTES + 64 * 1024,
+      onError: (c) => c.json({ error: { code: "IMAGE_TOO_LARGE", message: `Gambar terlalu besar (maksimal ${MAX_IMAGE_BYTES / 1024 / 1024} MB).` } }, 413),
+    }),
+    async (c) => {
+      const kind = c.req.param("kind");
+      if (!isImageKind(kind)) throw new ApiError(404, "NOT_FOUND", "Jenis gambar harus thumb atau banner.");
+      const form = await c.req.parseBody().catch(() => {
+        throw new ApiError(400, "INVALID_FORM", "Kirim berkas sebagai multipart/form-data dengan field \"file\".");
+      });
+      const file = form["file"];
+      if (!(file instanceof File)) throw new ApiError(422, "VALIDATION_FAILED", "Pilih berkas gambar.", { file: ["Pilih berkas gambar."] });
+      if (file.size > MAX_IMAGE_BYTES) throw new ApiError(422, "IMAGE_TOO_LARGE", `Gambar terlalu besar (maksimal ${MAX_IMAGE_BYTES / 1024 / 1024} MB).`);
+      const data = Buffer.from(await file.arrayBuffer());
+      const type = sniffImage(data);
+      if (!type) throw new ApiError(422, "INVALID_IMAGE", "Format gambar harus PNG, JPEG, atau WebP.");
+      const slug = c.req.param("slug");
+      if (!(await setDestinationImage(db, slug, kind, data, type))) throw new ApiError(404, "DESTINATION_NOT_FOUND", "Destinasi tidak ditemukan.");
+      const r = await db.query("SELECT * FROM destinations WHERE slug = $1", [slug]);
+      return c.json({ data: destDto(r.rows[0]) });
+    },
+  );
+
+  app.delete("/admin/destinations/:slug/image/:kind", async (c) => {
+    const kind = c.req.param("kind");
+    if (!isImageKind(kind)) throw new ApiError(404, "NOT_FOUND", "Jenis gambar harus thumb atau banner.");
+    const slug = c.req.param("slug");
+    if (!(await clearDestinationImage(db, slug, kind))) throw new ApiError(404, "DESTINATION_NOT_FOUND", "Destinasi tidak ditemukan.");
+    const r = await db.query("SELECT * FROM destinations WHERE slug = $1", [slug]);
+    return c.json({ data: destDto(r.rows[0]) });
   });
 
   // ---- Produk ----

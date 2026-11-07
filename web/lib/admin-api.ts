@@ -25,14 +25,16 @@ export function clearSession() {
 
 /** Panggilan ke /admin/*. 401 selain di halaman login = sesi habis: hapus sesi dan arahkan ke login. */
 export async function adminFetch<T = any>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  const isForm = typeof FormData !== "undefined" && init.body instanceof FormData;
   if (!API_URL) throw new ApiRequestError(0, "NO_API", "NEXT_PUBLIC_API_URL belum diisi.");
   const token = getSession()?.token;
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
       method: init.method ?? "GET",
-      headers: { ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      // FormData: biarkan browser mengisi Content-Type multipart beserta boundary-nya.
+      headers: { ...(init.body !== undefined && !isForm ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: init.body === undefined ? undefined : isForm ? (init.body as FormData) : JSON.stringify(init.body),
     });
   } catch {
     throw new ApiRequestError(0, "NETWORK", "Tidak bisa terhubung ke server. Periksa koneksi lalu coba lagi.");
@@ -60,7 +62,7 @@ export const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Terjadi
 export const fmtDate = (iso: string | null) =>
   iso ? new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date(iso)) : "—";
 
-export interface AdminDestination { slug: string; name: string; code: string; region: string; network: string; factor: number; position: number; productCount?: number }
+export interface AdminDestination { slug: string; name: string; code: string; region: string; network: string; factor: number; position: number; thumbUrl: string | null; bannerUrl: string | null; productCount?: number }
 export interface AdminProduct { id: string; destSlug: string; type: "esim" | "sim" | "wifi"; name: string; days: number; data: string; price: number; note: string; active: boolean }
 export interface AdminVoucher { code: string; percent: number; active: boolean; used?: number }
 export type OrderStatus = "pending" | "paid" | "expired" | "cancelled";

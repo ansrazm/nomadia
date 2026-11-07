@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { DestinationSummary, flagUrl } from "@/lib/catalog-types";
+import { DestinationSummary, flagUrl, mediaUrl } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 
 /** Daftar destinasi dengan pencarian dan filter kawasan. Data datang dari server component. */
@@ -68,7 +68,7 @@ export function DestinationBrowser({ destinations }: { destinations: Destination
                   <li key={d.slug}>
                     <Link href={`/destinations/${d.slug}`} className="group flex items-center gap-4 rounded-2xl border border-line bg-white p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-lagoon hover:shadow-lift">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={flagUrl(d.code)} alt="" width={48} height={34} className="h-8 w-12 rounded object-cover" />
+                      {d.thumbUrl ? <img src={mediaUrl(d.thumbUrl)} alt="" width={64} height={48} loading="lazy" className="h-12 w-16 rounded object-cover" /> : <img src={flagUrl(d.code)} alt="" width={48} height={34} className="h-8 w-12 rounded object-cover" />}
                       <span className="min-w-0 flex-1">
                         <span className="block font-semibold leading-snug">{d.name}</span>
                         <span className="block text-sm text-ink/60">{d.network}</span>

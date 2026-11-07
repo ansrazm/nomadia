@@ -4,7 +4,7 @@ import { DestinationFaq } from "@/components/DestinationFaq";
 import { ProductTabs } from "@/components/ProductTabs";
 import { SignalBars } from "@/components/SignalBars";
 import { getDestination } from "@/lib/catalog";
-import { flagUrl } from "@/lib/catalog-types";
+import { flagUrl, mediaUrl } from "@/lib/catalog-types";
 import { destinationFaqs, typeOrder, typeStats } from "@/lib/destination-info";
 import { typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
@@ -28,8 +28,15 @@ export default async function DestinationPage({ params }: { params: { slug: stri
   const regional = d.slug !== "eropa" && d.region === "Eropa" ? { slug: "eropa", name: "Eropa (39 negara)" } : null;
   return (
     <>
-      <section className="bg-ink pb-14 pt-32 text-white">
-        <div className="container-wide grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
+      <section className="relative overflow-hidden bg-ink pb-14 pt-32 text-white">
+        {d.bannerUrl && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={mediaUrl(d.bannerUrl)} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-ink/90 via-ink/70 to-ink/40" />
+          </>
+        )}
+        <div className="container-wide relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <Link href="/destinations" className="text-sm font-medium text-white/70 hover:text-white">Semua destinasi</Link>
             <div className="mt-4 flex items-center gap-5">

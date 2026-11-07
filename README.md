@@ -120,6 +120,7 @@ Backend:
 ```bash
 cd api
 cp .env.example .env          # ubah DATABASE_URL ke port 5433 bila memakai perintah di atas
+                              # web di port selain 3000? tambahkan ke CORS_ORIGINS, mis. http://localhost:3000,http://localhost:3001
 npm install
 npm run seed                  # migrasi + isi katalog (aman diulang)
 npm run dev                   # http://localhost:4000
@@ -146,6 +147,7 @@ npm test
 Aktif hanya bila `ADMIN_EMAIL`, `ADMIN_PASSWORD` (min 12 karakter), dan `AUTH_SECRET` (min 32 karakter, `openssl rand -hex 32`) diisi; bila kosong, endpoint `/admin` tidak ada sama sekali. Buka `/admin`, login, lalu:
 
 - **Dashboard**: omzet lunas, jumlah pesanan per status, jumlah katalog, 5 pesanan terbaru.
+- **Gambar destinasi**: di tabel Destinasi, tombol **Gambar** mengunggah thumbnail (kartu beranda dan daftar destinasi) dan banner (kepala halaman destinasi). PNG, JPEG, atau WebP, maksimal 2 MB; tanpa gambar toko memakai bendera negara.
 - **Destinasi / Produk / Voucher**: tambah, ubah, hapus, dan saklar Aktif. Harga yang diubah langsung tampil di toko. Item yang sudah terpakai di pesanan tidak bisa dihapus (nonaktifkan saja).
 - **Pesanan**: filter status, cari nomor/nama/email, detail dengan email utuh, batalkan pesanan `pending`.
 - **Pengaturan**: pilih alur pembayaran (halaman bayar iPaymu atau QRIS di halaman toko) tanpa restart. Aktif hanya bila iPaymu sudah dikonfigurasi.
@@ -343,6 +345,7 @@ Setelah mengubah `NEXT_PUBLIC_API_URL`, restart `npm run dev` web.
 | GET | `/destinations?region=&q=` | Daftar destinasi + `startingPrice` |
 | GET | `/destinations/:slug` | Destinasi + produk aktif (eSIM, SIM, WiFi) |
 | GET | `/vouchers/:code` | Cek voucher |
+| GET | `/media/:id` | Gambar destinasi unggahan admin (di-cache lama; id baru di setiap unggahan) |
 | POST | `/quote` | Harga keranjang `{items:[{productId, qty}], voucher?}` → baris, `subtotal`, `discount`, `total` |
 | POST | `/orders` | Buat order `{name, email, items:[{productId, qty}], voucher?}` |
 | GET | `/orders/:id` | Detail order (email disamarkan) |
@@ -357,7 +360,8 @@ Login menghasilkan token; kirim sebagai `Authorization: Bearer <token>`.
 | POST | `/admin/login` | `{email, password}` → `{token, expiresAt}` |
 | GET | `/admin/me`, `/admin/stats` | Sesi aktif; jumlah order per status, omzet lunas, jumlah katalog |
 | GET/POST | `/admin/destinations` | Daftar (dengan `productCount`) / tambah |
-| PATCH/DELETE | `/admin/destinations/:slug` | Ubah sebagian / hapus |
+| PATCH/DELETE | `/admin/destinations/:slug` | Ubah sebagian / hapus (gambarnya ikut terhapus) |
+| POST/DELETE | `/admin/destinations/:slug/image/:kind` | Unggah (multipart, field `file`) / hapus gambar; `kind` = `thumb` atau `banner` |
 | GET/POST | `/admin/products?dest=` | Daftar (termasuk nonaktif) / tambah |
 | PATCH/DELETE | `/admin/products/:id` | Ubah (harga, `active`, dll.) / hapus |
 | GET/PATCH | `/admin/settings` | Baca / ubah alur pembayaran `{checkoutFlow: "redirect"\|"qris"\|null}`; `null` kembali ke `IPAYMU_FLOW`. 409 bila iPaymu belum dikonfigurasi |
@@ -386,6 +390,7 @@ Format galat: `{ "error": { "code", "message", "details?" } }`.
 - Pembatas login ada di memori dan membaca IP dari `x-forwarded-for`: cukup untuk satu instance, bukan proteksi penuh di balik proxy.
 - Membatalkan order dari admin hanya mengubah status di database, bukan membatalkan sesi bayar di iPaymu. Bila pelanggan terlanjur bayar sesudahnya, webhook mencatatnya ke log untuk ditinjau manual dan tidak mengembalikan status ke lunas.
 - Beberapa pesan validasi dari zod masih berbahasa Inggris.
+- Gambar destinasi disimpan di PostgreSQL (tabel `media`) supaya demo tidak butuh storage terpisah, dan tidak diubah ukurannya otomatis: unggah gambar yang sudah dioptimalkan (thumbnail ±800×600, banner ±1600×600). Untuk trafik nyata, pindahkan ke object storage dengan CDN. Jenis berkas diperiksa dari isinya (PNG, JPEG, WebP); SVG sengaja ditolak karena bisa memuat skrip.
 - Kode aktivasi dan QR eSIM di email adalah **contoh untuk demo**: acak, format `LPA:1$...`, dan tidak terhubung ke operator mana pun (SM-DP+ `smdp.nomadia.example` tidak ada). Di produksi, `services/esim.ts` diganti pemanggilan API pemasok eSIM. SIM Card dan Portable WiFi hanya mendapat catatan bahwa info pengiriman menyusul.
 - Email konfirmasi memakai Mailpit (SMTP palsu) di Compose; untuk email sungguhan ganti kredensial SMTP di n8n. Kode aktivasi dibuat sekali saat pelunasan dan disimpan di outbox, jadi pengiriman ulang ke n8n membawa kode yang sama; kode itu tidak ditampilkan di halaman pesanan.
 - Alur bayar iPaymu sandbox penuh (bayar sungguhan → callback → n8n) butuh kredensial sandbox dan tunnel publik; tes otomatis memakai gateway palsu.

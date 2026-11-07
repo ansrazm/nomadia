@@ -3,7 +3,7 @@ import { FaqSection } from "@/components/FaqSection";
 import { Hero } from "@/components/Hero";
 import { Reveal } from "@/components/Reveal";
 import { getDestinations } from "@/lib/catalog";
-import { flagUrl, typeInfo } from "@/lib/catalog-types";
+import { flagUrl, mediaUrl, typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 
 
@@ -105,15 +105,22 @@ export default async function Home() {
             {featured.map((d, i) => (
               <li key={d.slug}>
                 <Reveal delay={(i % 4) * 0.07} className="h-full">
-                  <Link href={`/destinations/${d.slug}`} className="group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl bg-mist p-5 transition-all duration-300 hover:-translate-y-1 hover:bg-[#e3f3f8] hover:shadow-lift">
-                    <div className="flex items-start justify-between">
+                  <Link href={`/destinations/${d.slug}`} className={`group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl bg-mist p-5 transition-all duration-300 hover:-translate-y-1 hover:bg-[#e3f3f8] hover:shadow-lift ${d.thumbUrl ? "min-h-[11rem]" : ""}`}>
+                    {d.thumbUrl && (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={mediaUrl(d.thumbUrl)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                        <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/25 to-ink/10" />
+                      </>
+                    )}
+                    <div className="relative flex items-start justify-between">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={flagUrl(d.code)} alt="" width={56} height={40} className="h-10 w-14 rounded-md object-cover shadow-sm transition-transform duration-300 group-hover:scale-105" />
                       <span aria-hidden className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100 -translate-x-2 group-hover:bg-signal">→</span>
                     </div>
-                    <div className="mt-8">
-                      <h3 className="font-display text-xl font-bold">{d.name}</h3>
-                      {d.startingPrice != null && <p className="text-sm text-ink/65">Mulai {idr(d.startingPrice)}</p>}
+                    <div className="relative mt-8">
+                      <h3 className={`font-display text-xl font-bold ${d.thumbUrl ? "text-white" : ""}`}>{d.name}</h3>
+                      {d.startingPrice != null && <p className={`text-sm ${d.thumbUrl ? "text-white/80" : "text-ink/65"}`}>Mulai {idr(d.startingPrice)}</p>}
                     </div>
                   </Link>
                 </Reveal>

@@ -8,6 +8,9 @@ export interface Destination {
   region: string;
   network: string;
   factor: number;
+  /** Alamat relatif terhadap API (mis. /media/ab12...), diunggah dari CMS. null = belum ada, tampilkan bendera. */
+  thumbUrl: string | null;
+  bannerUrl: string | null;
 }
 
 /** Item di GET /destinations. startingPrice null bila destinasi belum punya produk aktif. */
@@ -38,3 +41,6 @@ export const typeInfo: Record<ProductType, { label: string; short: string; deliv
 };
 
 export const flagUrl = (code: string) => `https://flagcdn.com/w80/${code}.png`;
+
+/** Alamat gambar unggahan admin yang bisa dimuat browser: alamat API publik + path dari katalog. */
+export const mediaUrl = (path: string) => `${(process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/+$/, "")}${path}`;
