@@ -280,6 +280,7 @@ Checkout normal memakai Redirect Payment (halaman bayar iPaymu). Dengan `IPAYMU_
 ```bash
 cd api && npm run dev:qris-probe                  # QRIS Rp10.000; mencetak respons dan URL gambar QR
 npm run dev:qris-probe -- --amount 19000 --wait   # lalu cek status tiap 5 detik sampai tidak pending
+npm run dev:va-probe -- --all                    # coba semua channel Virtual Account (bca, mandiri, bni, bri); cetak nomor VA, fee, expired
 ```
 
 Memakai `IPAYMU_VA` / `IPAYMU_API_KEY` dari `api/.env`; **menolak berjalan bila `IPAYMU_MODE=live`**. Tidak membuat order dan tidak menulis ke database.

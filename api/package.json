@@ -12,7 +12,8 @@
     "test": "vitest run",
     "n8n:send": "tsx src/dev/n8n-send.ts",
     "dev:mark-paid": "tsx src/dev/mark-paid.ts",
-    "dev:qris-probe": "tsx src/dev/qris-probe.ts"
+    "dev:qris-probe": "tsx src/dev/qris-probe.ts",
+    "dev:va-probe": "tsx src/dev/va-probe.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",

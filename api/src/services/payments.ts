@@ -3,7 +3,8 @@ import { ApiError } from "../errors.js";
 import QRCode from "qrcode";
 import { GatewayError, parseIpaymuTime, type PaymentGateway, type TxInfo } from "../payments/ipaymu.js";
 import { buildEsimActivations } from "./esim.js";
-import { getOrder, type Order, type OrderQr } from "./orders.js";
+import { getOrder, type Order, type OrderQr, type OrderVa } from "./orders.js";
+import { methodDef, PAYMENT_METHODS, type PaymentMethodId } from "../payments/methods.js";
 
 export interface CheckoutUrls {
   publicApiUrl: string;
@@ -40,8 +41,8 @@ export async function startCheckout(db: Db, gateway: PaymentGateway, order: Orde
       cancelUrl: `${urls.webUrl}/orders/${order.id}?cancelled=1`,
       notifyUrl: `${urls.publicApiUrl}/webhooks/ipaymu`,
     });
-    await db.query("UPDATE orders SET payment_ref = $2, payment_url = $3 WHERE id = $1 AND status = 'pending'", [order.id, session.sessionId, session.url]);
-    return { ...order, paymentUrl: session.url };
+    await db.query("UPDATE orders SET payment_ref = $2, payment_url = $3, payment_method = 'redirect' WHERE id = $1 AND status = 'pending'", [order.id, session.sessionId, session.url]);
+    return { ...order, paymentUrl: session.url, paymentMethod: "redirect" };
   } catch (e) {
     return abortCheckout(db, order, e);
   }
@@ -72,10 +73,63 @@ export async function startQrisCheckout(db: Db, gateway: PaymentGateway, order: 
     }
     if (!imageUrl) throw new GatewayError("iPaymu tidak mengembalikan QR yang bisa ditampilkan.");
     const qr: OrderQr = { imageUrl, expiresAt: parseIpaymuTime(r.expired) };
-    await db.query("UPDATE orders SET payment_ref = $2, payment_qr = $3 WHERE id = $1 AND status = 'pending'", [order.id, String(r.transactionId), JSON.stringify(qr)]);
-    return { ...order, qr };
+    await db.query("UPDATE orders SET payment_ref = $2, payment_qr = $3, payment_method = 'qris' WHERE id = $1 AND status = 'pending'", [order.id, String(r.transactionId), JSON.stringify(qr)]);
+    return { ...order, qr, paymentMethod: "qris" };
   } catch (e) {
     return abortCheckout(db, order, e);
+  }
+}
+
+/**
+ * Virtual Account (metode va_*): nomor VA ditampilkan di halaman pesanan sendiri. Pelunasan memakai jalur yang sama
+ * dengan QRIS dan checkout biasa (callback -> Check Transaction -> pencocokan nominal), karena referenceId = nomor order.
+ * Pencocokan nominal memakai SubTotal (nilai tagihan sebelum biaya admin), jadi biaya yang ditanggung pembeli tidak membuatnya ditolak.
+ */
+export async function startVaCheckout(db: Db, gateway: PaymentGateway, order: Order, method: PaymentMethodId, urls: CheckoutUrls): Promise<Order> {
+  try {
+    const def = methodDef(method);
+    if (def.kind !== "va" || !def.channel) throw new Error(`Metode ${method} bukan Virtual Account.`);
+    if (!gateway.createDirectVa) throw new Error("Gateway ini tidak mendukung Virtual Account Direct.");
+    const r = await gateway.createDirectVa({
+      orderId: order.id,
+      total: order.total,
+      buyerName: order.customerName,
+      buyerEmail: order.customerEmail,
+      buyerPhone: buyerPhoneOf(order),
+      notifyUrl: `${urls.publicApiUrl}/webhooks/ipaymu`,
+      channel: def.channel,
+    });
+    const va: OrderVa = {
+      bank: def.channel,
+      bankName: def.label.replace(/ Virtual Account$/, ""),
+      number: r.paymentNo,
+      accountName: r.paymentName,
+      expiresAt: parseIpaymuTime(r.expired),
+      fee: r.fee,
+      payable: r.total,
+    };
+    await db.query("UPDATE orders SET payment_ref = $2, payment_va = $3, payment_method = $4 WHERE id = $1 AND status = 'pending'", [order.id, String(r.transactionId), JSON.stringify(va), method]);
+    return { ...order, va, paymentMethod: method };
+  } catch (e) {
+    return abortCheckout(db, order, e);
+  }
+}
+
+/** Memulai pembayaran sesuai metode yang dipilih. */
+export function startPayment(db: Db, gateway: PaymentGateway, order: Order, method: PaymentMethodId, urls: CheckoutUrls): Promise<Order> {
+  switch (PAYMENT_METHODS[method].kind) {
+    case "qris": return startQrisCheckout(db, gateway, order, urls);
+    case "va": return startVaCheckout(db, gateway, order, method, urls);
+    case "redirect": return startCheckout(db, gateway, order, urls);
+  }
+}
+
+/** Apakah gateway ini sanggup menjalankan metode tersebut. Dipakai admin agar tidak mengaktifkan metode yang pasti gagal. */
+export function gatewaySupports(gateway: PaymentGateway, method: PaymentMethodId): boolean {
+  switch (PAYMENT_METHODS[method].kind) {
+    case "qris": return !!gateway.createDirectQris;
+    case "va": return !!gateway.createDirectVa;
+    case "redirect": return true;
   }
 }
 

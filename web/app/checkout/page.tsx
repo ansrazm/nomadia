@@ -10,7 +10,7 @@ import { useT } from "@/components/LanguageProvider";
 import { useCatalogText } from "@/components/useCatalogText";
 import { apiErrorMessage } from "@/lib/api-errors";
 import { TypeArt, typeArtBg } from "@/components/TypeArt";
-import { ApiRequestError, createOrder, getCheckoutFlow, quoteCart, type CheckoutResult, type Quote } from "@/lib/api";
+import { ApiRequestError, createOrder, getCheckoutFlow, getPaymentMethods, quoteCart, type CheckoutResult, type PaymentMethodView, type Quote } from "@/lib/api";
 import { typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 import { markPendingOrder } from "@/lib/pending-order";
@@ -125,6 +125,22 @@ function CheckoutForm() {
     getCheckoutFlow(ctrl.signal).then((f) => { if (!ctrl.signal.aborted) setFlow(f); });
     return () => ctrl.abort();
   }, []);
+  // Metode bayar yang ditawarkan toko. null = belum diketahui atau gagal diambil: pakai teks alur lama dan biarkan server memilih.
+  const [methods, setMethods] = useState<PaymentMethodView[] | null>(null);
+  const [method, setMethod] = useState<string | null>(null);
+  const loadMethods = (signal?: AbortSignal) =>
+    getPaymentMethods(signal).then((list) => {
+      if (signal?.aborted) return;
+      setMethods(list);
+      // Pilihan sebelumnya dipertahankan bila masih ditawarkan; kalau tidak, jatuh ke metode pertama.
+      setMethod((cur) => (list && cur && list.some((m) => m.id === cur) ? cur : list?.[0]?.id ?? null));
+    });
+  useEffect(() => {
+    const ctrl = new AbortController();
+    loadMethods(ctrl.signal);
+    return () => ctrl.abort();
+  }, []);
+  const chosen = methods?.find((m) => m.id === method) ?? null;
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<CheckoutResult | null>(null);
   const [error, setError] = useState("");
@@ -167,10 +183,11 @@ function CheckoutForm() {
     try {
       const r = await createOrder({
         name, email, phone: phone.trim(), items, voucher,
+        ...(chosen ? { paymentMethod: chosen.id } : {}),
         ...(needsDelivery ? { departureDate, delivery: { method: "ship" as const, detail: address.trim() } } : {}),
       });
-      if (r.qr) {
-        // QRIS Direct: QR tampil di halaman pesanan sendiri. Keranjang tetap ada sampai pesanan lunas.
+      if (r.qr || r.va) {
+        // QRIS atau Virtual Account: QR / nomor VA tampil di halaman pesanan sendiri. Keranjang tetap ada sampai pesanan lunas.
         markPendingOrder(r.orderId);
         router.push(`/orders/${r.orderId}`);
         return;
@@ -191,7 +208,11 @@ function CheckoutForm() {
       if (serverFields?.delivery) fe.address = t("co.err.addr");
       if (serverFields?.name) fe.name = t("co.err.name");
       if (serverFields?.email) fe.email = t("co.err.email");
-      if (Object.keys(fe).length) {
+      if (serverFields?.paymentMethod) {
+        // Metode dimatikan admin setelah halaman ini dimuat: segarkan daftar dan minta pilih ulang.
+        setError(t("co.err.method"));
+        loadMethods();
+      } else if (Object.keys(fe).length) {
         setFieldErrors(fe);
         setError(t("co.err.fixFields"));
         const firstBad = FIELD_ORDER.find((k) => fe[k]);
@@ -239,6 +260,8 @@ function CheckoutForm() {
     );
   }
 
+  // Teks langkah mengikuti metode tunggal yang ditawarkan; tanpa daftar metode, ikuti alur dasar dari /checkout-config.
+  const stepFlow: "redirect" | "qris" | null = methods ? (methods[0]!.group === "qris" ? "qris" : "redirect") : flow;
   const totalQty = items.reduce((n, i) => n + i.qty, 0);
   const inputCls = (bad?: string) => `mt-2 w-full rounded-xl border bg-white px-4 py-3 outline-none transition-colors focus:border-lagoon focus:ring-2 focus:ring-lagoon/20 ${bad ? "border-coral" : "border-line"}`;
 
@@ -319,9 +342,33 @@ function CheckoutForm() {
 
         {/* 3. Pembayaran */}
         <section className="rounded-3xl border border-line bg-white p-5 sm:p-7" aria-labelledby="sec-pay">
-          <div id="sec-pay"><SectionHead n={3} title={t("co.s3.title")} hint={flow === "qris" ? t("co.s3.hintQris") : flow === "redirect" ? t("co.s3.hint") : t("co.s3.hintNeutral")} /></div>
-          {flow && <ol className="mt-5 grid gap-3 sm:grid-cols-3">
-            {(flow === "qris"
+          <div id="sec-pay"><SectionHead n={3} title={t("co.s3.title")} hint={methods ? (methods.length > 1 ? t("co.s3.hintPick") : t(`co.pm.hint.${methods[0]!.group}`)) : flow === "qris" ? t("co.s3.hintQris") : flow === "redirect" ? t("co.s3.hint") : t("co.s3.hintNeutral")} /></div>
+          {methods && methods.length > 1 && (
+            <fieldset className="mt-5 space-y-5" disabled={busy}>
+              <legend className="sr-only">{t("co.s3.title")}</legend>
+              {(["qris", "va", "other"] as const).map((g) => {
+                const list = methods.filter((m) => m.group === g);
+                if (!list.length) return null;
+                return (
+                  <div key={g}>
+                    <p className="text-xs font-bold uppercase tracking-wider text-ink/55">{t(`co.pm.group.${g}`)}</p>
+                    <p className="mt-0.5 text-xs text-ink/55">{t(`co.pm.${g}.d`)}</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {list.map((m) => (
+                        <label key={m.id} className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 transition-colors ${method === m.id ? "border-lagoon bg-mist" : "border-line hover:border-lagoon/50"}`}>
+                          <input type="radio" name="pay-method" className="h-4 w-4 accent-[#0C2B45]" checked={method === m.id} onChange={() => setMethod(m.id)} />
+                          <span className="text-sm font-semibold">{m.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              {chosen && <p className="text-sm text-ink/65" role="status">{t(`co.pm.hint.${chosen.group}`)}</p>}
+            </fieldset>
+          )}
+          {(!methods || (methods.length === 1 && methods[0]!.group !== "va")) && stepFlow && <ol className="mt-5 grid gap-3 sm:grid-cols-3">
+            {(stepFlow === "qris"
               ? [
                   { t: t("co.payq1.t"), d: t("co.payq1.d"), icon: ICON_SHIELD },
                   { t: t("co.payq2.t"), d: t("co.payq2.d"), icon: ICON_REFRESH },

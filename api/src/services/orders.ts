@@ -27,6 +27,9 @@ export interface OrderDelivery {
 /** Data QR untuk pembayaran QRIS Direct. imageUrl bisa URL gambar iPaymu atau data URI PNG buatan kita. */
 export interface OrderQr { imageUrl: string; expiresAt: string | null }
 
+/** Data Virtual Account untuk ditampilkan ke pembeli. `payable` = jumlah yang harus ditransfer (total order + biaya bila ditanggung pembeli). */
+export interface OrderVa { bank: string; bankName: string; number: string; accountName: string | null; expiresAt: string | null; fee: number; payable: number }
+
 export interface Order {
   id: string;
   status: "pending" | "paid" | "expired" | "cancelled";
@@ -41,6 +44,8 @@ export interface Order {
   voucher: string | null;
   paymentUrl: string | null;
   qr: OrderQr | null;
+  paymentMethod: string | null;
+  va: OrderVa | null;
   createdAt: string;
   paidAt: string | null;
   items: { productId: string; name: string; unitPrice: number; qty: number }[];
@@ -107,7 +112,7 @@ interface OrderRow {
   id: string; status: Order["status"]; customer_name: string; customer_email: string;
   customer_phone: string | null; departure_date: string | null; delivery_method: OrderDelivery["method"] | null; delivery_detail: string | null;
   subtotal: number; discount: number; total: number; voucher_code: string | null;
-  payment_url: string | null; payment_qr: OrderQr | null; created_at: Date; paid_at: Date | null;
+  payment_url: string | null; payment_qr: OrderQr | null; payment_method: string | null; payment_va: OrderVa | null; created_at: Date; paid_at: Date | null;
 }
 
 type Queryable = Pick<Db, "query">;
@@ -134,6 +139,8 @@ export async function getOrder(db: Queryable, id: string): Promise<Order | null>
     voucher: r.voucher_code,
     paymentUrl: r.payment_url,
     qr: r.payment_qr,
+    paymentMethod: r.payment_method,
+    va: r.payment_va,
     createdAt: r.created_at.toISOString(),
     paidAt: r.paid_at ? r.paid_at.toISOString() : null,
     items: items.rows.map((i) => ({ productId: i.product_id, name: i.product_name, unitPrice: i.unit_price, qty: i.qty })),

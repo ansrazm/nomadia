@@ -129,6 +129,39 @@ describe("IpaymuClient.createDirectQris", () => {
   });
 });
 
+describe("IpaymuClient.createDirectVa", () => {
+  const va = { orderId: "NMD-ABCD2345", total: 19000, buyerName: "Budi", buyerEmail: "b@x.id", buyerPhone: "081234567890", notifyUrl: "https://api.example/webhooks/ipaymu", channel: "bca" };
+  // Bentuk respons VA mengikuti dokumentasi iPaymu; belum dicocokkan dengan sandbox akun ini (pakai npm run dev:va-probe).
+  const ok = { Status: 200, Success: true, Message: "Success", Data: { SessionId: "NMD-ABCD2345", TransactionId: 5151, ReferenceId: "NMD-ABCD2345", Via: "VA", Channel: "BCA", PaymentNo: "8277000012345678", PaymentName: "Nomadia", SubTotal: 19000, Fee: 4000, Total: 23000, FeeDirection: "BUYER", Expired: "2026-11-08 10:00:00" } };
+
+  it("kirim ke /payment/direct dengan method va dan channel bank, tanpa expired dan feeDirection", async () => {
+    const m = mockFetch(() => ({ body: ok }));
+    await new IpaymuClient({ va: VA, apiKey: KEY, mode: "sandbox", fetchImpl: m.fetchImpl }).createDirectVa(va);
+    const { url, init } = m.calls[0]!;
+    expect(url).toBe("https://sandbox.ipaymu.com/api/v2/payment/direct");
+    expect(init.headers.signature).toBe(signRequest(VA, KEY, init.body));
+    const body = JSON.parse(init.body);
+    expect(body).toEqual({ name: "Budi", phone: "081234567890", email: "b@x.id", amount: 19000, notifyUrl: va.notifyUrl, referenceId: "NMD-ABCD2345", paymentMethod: "va", paymentChannel: "bca" });
+    expect(body).not.toHaveProperty("expired");
+    expect(body).not.toHaveProperty("feeDirection");
+  });
+
+  it("menormalkan respons: nomor VA, nama, biaya, total yang dibayar, dan kedaluwarsa", async () => {
+    const m = mockFetch(() => ({ body: ok }));
+    const r = await new IpaymuClient({ va: VA, apiKey: KEY, mode: "sandbox", fetchImpl: m.fetchImpl }).createDirectVa(va);
+    expect(r).toMatchObject({ transactionId: 5151, referenceId: "NMD-ABCD2345", paymentNo: "8277000012345678", paymentName: "Nomadia", subTotal: 19000, fee: 4000, total: 23000, feeDirection: "BUYER", expired: "2026-11-08 10:00:00" });
+  });
+
+  it("penolakan, respons tanpa TransactionId, respons tanpa nomor VA, dan jaringan putus -> GatewayError", async () => {
+    const mk = (h: Parameters<typeof mockFetch>[0]) => new IpaymuClient({ va: VA, apiKey: KEY, mode: "sandbox", fetchImpl: mockFetch(h).fetchImpl });
+    await expect(mk(() => ({ status: 400, body: { Success: false, Message: "Payment channel not active" } })).createDirectVa(va)).rejects.toThrow(/Payment channel not active/);
+    await expect(mk(() => ({ body: { Success: true, Data: {} } })).createDirectVa(va)).rejects.toBeInstanceOf(GatewayError);
+    await expect(mk(() => ({ body: { Success: true, Data: { ...ok.Data, PaymentNo: "" } } })).createDirectVa(va)).rejects.toBeInstanceOf(GatewayError);
+    await expect(mk(() => ({ body: { Success: true, Data: { ...ok.Data, PaymentNo: null } } })).createDirectVa(va)).rejects.toBeInstanceOf(GatewayError);
+    await expect(mk(() => new Error("ECONNRESET")).createDirectVa(va)).rejects.toThrow(/tidak terjangkau/);
+  });
+});
+
 describe("IpaymuClient.resolveQrImage", () => {
   const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
   const make = (res: Response | Error) => {

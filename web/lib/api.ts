@@ -10,6 +10,8 @@ export interface CheckoutPayload {
   delivery?: { method: "ship"; detail: string };
   items: CartItem[];
   voucher?: string;
+  /** Id metode dari GET /payment-methods. Tanpa ini server memakai metode pertama yang ditawarkan. */
+  paymentMethod?: string;
 }
 
 /** QR untuk pembayaran QRIS Direct (hanya bila API berjalan dengan IPAYMU_FLOW=qris). */
@@ -19,10 +21,31 @@ export interface OrderQr {
   expiresAt: string | null;
 }
 
+/** Virtual Account: nomor bayar ditampilkan di halaman pesanan. */
+export interface OrderVa {
+  bank: string;
+  bankName: string;
+  number: string;
+  accountName: string | null;
+  /** ISO UTC; null bila iPaymu tidak memberi waktu kedaluwarsa. */
+  expiresAt: string | null;
+  /** Biaya admin; sudah termasuk di `payable` bila ditanggung pembeli. */
+  fee: number;
+  /** Jumlah yang harus ditransfer. */
+  payable: number;
+}
+
 export interface CheckoutResult {
   orderId: string;
   paymentUrl: string | null;
   qr: OrderQr | null;
+  va: OrderVa | null;
+}
+
+export interface PaymentMethodView {
+  id: string;
+  label: string;
+  group: "qris" | "va" | "other";
 }
 
 /** Galat dari API yang pesannya aman ditampilkan ke pengguna (mis. voucher salah, produk tidak tersedia). */
@@ -52,6 +75,7 @@ export async function createOrder(payload: CheckoutPayload): Promise<CheckoutRes
       departureDate: payload.departureDate,
       delivery: payload.delivery,
       voucher: payload.voucher,
+      ...(payload.paymentMethod ? { paymentMethod: payload.paymentMethod } : {}),
       items: payload.items.map((i) => ({ productId: i.id, qty: i.qty })),
     }),
   });
@@ -60,7 +84,7 @@ export async function createOrder(payload: CheckoutPayload): Promise<CheckoutRes
     const e = json?.error;
     throw new ApiRequestError(res.status, e?.code ?? "UNKNOWN", e?.message ?? "Permintaan gagal.", e?.details);
   }
-  return { orderId: json.data.orderId, paymentUrl: json.data.paymentUrl ?? null, qr: json.data.qr ?? null };
+  return { orderId: json.data.orderId, paymentUrl: json.data.paymentUrl ?? null, qr: json.data.qr ?? null, va: json.data.va ?? null };
 }
 
 export interface QuoteLine {
@@ -114,6 +138,7 @@ export interface OrderView {
   voucher: string | null;
   paymentUrl: string | null;
   qr: OrderQr | null;
+  va: OrderVa | null;
   items: { productId: string; name: string; unitPrice: number; qty: number }[];
 }
 
@@ -138,6 +163,25 @@ export async function getCheckoutFlow(signal?: AbortSignal): Promise<"redirect" 
     if (!res.ok) return null;
     const flow = (await res.json())?.data?.checkoutFlow;
     return flow === "redirect" || flow === "qris" ? flow : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * GET {API_URL}/payment-methods: metode bayar yang ditawarkan, sudah berurutan.
+ * null bila gagal diambil atau daftarnya kosong; checkout lalu memakai teks netral dan tidak mengirim pilihan,
+ * sehingga server yang memutuskan metodenya.
+ */
+export async function getPaymentMethods(signal?: AbortSignal): Promise<PaymentMethodView[] | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await fetch(`${API_URL}/payment-methods`, { cache: "no-store", ...(signal ? { signal } : {}) });
+    if (!res.ok) return null;
+    const list: unknown = (await res.json())?.data?.methods;
+    if (!Array.isArray(list)) return null;
+    const ok = list.filter((m): m is PaymentMethodView => typeof m?.id === "string" && typeof m?.label === "string" && ["qris", "va", "other"].includes(m?.group));
+    return ok.length ? ok : null;
   } catch {
     return null;
   }

@@ -67,7 +67,7 @@ export interface AdminProduct { id: string; destSlug: string; type: "esim" | "si
 export interface AdminVoucher { code: string; percent: number; active: boolean; used?: number }
 export type OrderStatus = "pending" | "paid" | "expired" | "cancelled";
 export interface AdminOrder { id: string; status: OrderStatus; customerName: string; customerEmail: string; customerPhone: string | null; departureDate: string | null; deliveryMethod: "ship" | "pickup" | null; deliveryDetail: string | null; subtotal: number; discount: number; total: number; voucher: string | null; createdAt: string; paidAt: string | null }
-export interface AdminOrderDetail extends AdminOrder { paymentRef: string | null; paymentUrl: string | null; items: { productId: string; name: string; unitPrice: number; qty: number }[] }
+export interface AdminOrderDetail extends AdminOrder { paymentRef: string | null; paymentUrl: string | null; paymentMethod: string | null; va: { bankName: string; number: string; accountName: string | null; fee: number; payable: number } | null; items: { productId: string; name: string; unitPrice: number; qty: number }[] }
 export type CheckoutFlow = "redirect" | "qris";
 export interface AdminSettings {
   checkoutFlow: CheckoutFlow;
@@ -76,4 +76,10 @@ export interface AdminSettings {
   envDefault: CheckoutFlow;
   gatewayConfigured: boolean;
   qrisSupported: boolean;
+  paymentMethods: {
+    enabled: string[];
+    /** "database" = dipilih di admin; "flow" = belum dipilih, hanya alur dasar yang ditawarkan. */
+    source: "database" | "flow";
+    available: { id: string; label: string; group: "qris" | "va" | "other"; supported: boolean }[];
+  };
 }

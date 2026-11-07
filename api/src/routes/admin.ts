@@ -6,7 +6,9 @@ import { ApiError } from "../errors.js";
 import { LoginLimiter, safeEqual, signToken, verifyToken } from "../services/auth.js";
 import type { PaymentGateway } from "../payments/ipaymu.js";
 import { MAX_IMAGE_BYTES, clearDestinationImage, clearHomeBanner, getHomeBannerId, isImageKind, mediaPath, setDestinationImage, setHomeBanner, sniffImage, type ImageType } from "../services/media.js";
-import { CHECKOUT_FLOWS, getCheckoutFlow, setCheckoutFlow, type CheckoutFlow } from "../services/settings.js";
+import { CHECKOUT_FLOWS, getCheckoutFlow, getEnabledMethods, setCheckoutFlow, setEnabledMethods, type CheckoutFlow } from "../services/settings.js";
+import { PAYMENT_METHODS, PAYMENT_METHOD_IDS } from "../payments/methods.js";
+import { gatewaySupports } from "../services/payments.js";
 
 /** Baca dan validasi satu berkas gambar dari multipart/form-data (field "file"); jenisnya dari magic bytes. */
 async function readImageUpload(c: Context): Promise<{ data: Buffer; type: ImageType }> {
@@ -146,7 +148,14 @@ export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext =
   // ---- Pengaturan: alur pembayaran ----
   const settingsView = async () => {
     const { flow, source } = await getCheckoutFlow(db, pay.defaultFlow);
+    const enabled = await getEnabledMethods(db, pay.defaultFlow);
     return {
+      // Metode bayar: enabled = yang ditawarkan di checkout; available = semua yang dikenal, supported = sanggup dijalankan gateway aktif.
+      paymentMethods: {
+        enabled: enabled.methods,
+        source: enabled.source,
+        available: PAYMENT_METHOD_IDS.map((id) => ({ id, label: PAYMENT_METHODS[id].label, group: PAYMENT_METHODS[id].group, supported: !!pay.gateway && gatewaySupports(pay.gateway, id) })),
+      },
       checkoutFlow: flow,
       source,
       envDefault: pay.defaultFlow,
@@ -158,14 +167,28 @@ export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext =
 
   app.get("/admin/settings", async (c) => c.json({ data: await settingsView() }));
 
-  // checkoutFlow: "redirect" | "qris" menyimpan pilihan; null menghapusnya (kembali mengikuti env). Berlaku untuk order berikutnya.
+  // checkoutFlow: "redirect" | "qris" menyimpan alur dasar; null menghapusnya (kembali mengikuti env).
+  // paymentMethods: array id metode (tidak kosong) menyimpan pilihan yang ditawarkan di checkout; null menghapusnya (kembali mengikuti alur).
+  // Salah satu atau keduanya boleh dikirim; yang tidak dikirim tidak diubah. Berlaku untuk order berikutnya.
   app.patch("/admin/settings", async (c) => {
-    const { checkoutFlow } = await body(c, z.object({ checkoutFlow: z.enum(["redirect", "qris"]).nullable() }));
-    if (checkoutFlow !== null) {
-      if (!pay.gateway) throw new ApiError(409, "PAYMENT_NOT_CONFIGURED", "iPaymu belum dikonfigurasi (isi IPAYMU_VA dan IPAYMU_API_KEY di .env, lalu restart API), jadi alur pembayaran belum bisa diubah.");
-      if (checkoutFlow === "qris" && !pay.gateway.createDirectQris) throw new ApiError(409, "FLOW_UNSUPPORTED", "Gateway pembayaran yang aktif tidak mendukung QRIS Direct.");
+    const patch = await body(
+      c,
+      z.object({
+        checkoutFlow: z.enum(["redirect", "qris"]).nullable().optional(),
+        paymentMethods: z.array(z.enum(PAYMENT_METHOD_IDS)).min(1, "Pilih minimal satu metode bayar").max(PAYMENT_METHOD_IDS.length).nullable().optional(),
+      }),
+    );
+    const { checkoutFlow, paymentMethods } = patch;
+    if (checkoutFlow === undefined && paymentMethods === undefined) throw new ApiError(422, "VALIDATION_FAILED", "Tidak ada pengaturan yang diubah.");
+    const needsGateway = (checkoutFlow !== undefined && checkoutFlow !== null) || (paymentMethods !== undefined && paymentMethods !== null);
+    if (needsGateway && !pay.gateway) throw new ApiError(409, "PAYMENT_NOT_CONFIGURED", "iPaymu belum dikonfigurasi (isi IPAYMU_VA dan IPAYMU_API_KEY di .env, lalu restart API), jadi alur pembayaran belum bisa diubah.");
+    if (checkoutFlow === "qris" && !pay.gateway!.createDirectQris) throw new ApiError(409, "FLOW_UNSUPPORTED", "Gateway pembayaran yang aktif tidak mendukung QRIS Direct.");
+    if (paymentMethods) {
+      const bad = paymentMethods.filter((id) => !gatewaySupports(pay.gateway!, id));
+      if (bad.length) throw new ApiError(409, "METHOD_UNSUPPORTED", `Gateway pembayaran yang aktif tidak mendukung: ${bad.map((id) => PAYMENT_METHODS[id].label).join(", ")}.`);
     }
-    await setCheckoutFlow(db, checkoutFlow);
+    if (checkoutFlow !== undefined) await setCheckoutFlow(db, checkoutFlow);
+    if (paymentMethods !== undefined) await setEnabledMethods(db, paymentMethods);
     return c.json({ data: await settingsView() });
   });
 
@@ -362,6 +385,8 @@ export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext =
         ...orderDto(o),
         paymentRef: o.payment_ref,
         paymentUrl: o.payment_url,
+        paymentMethod: o.payment_method,
+        va: o.payment_va,
         items: items.rows.map((i) => ({ productId: i.product_id, name: i.product_name, unitPrice: i.unit_price, qty: i.qty })),
       },
     });

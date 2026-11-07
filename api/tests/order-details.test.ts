@@ -293,9 +293,9 @@ describe("data wajib menurut isi keranjang", () => {
 
 describe("GET /checkout-config", () => {
   it("mengikuti alur bayar yang aktif, tanpa perlu login", async () => {
-    expect((await call("GET", "/checkout-config")).json.data).toEqual({ checkoutFlow: "redirect" });
+    expect((await call("GET", "/checkout-config")).json.data).toMatchObject({ checkoutFlow: "redirect" });
     await setCheckoutFlow(db, "qris");
-    expect((await call("GET", "/checkout-config")).json.data).toEqual({ checkoutFlow: "qris" });
+    expect((await call("GET", "/checkout-config")).json.data).toMatchObject({ checkoutFlow: "qris" });
     await setCheckoutFlow(db, null);
   });
 });

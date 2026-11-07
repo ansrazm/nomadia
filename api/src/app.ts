@@ -9,7 +9,7 @@ import { webhookRoutes } from "./routes/webhooks.js";
 import type { PaymentGateway } from "./payments/ipaymu.js";
 import type { OutboxDispatcher } from "./services/outbox.js";
 import { adminRoutes, type AdminConfig } from "./routes/admin.js";
-import { getCheckoutFlow } from "./services/settings.js";
+import { getEnabledMethods } from "./services/settings.js";
 
 export interface AppDeps {
   db: Db;
@@ -34,7 +34,7 @@ export function createApp({ db, corsOrigins, gateway = null, outbox = null, publ
 
   app.route("/", catalogRoutes(db));
   app.route("/", quoteRoutes(db));
-  app.route("/", orderRoutes(db, gateway, { publicApiUrl, webUrl }, async () => (await getCheckoutFlow(db, checkoutFlow)).flow));
+  app.route("/", orderRoutes(db, gateway, { publicApiUrl, webUrl }, async () => (await getEnabledMethods(db, checkoutFlow)).methods));
   app.route("/", webhookRoutes(db, gateway, outbox));
   if (admin) app.route("/", adminRoutes(db, admin, { gateway, defaultFlow: checkoutFlow }));
 

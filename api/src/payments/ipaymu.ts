@@ -48,6 +48,37 @@ export interface DirectQrisResult {
   raw: Record<string, unknown>;
 }
 
+/** Virtual Account lewat Direct Payment: nomor bayar ditampilkan di halaman sendiri. */
+export interface DirectVaInput {
+  orderId: string;
+  total: number;
+  buyerName: string;
+  buyerEmail: string;
+  buyerPhone: string;
+  notifyUrl: string;
+  /** Kode paymentChannel iPaymu, mis. "bca". */
+  channel: string;
+}
+
+export interface DirectVaResult {
+  transactionId: number;
+  referenceId: string;
+  via: string;
+  channel: string;
+  /** Nomor Virtual Account. Selalu terisi; respons tanpa nomor ditolak. */
+  paymentNo: string;
+  /** Nama pemilik rekening VA yang tampil di aplikasi bank. */
+  paymentName: string | null;
+  subTotal: number | null;
+  /** Yang harus dibayar pembeli: sama dengan total order bila biaya ditanggung toko, lebih besar bila ditanggung pembeli. */
+  total: number;
+  fee: number;
+  feeDirection: string | null;
+  /** Waktu kedaluwarsa dari iPaymu (teks asli, WIB tanpa zona). */
+  expired: string | null;
+  raw: Record<string, unknown>;
+}
+
 export interface TxInfo {
   trxId: number;
   referenceId: string;
@@ -68,6 +99,8 @@ export interface PaymentGateway {
   createCheckout(input: CheckoutInput): Promise<{ sessionId: string; url: string }>;
   /** Opsional: hanya gateway yang mendukung QRIS Direct. Dipakai bila IPAYMU_FLOW=qris. */
   createDirectQris?(input: DirectQrisInput): Promise<DirectQrisResult>;
+  /** Opsional: hanya gateway yang mendukung Virtual Account Direct. Dipakai untuk metode va_*. */
+  createDirectVa?(input: DirectVaInput): Promise<DirectVaResult>;
   /**
    * Opsional: ubah `QrImage` dari iPaymu menjadi sesuatu yang bisa dipakai sebagai <img src>. Di sandbox, URL itu
    * adalah halaman HTML yang membungkus gambar (data URI), bukan file gambar, sehingga <img> langsung gagal tampil.
@@ -219,6 +252,44 @@ export class IpaymuClient implements PaymentGateway {
       fee: Number(d.Fee ?? 0),
       feeDirection: str(d.FeeDirection),
       escrow: typeof d.Escrow === "boolean" ? d.Escrow : null,
+      expired: str(d.Expired),
+      raw: d as Record<string, unknown>,
+    };
+  }
+
+  /**
+   * POST /payment/direct dengan paymentMethod=va dan paymentChannel=<bank>. Seperti QRIS: referenceId = id order,
+   * `expired` tidak dikirim (masa berlaku dibaca dari respons), dan feeDirection tidak dikirim (mengikuti pengaturan akun merchant).
+   */
+  async createDirectVa(i: DirectVaInput): Promise<DirectVaResult> {
+    const { status, json } = await this.post("/payment/direct", {
+      name: i.buyerName.slice(0, 60),
+      phone: i.buyerPhone,
+      email: i.buyerEmail,
+      amount: i.total,
+      notifyUrl: i.notifyUrl,
+      referenceId: i.orderId,
+      paymentMethod: "va",
+      paymentChannel: i.channel,
+    });
+    const d = json?.Data;
+    const trx = Number(d?.TransactionId);
+    const no = d?.PaymentNo === undefined || d?.PaymentNo === null ? "" : String(d.PaymentNo).trim();
+    if (status < 200 || status >= 300 || json?.Success === false || !d || !Number.isFinite(trx) || !no) {
+      throw new GatewayError(json?.Message ? `iPaymu: ${json.Message}` : `iPaymu menolak permintaan Virtual Account (HTTP ${status})`);
+    }
+    const str = (v: unknown) => (v === undefined || v === null || v === "" ? null : String(v));
+    return {
+      transactionId: trx,
+      referenceId: String(d.ReferenceId ?? i.orderId),
+      via: String(d.Via ?? ""),
+      channel: String(d.Channel ?? i.channel),
+      paymentNo: no,
+      paymentName: str(d.PaymentName),
+      subTotal: d.SubTotal === undefined || d.SubTotal === null ? null : Number(d.SubTotal),
+      total: Number(d.Total ?? i.total),
+      fee: Number(d.Fee ?? 0),
+      feeDirection: str(d.FeeDirection),
       expired: str(d.Expired),
       raw: d as Record<string, unknown>,
     };

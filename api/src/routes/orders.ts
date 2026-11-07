@@ -4,7 +4,8 @@ import type { Db } from "../db/pool.js";
 import { ApiError } from "../errors.js";
 import { createOrder, getOrder, maskEmail } from "../services/orders.js";
 import { departureDateError, maskPhone, normalizePhone } from "../services/order-details.js";
-import { startCheckout, startQrisCheckout, type CheckoutUrls } from "../services/payments.js";
+import { startPayment, type CheckoutUrls } from "../services/payments.js";
+import { PAYMENT_METHODS, PAYMENT_METHOD_IDS, type PaymentMethodId } from "../payments/methods.js";
 import type { PaymentGateway } from "../payments/ipaymu.js";
 import { cartItems, voucherField } from "./schemas.js";
 
@@ -54,10 +55,15 @@ const body = z.object({
   delivery: deliveryField,
   items: cartItems,
   voucher: voucherField,
+  // Opsional: tanpa field ini dipakai metode pertama yang ditawarkan (tanpa pengaturan admin = alur lama).
+  paymentMethod: z.enum(PAYMENT_METHOD_IDS, { errorMap: () => ({ message: "Metode pembayaran tidak dikenal" }) }).optional(),
 });
 
-/** `flow` dibaca setiap order dibuat, jadi perubahan dari panel admin langsung berlaku tanpa restart. */
-export function orderRoutes(db: Db, gateway: PaymentGateway | null, urls: CheckoutUrls, flow: () => Promise<"redirect" | "qris">) {
+/** Daftar metode yang ditawarkan ke pembeli, dengan label dan pengelompokan untuk UI. */
+export const methodsView = (ids: readonly PaymentMethodId[]) => ids.map((id) => ({ id, label: PAYMENT_METHODS[id].label, group: PAYMENT_METHODS[id].group }));
+
+/** `methods` dibaca setiap order dibuat, jadi perubahan dari panel admin langsung berlaku tanpa restart. */
+export function orderRoutes(db: Db, gateway: PaymentGateway | null, urls: CheckoutUrls, methods: () => Promise<PaymentMethodId[]>) {
   const app = new Hono();
 
   app.post("/orders", async (c) => {
@@ -68,14 +74,26 @@ export function orderRoutes(db: Db, gateway: PaymentGateway | null, urls: Checko
     if (!parsed.success) {
       throw new ApiError(422, "VALIDATION_FAILED", "Data pesanan tidak valid.", parsed.error.flatten().fieldErrors);
     }
-    let order = await createOrder(db, parsed.data);
+    // Metode dicek sebelum order dibuat: metode yang tidak ditawarkan tidak boleh meninggalkan order menggantung.
+    const enabled = await methods();
+    const { paymentMethod: requested, ...input } = parsed.data;
+    const method = requested ?? enabled[0]!;
+    if (!enabled.includes(method)) {
+      throw new ApiError(422, "VALIDATION_FAILED", "Data pesanan tidak valid.", { paymentMethod: ["Metode pembayaran ini sedang tidak tersedia."] });
+    }
+    let order = await createOrder(db, input);
     // Tanpa kredensial iPaymu (mode dev), order tetap dibuat dengan paymentUrl null.
-    if (gateway) order = (await flow()) === "qris" ? await startQrisCheckout(db, gateway, order, urls) : await startCheckout(db, gateway, order, urls);
-    return c.json({ data: { orderId: order.id, status: order.status, subtotal: order.subtotal, discount: order.discount, total: order.total, paymentUrl: order.paymentUrl, qr: order.qr } }, 201);
+    if (gateway) order = await startPayment(db, gateway, order, method, urls);
+    return c.json({ data: { orderId: order.id, status: order.status, subtotal: order.subtotal, discount: order.discount, total: order.total, paymentUrl: order.paymentUrl, qr: order.qr, va: order.va, paymentMethod: order.paymentMethod } }, 201);
   });
 
-  // Alur bayar yang aktif, supaya halaman checkout menulis instruksi yang benar sebelum tombol bayar ditekan.
-  app.get("/checkout-config", async (c) => c.json({ data: { checkoutFlow: await flow() } }));
+  // Metode bayar yang aktif, supaya halaman checkout menampilkan pilihan yang benar sebelum tombol bayar ditekan.
+  // checkoutFlow dipertahankan untuk klien lama: "qris" bila QRIS yang pertama ditawarkan, selain itu "redirect".
+  app.get("/payment-methods", async (c) => c.json({ data: { methods: methodsView(await methods()) } }));
+  app.get("/checkout-config", async (c) => {
+    const enabled = await methods();
+    return c.json({ data: { checkoutFlow: enabled[0] === "qris" ? "qris" : "redirect", paymentMethods: methodsView(enabled) } });
+  });
 
   app.get("/orders/:id", async (c) => {
     const order = await getOrder(db, c.req.param("id").toUpperCase());
@@ -91,7 +109,7 @@ export function orderRoutes(db: Db, gateway: PaymentGateway | null, urls: Checko
         departureDate: rest.departureDate,
         deliveryMethod: delivery?.method ?? null,
         subtotal: rest.subtotal, discount: rest.discount, total: rest.total, voucher: rest.voucher,
-        paymentUrl: rest.paymentUrl, qr: rest.qr, createdAt: rest.createdAt, paidAt: rest.paidAt, items: rest.items,
+        paymentUrl: rest.paymentUrl, qr: rest.qr, va: rest.va, paymentMethod: rest.paymentMethod, createdAt: rest.createdAt, paidAt: rest.paidAt, items: rest.items,
       },
     });
   });

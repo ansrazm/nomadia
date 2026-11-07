@@ -73,7 +73,9 @@ describe("GET/PATCH /admin/settings", () => {
   it("menampilkan nilai env sebagai awal dan kemampuan gateway", async () => {
     const { call, auth } = await setup({ gateway: new BothFlowsGateway(), checkoutFlow: "qris" });
     const r = await call("GET", "/admin/settings", undefined, auth);
-    expect(r.json.data).toEqual({ checkoutFlow: "qris", source: "env", envDefault: "qris", gatewayConfigured: true, qrisSupported: true, flows: ["redirect", "qris"] });
+    expect(r.json.data).toMatchObject({ checkoutFlow: "qris", source: "env", envDefault: "qris", gatewayConfigured: true, qrisSupported: true, flows: ["redirect", "qris"] });
+    // Metode bayar mengikuti alur sampai admin memilih sendiri (lihat payment-methods.test.ts).
+    expect(r.json.data.paymentMethods).toMatchObject({ enabled: ["qris"], source: "flow" });
   });
 
   it("ganti flow langsung berlaku di order berikutnya tanpa restart; order lama tidak berubah", async () => {

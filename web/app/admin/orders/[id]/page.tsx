@@ -61,6 +61,8 @@ export default function OrderDetailPage() {
               {o.deliveryDetail && row(o.deliveryMethod === "pickup" ? "Titik ambil" : "Alamat pengiriman", <span className="block whitespace-pre-wrap text-right">{o.deliveryDetail}</span>)}
               {row("Dibuat", fmtDate(o.createdAt))}
               {row("Dibayar", fmtDate(o.paidAt))}
+              {row("Metode bayar", o.paymentMethod ?? "—")}
+              {o.va && row("Virtual Account", `${o.va.bankName} ${o.va.number}`)}
               {row("Referensi pembayaran", o.paymentRef ?? "—")}
               {o.paymentUrl && row("Tautan bayar", <a href={o.paymentUrl} target="_blank" rel="noopener noreferrer" className="text-deep underline">Buka</a>)}
             </dl>

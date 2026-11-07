@@ -9,7 +9,7 @@ import { useCart } from "@/components/CartProvider";
 import { useT } from "@/components/LanguageProvider";
 import { useCatalogText } from "@/components/useCatalogText";
 import type { TFn } from "@/lib/i18n/messages";
-import { getOrder, OrderQr, OrderView } from "@/lib/api";
+import { getOrder, OrderQr, OrderVa, OrderView } from "@/lib/api";
 import { idr } from "@/lib/format";
 import { consumePendingOrder } from "@/lib/pending-order";
 
@@ -69,6 +69,72 @@ function QrPanel({ qr, total }: { qr: OrderQr; total: number }) {
   );
 }
 
+function CopyButton({ text, label, className = "" }: { text: string; label: string; className?: string }) {
+  const t = useT();
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async () => { try { await navigator.clipboard.writeText(text); setDone(true); setTimeout(() => setDone(false), 1600); } catch { /* clipboard diblok */ } }}
+      className={`rounded-full border border-line bg-white px-3 py-1 text-xs font-semibold text-deep hover:border-lagoon ${className}`}
+      aria-live="polite"
+    >
+      {done ? t("promo.copied") : label}
+    </button>
+  );
+}
+
+/** Virtual Account: nomor bayar di halaman sendiri, dengan hitung mundur dari waktu kedaluwarsa yang diberikan iPaymu. */
+function VaPanel({ va, orderTotal }: { va: OrderVa; orderTotal: number }) {
+  const t = useT();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!va.expiresAt) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [va.expiresAt]);
+
+  const remaining = va.expiresAt ? new Date(va.expiresAt).getTime() - now : null;
+  if (remaining !== null && remaining <= 0) {
+    return (
+      <div className="mt-6 rounded-2xl bg-mist p-6 text-center" role="alert">
+        <p className="font-semibold">{t("va.expired")}</p>
+        <p className="mt-1 text-sm text-ink/70">{t("va.expiredBody")}</p>
+        <Link href="/cart" className="btn-signal mt-4">{t("qr.backCart")}</Link>
+      </div>
+    );
+  }
+  const grouped = va.number.replace(/\D/g, "") === va.number ? va.number.replace(/(.{4})/g, "$1 ").trim() : va.number;
+  return (
+    <div className="mt-6 rounded-2xl bg-mist p-5 sm:p-6">
+      <p className="font-display text-lg font-bold">{t("va.title", { bank: va.bankName })}</p>
+      <div className="mt-4 rounded-xl bg-white p-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-ink/55">{t("va.number")}</p>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+          <p className="break-all font-display text-2xl font-extrabold tracking-wide sm:text-3xl">{grouped}</p>
+          <CopyButton text={va.number} label={t("va.copyNumber")} />
+        </div>
+        {va.accountName && <p className="mt-2 text-sm text-ink/65">{t("va.name")}: <span className="font-semibold text-ink">{va.accountName}</span></p>}
+      </div>
+      <div className="mt-3 rounded-xl bg-white p-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-ink/55">{t("va.amount")}</p>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+          <p className="font-display text-2xl font-extrabold">{idr(va.payable)}</p>
+          <CopyButton text={String(va.payable)} label={t("va.copyAmount")} />
+        </div>
+        <p className="mt-2 text-xs text-ink/60">{va.payable > orderTotal ? t("va.amountNote", { fee: idr(va.payable - orderTotal) }) : t("va.amountExact")}</p>
+      </div>
+      {remaining !== null && <p className="mt-4 text-sm font-semibold" aria-live="off">{t("va.remaining", { time: fmtRemaining(remaining, t) })}</p>}
+      <p className="mt-4 text-sm font-semibold">{t("va.how")}</p>
+      <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-ink/70">
+        <li>{t("va.how1", { bank: va.bankName })}</li>
+        <li>{t("va.how2")}</li>
+        <li>{t("va.how3")}</li>
+      </ol>
+    </div>
+  );
+}
+
 function CopyOrderId({ id }: { id: string }) {
   const t = useT();
   const [done, setDone] = useState(false);
@@ -94,12 +160,12 @@ function OrderStatus() {
   const ct = useCatalogText();
 
   // Redirect: pengguna kembali dari iPaymu (bukan batal), pesanan sudah di tangan iPaymu, jadi barisnya keluar dari keranjang.
-  // QRIS: keranjang dipertahankan sampai lunas, supaya QR yang kedaluwarsa bisa diganti tanpa mengisi ulang keranjang.
+  // QRIS dan Virtual Account: keranjang dipertahankan sampai lunas, supaya QR atau nomor VA yang kedaluwarsa bisa diganti tanpa mengisi ulang keranjang.
   // Hanya baris pesanan ini yang dikurangi; paket yang ditambahkan sesudah checkout tetap ada.
   // Kalau halaman ini tidak sempat terbuka saat lunas, PendingOrderSync (di layout) yang membereskannya.
   useEffect(() => {
     if (cancelled || !order) return;
-    const settled = order.status === "paid" || (order.status === "pending" && !order.qr);
+    const settled = order.status === "paid" || (order.status === "pending" && !order.qr && !order.va);
     if (settled && consumePendingOrder(order.id)) settle(order.items);
   }, [cancelled, order, settle]);
 
@@ -157,6 +223,7 @@ function OrderStatus() {
       )}
       {order.status === "pending" && <p className="mt-3 text-ink/70">{t("order.autoRefresh")}</p>}
       {order.status === "pending" && order.qr && <QrPanel qr={order.qr} total={order.total} />}
+      {order.status === "pending" && order.va && <VaPanel va={order.va} orderTotal={order.total} />}
       {failed && <p className="mt-3 text-sm text-coral">{t("order.connLost")}</p>}
 
       <ul className="mt-6 divide-y divide-line border-y border-line">
