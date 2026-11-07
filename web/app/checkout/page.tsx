@@ -81,9 +81,10 @@ function CheckoutForm() {
   const lineById = useMemo(() => new Map((quote?.lines ?? []).map((l) => [l.productId, l])), [quote]);
   const canPay = !!quote && !quoteFailed && unavailable.length === 0;
 
-  async function applyVoucher() {
+  /** true bila kode berhasil dipakai; false bila kosong atau ditolak (pesan galat sudah ditampilkan). */
+  async function applyVoucher(): Promise<boolean> {
     const c = code.trim();
-    if (!c) return;
+    if (!c) return false;
     setVoucherError("");
     setVoucherNote("");
     setApplying(true);
@@ -92,8 +93,10 @@ function CheckoutForm() {
       setVoucher(q.voucher?.code);
       setQuote(q);
       setCode("");
+      return true;
     } catch (err) {
       setVoucherError(err instanceof ApiRequestError && err.status < 500 ? err.message : "Voucher belum bisa dicek. Periksa koneksi lalu coba lagi.");
+      return false;
     } finally {
       setApplying(false);
     }
@@ -104,6 +107,7 @@ function CheckoutForm() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<CheckoutResult | null>(null);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; email?: string }>({});
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
 
@@ -114,6 +118,7 @@ function CheckoutForm() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setInfo("");
     const fe: { name?: string; email?: string } = {};
     if (!name.trim()) fe.name = "Isi nama lengkap sesuai identitas.";
     if (!/^\S+@\S+\.\S+$/.test(email)) fe.email = "Alamat email belum valid. Contoh: nama@email.com";
@@ -123,6 +128,14 @@ function CheckoutForm() {
       return;
     }
     if (!canPay) return setError("Total belum bisa dihitung. Tunggu sebentar atau periksa keranjang.");
+    // Kode sudah diketik tapi belum ditekan "Pakai": jangan membayar penuh diam-diam. Pakai dulu, tampilkan
+    // total terbaru, dan minta tekan Bayar sekali lagi supaya pengguna melihat angka yang akan dibayar.
+    if (code.trim() && !quote?.voucher) {
+      const ok = await applyVoucher();
+      if (ok) setInfo("Voucher dipakai dan total sudah diperbarui. Cek totalnya, lalu tekan Bayar lagi.");
+      else setError("Kode voucher belum bisa dipakai. Perbaiki atau kosongkan kolomnya, lalu tekan Bayar lagi.");
+      return;
+    }
     setBusy(true);
     try {
       const r = await createOrder({ name, email, items, voucher });
@@ -257,6 +270,7 @@ function CheckoutForm() {
             ))}
           </ol>
           {error && <p role="alert" className="mt-5 rounded-xl bg-coral/10 px-4 py-3 text-sm font-medium text-coral">{error}</p>}
+          {info && <p role="status" className="mt-5 rounded-xl bg-lagoon/15 px-4 py-3 text-sm font-medium text-deep">{info}</p>}
         </section>
       </form>
 

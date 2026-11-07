@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { useCart } from "@/components/CartProvider";
@@ -25,6 +26,7 @@ const ICON_CART = "M3.5 4.5h2.2l2 11h9.6l2-8H7M10 20h.01M17 20h.01";
 
 export default function CartPage() {
   const { items, setQty, remove } = useCart();
+  const router = useRouter();
   const [code, setCode] = useState("");
   const [applied, setApplied] = useState<string | null>(null);
   const [voucherError, setVoucherError] = useState("");
@@ -84,9 +86,10 @@ export default function CartPage() {
     return l && l.unitPrice !== i.price;
   });
 
-  async function apply() {
+  /** Mengembalikan kode yang berhasil dipakai, atau null bila kosong/ditolak (pesan galat sudah ditampilkan). */
+  async function apply(): Promise<string | null> {
     const c = code.trim();
-    if (!c) return;
+    if (!c) return null;
     setVoucherError("");
     setQuoting(true);
     try {
@@ -95,15 +98,27 @@ export default function CartPage() {
       setQuote(q);
       setQuoteFailed(false);
       setCode("");
+      return q.voucher?.code ?? null;
     } catch (err) {
       setApplied(null);
       setVoucherError(err instanceof ApiRequestError && err.status < 500 ? err.message : "Voucher belum bisa dicek. Periksa koneksi lalu coba lagi.");
+      return null;
     } finally {
       setQuoting(false);
     }
   }
 
   const blocked = unavailable.length > 0 || quoteFailed || !quote;
+  const checkoutHref = (v: string | null) => (v ? `/checkout?voucher=${encodeURIComponent(v)}` : "/checkout");
+
+  // Kode yang sudah diketik tapi belum ditekan "Pakai" tidak boleh hilang diam-diam: cek dulu, lalu lanjut
+  // dengan potongannya. Bila kode ditolak, tetap di keranjang dan pesan galatnya tampil di bawah kolom kode.
+  async function goCheckout(e: React.MouseEvent) {
+    if (applied || !code.trim()) return; // tidak ada kode tertunda: biarkan tautan bekerja normal
+    e.preventDefault();
+    const v = await apply();
+    if (v) router.push(checkoutHref(v));
+  }
   const totalQty = items.reduce((n, i) => n + i.qty, 0);
 
   return (
@@ -230,7 +245,7 @@ export default function CartPage() {
                 {blocked ? (
                   <button className="btn-signal mt-6 w-full !py-3.5 text-base opacity-60" disabled>Lanjut ke pembayaran</button>
                 ) : (
-                  <Link href={applied ? `/checkout?voucher=${encodeURIComponent(applied)}` : "/checkout"} className="btn-signal mt-6 w-full !py-3.5 text-base">
+                  <Link href={checkoutHref(applied)} onClick={goCheckout} className="btn-signal mt-6 w-full !py-3.5 text-base">
                     Lanjut ke pembayaran <Icon d={ICON_ARROW} className="h-5 w-5" />
                   </Link>
                 )}
