@@ -8,6 +8,7 @@ import { TypeChips } from "@/components/TypeChips";
 import { TypeArt, typeArtBg } from "@/components/TypeArt";
 import { idr } from "@/lib/format";
 import { getT } from "@/lib/i18n/server";
+import { tripHref } from "@/lib/trip";
 import type { MessageKey } from "@/lib/i18n/messages";
 
 
@@ -48,6 +49,10 @@ const steps: { icon: JSX.Element; title: MessageKey; body: MessageKey }[] = [
   { icon: icons.go, title: "home.step3.title", body: "home.step3.body" },
 ];
 
+// Contoh rute untuk bagian "Ke lebih dari satu negara?". Rute yang salah satu tujuannya tidak ada di katalog
+// (mis. dihapus dari admin) dilewati, jadi daftar ini tidak perlu disunting saat katalog berubah.
+const routeExamples: string[][] = [["jepang", "korea-selatan"], ["singapura", "malaysia"], ["thailand", "vietnam"]];
+
 // Katalog dibaca dari API saat request, jadi halaman tidak boleh di-prerender saat build (API belum jalan).
 export const dynamic = "force-dynamic";
 
@@ -58,6 +63,14 @@ export default async function Home({ searchParams }: { searchParams: { type?: st
   const [destinations, homeBanners, byType] = await Promise.all([getDestinations(), getHomeBanners(), type ? getDestinations(type) : null]);
   const featured = (byType ?? destinations).slice(0, 8);
   const query = type ? `?type=${type}` : "";
+  const routes = routeExamples.flatMap((slugs) => {
+    const stops = slugs.map((s) => destinations.find((d) => d.slug === s));
+    if (stops.some((d) => !d)) return [];
+    const ds = stops as typeof destinations;
+    // Harga mulai dari: paket termurah tiap tujuan dijumlahkan; kosong bila ada tujuan tanpa produk aktif.
+    const from = ds.every((d) => d.startingPrice != null) ? ds.reduce((n, d) => n + (d.startingPrice ?? 0), 0) : null;
+    return [{ slugs, ds, from }];
+  });
   return (
     <>
       <Hero destinations={destinations} homeBannerUrls={homeBanners} />
@@ -147,6 +160,33 @@ export default async function Home({ searchParams }: { searchParams: { type?: st
           </ul>
         </div>
       </section>
+
+      {routes.length > 0 && (
+        <section id="rute" aria-labelledby="rute-title" className="container-x py-20">
+          <Reveal>
+            <h2 id="rute-title" className="max-w-2xl font-display text-4xl font-extrabold tracking-tight">{t("home.route.title")}</h2>
+            <p className="mt-3 max-w-xl text-ink/70">{t("home.route.body")}</p>
+          </Reveal>
+          <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {routes.map(({ slugs, ds, from }) => (
+              <li key={slugs.join(",")}>
+                <Link href={tripHref(slugs)} className="group flex h-full flex-col rounded-3xl border border-line bg-white p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
+                  <span className="flex items-center gap-2" aria-hidden>
+                    {ds.map((d) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={d.slug} src={flagUrl(d.code)} alt="" width={56} height={40} className="h-8 w-12 rounded-md object-cover shadow-sm" />
+                    ))}
+                  </span>
+                  <h3 className="mt-5 font-display text-xl font-bold">{ds.map((d) => d.name).join(" + ")}</h3>
+                  {from != null && <p className="mt-1 text-sm text-ink/65">{t("home.popular.from")} {idr(from)} · {t("trip.priceNote")}</p>}
+                  <span className="mt-6 text-sm font-bold text-deep group-hover:underline">{t("home.route.cta")} →</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <Link href="/destinations" className="btn-ghost mt-8 inline-flex">{t("home.route.build")}</Link>
+        </section>
+      )}
 
       <section id="cara-kerja" className="container-x py-20">
         <Reveal><h2 className="font-display text-4xl font-extrabold tracking-tight">{t("home.steps.title")}</h2></Reveal>

@@ -34,6 +34,7 @@ export const idShop = {
   "detail.widerTitle": "Butuh cakupan lebih luas?",
   "detail.widerBody": "Kalau rutemu melewati lebih dari satu negara, paket {region} bisa lebih praktis daripada membeli per negara.",
   "detail.widerCta": "Lihat paket {region}",
+  "detail.addStop": "Ke lebih dari satu negara? Tambah tujuan",
   "detail.europeName": "Eropa (39 negara)",
 
   // FAQ destinasi
@@ -240,6 +241,7 @@ export const enShop: Record<keyof typeof idShop, string> = {
   "detail.widerTitle": "Need wider coverage?",
   "detail.widerBody": "If your route crosses more than one country, a {region} plan can be more convenient than buying one per country.",
   "detail.widerCta": "View {region} plans",
+  "detail.addStop": "Visiting more than one country? Add a destination",
   "detail.europeName": "Europe (39 countries)",
 
   "dfaq.title": "{name} Q&A",

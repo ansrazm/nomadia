@@ -54,6 +54,12 @@ export default async function DestinationPage({ params, searchParams }: { params
             <p className="mt-5 flex items-center gap-3 text-white/80">
               <SignalBars level={4} className="h-5" /> {t("detail.network", { network: d.network })}
             </p>
+            {/* Pintu masuk ke rute multi-destinasi: daftar destinasi dibuka dengan tujuan ini sudah ada di rute. */}
+            {available.length > 0 && (
+              <Link href={`/destinations?trip=${d.slug}`} className="mt-5 inline-flex items-center gap-2 rounded-[3px] bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/20">
+                <span aria-hidden className="text-signal">+</span> {t("detail.addStop")}
+              </Link>
+            )}
           </div>
           {d.products.length > 0 && (
             <ul aria-label={t("detail.summaryAria")} className="flex flex-wrap gap-3">
