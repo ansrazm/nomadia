@@ -9,8 +9,8 @@ Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical
 > Catatan: ini proyek demo untuk keperluan technical test, bukan layanan komersial. Seluruh merek, copy, dan tampilan dibuat sendiri; semua data produk dan transaksi bersifat contoh, dan pembayaran hanya memakai sandbox.
 
 > [!NOTE]
-> **Batasan waktu pengerjaan.** Proyek ini dikerjakan dalam waktu terbatas (tenggat technical test), jadi pengembangan tampilan dan fitur sengaja dibatasi. Prioritasnya konsep aplikasi, struktur sistem, pembagian modul, dan integrasi yang diminta (API, payment gateway, n8n), bukan kelengkapan fitur toko online penuh. Beberapa hal yang belum ada atau disederhanakan:
-> - Akun member (daftar akun dan dashboard riwayat pesanan) sengaja belum dibuat: di luar spesifikasi test dan butuh waktu yang tidak ada. Checkout memakai alur tamu (tanpa akun); rancangan lanjutannya ada di [Rencana pengembangan lanjutan](#rencana-pengembangan-lanjutan).
+> **Batasan waktu dan prioritas.** Proyek ini dikerjakan dalam waktu terbatas (tenggat technical test), dan saya harus memilih apa yang dikerjakan lebih dulu; tidak semua yang ingin dibuat sempat selesai. Prioritas saya adalah konsep aplikasi, struktur sistem, pembagian modul, dan integrasi yang diminta (API, payment gateway, n8n), bukan kelengkapan fitur toko online penuh. Karena itu beberapa hal belum ada atau disederhanakan:
+> - Akun member (daftar akun dan dashboard riwayat pesanan) belum dibuat: di luar spesifikasi test, dan waktunya tidak cukup. Checkout memakai alur tamu (tanpa akun); rancangan lanjutannya ada di [Rencana pengembangan lanjutan](#rencana-pengembangan-lanjutan).
 > - Pesan WhatsApp otomatis tidak ada; WhatsApp hanya tautan chat (click-to-chat). Pesan otomatis butuh WhatsApp Business API.
 > - Pembayaran hanya sandbox iPaymu, dan demo berjalan dari laptop lewat tunnel, bukan hosting produksi.
 > - Admin memakai satu akun dari environment variable, tanpa manajemen pengguna atau peran; token login disimpan di `localStorage`.
