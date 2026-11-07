@@ -7,10 +7,12 @@ import { SignalBars } from "./SignalBars";
 import { HeroVisual } from "./HeroVisual";
 import { DestinationSummary, flagUrl, mediaUrl } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
+import { useT } from "./LanguageProvider";
 
 const popular = ["jepang", "korea-selatan", "singapura", "thailand", "eropa"];
 
 export function Hero({ destinations, homeBannerUrl = null }: { destinations: DestinationSummary[]; homeBannerUrl?: string | null }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<DestinationSummary | null>(null);
   const [open, setOpen] = useState(false);
@@ -79,7 +81,7 @@ export function Hero({ destinations, homeBannerUrl = null }: { destinations: Des
           transition={{ duration: 0.7, ease: [0.2, 0.8, 0.2, 1] }}
           className="max-w-3xl font-display text-5xl font-extrabold leading-[1.02] tracking-tight sm:text-7xl"
         >
-          Mendarat, langsung online.
+          {t("hero.title")}
         </motion.h1>
         <motion.p
           initial={{ opacity: 0 }}
@@ -87,7 +89,7 @@ export function Hero({ destinations, homeBannerUrl = null }: { destinations: Des
           transition={{ delay: 0.35, duration: 0.6 }}
           className="mt-6 max-w-xl text-lg leading-relaxed text-white/80"
         >
-          eSIM, SIM Card, dan Portable WiFi untuk {destinations.length} destinasi. Pilih tujuanmu, bandingkan paketnya, dan bayar dalam hitungan menit.
+          {t("hero.subtitle", { count: destinations.length })}
         </motion.p>
 
         <motion.div
@@ -96,7 +98,7 @@ export function Hero({ destinations, homeBannerUrl = null }: { destinations: Des
           transition={{ delay: 0.5, duration: 0.7, ease: [0.2, 0.8, 0.2, 1] }}
           className="relative mt-10 max-w-2xl rounded-3xl bg-white p-4 text-ink shadow-lift sm:p-5"
         >
-          <label htmlFor="dest" className="px-2 text-sm font-semibold text-deep">Kamu mau ke mana?</label>
+          <label htmlFor="dest" className="px-2 text-sm font-semibold text-deep">{t("hero.where")}</label>
           <div className="relative mt-2">
             <input
               ref={inputRef}
@@ -107,7 +109,7 @@ export function Hero({ destinations, homeBannerUrl = null }: { destinations: Des
               aria-autocomplete="list"
               autoComplete="off"
               value={query}
-              placeholder="Cari negara atau kawasan"
+              placeholder={t("hero.placeholder")}
               onChange={(e) => { setQuery(e.target.value); setPicked(null); setOpen(true); setActive(0); }}
               onFocus={() => setOpen(true)}
               onBlur={() => setTimeout(() => setOpen(false), 120)}
@@ -151,20 +153,20 @@ export function Hero({ destinations, homeBannerUrl = null }: { destinations: Des
               <AnimatePresence mode="wait" initial={false}>
                 {picked ? (
                   <motion.div key={picked.slug} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-                    <p className="truncate font-display text-lg font-bold">Sinyal siap di {picked.name}</p>
-                    <p className="text-sm text-white/70">{picked.network}{picked.startingPrice != null && ` · mulai ${idr(picked.startingPrice)}`}</p>
+                    <p className="truncate font-display text-lg font-bold">{t("hero.ready", { name: picked.name })}</p>
+                    <p className="text-sm text-white/70">{picked.network}{picked.startingPrice != null && t("hero.from", { price: idr(picked.startingPrice) })}</p>
                   </motion.div>
                 ) : (
                   <motion.p key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-white/75">
-                    Pilih destinasi untuk melihat sinyal dan harga.
+                    {t("hero.pickPrompt")}
                   </motion.p>
                 )}
               </AnimatePresence>
             </div>
             {picked ? (
-              <Link href={`/destinations/${picked.slug}`} className="btn-signal w-full shrink-0 sm:w-auto">Lihat paket</Link>
+              <Link href={`/destinations/${picked.slug}`} className="btn-signal w-full shrink-0 sm:w-auto">{t("hero.viewPlans")}</Link>
             ) : (
-              <Link href="/destinations" className="btn-ghost w-full shrink-0 sm:w-auto !border-white/20 !bg-transparent !text-white hover:!border-lagoon">Semua destinasi</Link>
+              <Link href="/destinations" className="btn-ghost w-full shrink-0 sm:w-auto !border-white/20 !bg-transparent !text-white hover:!border-lagoon">{t("hero.allDestinations")}</Link>
             )}
           </div>
         </motion.div>

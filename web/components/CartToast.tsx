@@ -5,10 +5,12 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCart } from "./CartProvider";
+import { useT } from "./LanguageProvider";
 
 /** Pemberitahuan singkat setelah paket ditambahkan, dengan jalan pintas ke keranjang. */
 export function CartToast() {
   const { lastAdded, dismissAdded, count } = useCart();
+  const t = useT();
   const path = usePathname();
   const hidden = path === "/cart" || path === "/checkout";
 
@@ -34,10 +36,10 @@ export function CartToast() {
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-signal text-ink" aria-hidden>✓</span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{lastAdded.name}</p>
-              <p className="text-xs text-white/65">Masuk keranjang · {count} paket</p>
+              <p className="text-xs text-white/65">{t("toast.added", { count })}</p>
             </div>
             <Link href="/cart" onClick={dismissAdded} className="shrink-0 rounded-full bg-white/10 px-3.5 py-2 text-sm font-semibold hover:bg-white/20">
-              Lihat
+              {t("toast.view")}
             </Link>
           </motion.div>
         )}

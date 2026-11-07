@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { SignalBars } from "./SignalBars";
+import { useT } from "./LanguageProvider";
 
 // Kode ini harus sama dengan voucher aktif di database (seed: NOMAD10, 10%). Ubah di sini bila voucher diganti dari admin.
 const PROMO = { code: "NOMAD10", percent: 10 };
@@ -16,6 +17,7 @@ const DELAY_MS = 2500;
  * checkout, atau status pesanan supaya tidak mengganggu pembayaran). Bisa ditutup dengan X, Esc, atau klik di luar.
  */
 export function PromoModal() {
+  const t = useT();
   const path = usePathname();
   const eligible = path === "/" || path.startsWith("/destinations");
   const [open, setOpen] = useState(false);
@@ -91,7 +93,7 @@ export function PromoModal() {
               ref={closeRef}
               type="button"
               onClick={close}
-              aria-label="Tutup promo"
+              aria-label={t("promo.closeAria")}
               className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-lg hover:bg-white/20"
             >
               ×
@@ -99,23 +101,23 @@ export function PromoModal() {
 
             <div className="relative p-7 sm:p-8">
               <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-signal">
-                <SignalBars level={4} className="h-3" /> Promo perjalanan
+                <SignalBars level={4} className="h-3" /> {t("promo.badge")}
               </span>
               <h2 id="promo-title" className="mt-5 font-display text-4xl font-extrabold leading-[1.05] tracking-tight">
-                Diskon {PROMO.percent}% untuk paket data ke luar negeri
+                {t("promo.title", { percent: PROMO.percent })}
               </h2>
-              <p className="mt-3 text-white/75">Masukkan kode ini di keranjang sebelum membayar. Berlaku untuk eSIM, SIM Card, dan Portable WiFi.</p>
+              <p className="mt-3 text-white/75">{t("promo.body")}</p>
 
               <div className="mt-6 flex items-center justify-between gap-3 rounded-2xl border border-dashed border-signal/60 bg-white/5 p-3 pl-5">
                 <span className="font-display text-2xl font-extrabold tracking-wider text-signal">{PROMO.code}</span>
                 <button type="button" onClick={copy} className="rounded-full bg-signal px-4 py-2 text-sm font-bold text-ink hover:bg-[#ffd86b]" aria-live="polite">
-                  {copied ? "Tersalin ✓" : "Salin kode"}
+                  {copied ? t("promo.copied") : t("promo.copy")}
                 </button>
               </div>
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <Link href="/destinations" onClick={close} className="btn-signal flex-1">Mulai cari paket</Link>
-                <button type="button" onClick={close} className="btn flex-1 border border-white/20 text-white hover:border-lagoon">Nanti saja</button>
+                <Link href="/destinations" onClick={close} className="btn-signal flex-1">{t("promo.start")}</Link>
+                <button type="button" onClick={close} className="btn flex-1 border border-white/20 text-white hover:border-lagoon">{t("promo.later")}</button>
               </div>
             </div>
           </motion.div>

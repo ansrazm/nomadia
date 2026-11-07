@@ -3,15 +3,18 @@ import "./globals.css";
 import { CartProvider } from "@/components/CartProvider";
 import { PendingOrderSync } from "@/components/PendingOrderSync";
 import { SiteShell } from "@/components/SiteShell";
+import { LanguageProvider } from "@/components/LanguageProvider";
+import { getT } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Nomadia — eSIM, SIM Card & WiFi untuk perjalanan",
-  description: "Internet untuk perjalanan ke luar negeri. Pilih destinasi, bandingkan paket, bayar dalam hitungan menit.",
-};
+export function generateMetadata(): Metadata {
+  const { t } = getT();
+  return { title: t("meta.title"), description: t("meta.description") };
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const { lang } = getT();
   return (
-    <html lang="id">
+    <html lang={lang}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
@@ -21,10 +24,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <CartProvider>
-          <PendingOrderSync />
-          <SiteShell>{children}</SiteShell>
-        </CartProvider>
+        <LanguageProvider initial={lang}>
+          <CartProvider>
+            <PendingOrderSync />
+            <SiteShell>{children}</SiteShell>
+          </CartProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

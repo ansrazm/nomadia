@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { WA_HREF } from "@/lib/contact";
-import { quickFaqs } from "@/lib/faq";
+import { getQuickFaqs } from "@/lib/faq";
+import { useLang } from "./LanguageProvider";
 
 function ChatIcon({ className = "h-6 w-6" }: { className?: string }) {
   return (
@@ -26,6 +27,8 @@ function WhatsAppIcon() {
 
 /** Tombol melayang di pojok kanan bawah: WhatsApp (jika nomor diatur) dan panel bantuan berisi jawaban cepat. */
 export function FloatingActions() {
+  const { lang, t } = useLang();
+  const quickFaqs = getQuickFaqs(lang);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -56,7 +59,7 @@ export function FloatingActions() {
           <motion.div
             id="help-panel"
             role="dialog"
-            aria-label="Pusat bantuan"
+            aria-label={t("help.panelAria")}
             initial={{ opacity: 0, y: 12, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
@@ -65,8 +68,8 @@ export function FloatingActions() {
             className="absolute bottom-full right-0 mb-3 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-[4px] border border-line bg-white text-ink shadow-lift"
           >
             <div className="bg-ink px-5 py-4 text-white">
-              <p className="font-display text-lg font-bold">Butuh bantuan?</p>
-              <p className="text-sm text-white/70">Jawaban cepat untuk pertanyaan yang sering muncul.</p>
+              <p className="font-display text-lg font-bold">{t("help.title")}</p>
+              <p className="text-sm text-white/70">{t("help.subtitle")}</p>
             </div>
             <div className="max-h-[50vh] divide-y divide-line overflow-y-auto">
               {quickFaqs.map((f) => (
@@ -82,7 +85,7 @@ export function FloatingActions() {
             {WA_HREF && (
               <div className="border-t border-line p-4">
                 <a href={WA_HREF} target="_blank" rel="noopener noreferrer" className="btn w-full bg-[#25D366] text-ink hover:bg-[#3ddc7a]">
-                  Tanya lewat WhatsApp
+                  {t("help.whatsappBtn")}
                 </a>
               </div>
             )}
@@ -97,13 +100,13 @@ export function FloatingActions() {
             aria-hidden
             className="pointer-events-none absolute right-full top-1/2 mr-3 hidden -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-[4px] bg-white px-4 py-2.5 text-sm font-bold text-[#128C4A] opacity-0 shadow-lift transition-all duration-200 group-focus-within:translate-x-0 group-focus-within:opacity-100 group-hover:translate-x-0 group-hover:opacity-100 sm:block"
           >
-            Klik untuk info lebih lanjut
+            {t("help.whatsappHover")}
           </span>
           <a
             href={WA_HREF}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Chat lewat WhatsApp"
+            aria-label={t("help.whatsappAria")}
             className="flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lift transition-transform hover:scale-105"
           >
             <WhatsAppIcon />
@@ -114,7 +117,7 @@ export function FloatingActions() {
       <button
         ref={toggleRef}
         type="button"
-        aria-label={open ? "Tutup pusat bantuan" : "Buka pusat bantuan"}
+        aria-label={open ? t("help.closeBtn") : t("help.open")}
         aria-expanded={open}
         aria-controls="help-panel"
         onClick={() => setOpen((v) => !v)}

@@ -1,23 +1,28 @@
+"use client";
+
 import Link from "next/link";
 import { Reveal } from "./Reveal";
 import { WA_HREF } from "@/lib/contact";
-import { faqs } from "@/lib/faq";
+import { getFaqs } from "@/lib/faq";
+import { useLang } from "./LanguageProvider";
 
 /** FAQ di beranda: native <details>, jadi bisa dipakai keyboard dan terbaca pembaca layar tanpa JavaScript. */
 export function FaqSection() {
+  const { lang, t } = useLang();
+  const faqs = getFaqs(lang);
   return (
     <section id="faq" className="bg-white py-20">
       <div className="container-x grid gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <Reveal>
-          <h2 className="font-display text-4xl font-extrabold tracking-tight">Pertanyaan yang sering muncul</h2>
-          <p className="mt-3 max-w-md text-ink/70">Jawaban singkat sebelum kamu memesan. Kalau pertanyaanmu belum ada di sini, tanyakan langsung.</p>
+          <h2 className="font-display text-4xl font-extrabold tracking-tight">{t("faq.title")}</h2>
+          <p className="mt-3 max-w-md text-ink/70">{t("faq.body")}</p>
           <div className="mt-6 flex flex-wrap gap-3">
             {WA_HREF && (
               <a href={WA_HREF} target="_blank" rel="noopener noreferrer" className="btn bg-[#25D366] text-ink hover:bg-[#3ddc7a]">
-                Tanya lewat WhatsApp
+                {t("faq.askWhatsapp")}
               </a>
             )}
-            <Link href="/destinations" className="btn-ghost">Lihat destinasi</Link>
+            <Link href="/destinations" className="btn-ghost">{t("faq.seeDestinations")}</Link>
           </div>
         </Reveal>
         <Reveal delay={0.1}>

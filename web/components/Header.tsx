@@ -7,16 +7,19 @@ import { ProductType, typeInfo } from "@/lib/catalog-types";
 import { SignalBars } from "./SignalBars";
 import { TypeArt, typeArtBg } from "./TypeArt";
 import { useCart } from "./CartProvider";
+import { useT } from "./LanguageProvider";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
-const before = [{ href: "/destinations", label: "Destinasi" }];
+const before = [{ href: "/destinations", key: "nav.destinations" as const }];
 const after = [
-  { href: "/#cara-kerja", label: "Cara kerja" },
-  { href: "/#faq", label: "FAQ" },
+  { href: "/#cara-kerja", key: "nav.howItWorks" as const },
+  { href: "/#faq", key: "nav.faq" as const },
 ];
 const connTypes: ProductType[] = ["esim", "sim", "wifi"];
 
 export function Header() {
   const { count } = useCart();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [connOpen, setConnOpen] = useState(false);
@@ -76,10 +79,10 @@ export function Header() {
             <SignalBars level={4} className="h-5" />
             nomadia
           </a>
-          <nav aria-label="Utama" className="hidden items-center gap-8 md:flex">
+          <nav aria-label={t("nav.mainAria")} className="hidden items-center gap-8 md:flex">
             {before.map((l) => (
               <Link key={l.href} href={l.href} className={navLink}>
-                {l.label}
+                {t(l.key)}
               </Link>
             ))}
             <button
@@ -90,26 +93,27 @@ export function Header() {
               onClick={() => setConnOpen((v) => !v)}
               className={`flex items-center gap-1.5 ${navLink}`}
             >
-              Pilihan koneksi
+              {t("nav.connection")}
               <svg aria-hidden viewBox="0 0 12 12" className={`h-3 w-3 transition-transform ${connOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="m2.5 4.5 3.5 3.5 3.5-3.5" />
               </svg>
             </button>
             {after.map((l) => (
               <Link key={l.href} href={l.href} className={navLink}>
-                {l.label}
+                {t(l.key)}
               </Link>
             ))}
           </nav>
           <div className="flex items-center gap-3">
+            <LanguageSwitcher />
             <Link href="/cart" className="relative rounded-[3px] bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20">
-              Keranjang
+              {t("nav.cart")}
               {count > 0 && (
                 <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-[3px] bg-signal px-1.5 text-xs font-bold text-ink">{count}</span>
               )}
             </Link>
             <button className="rounded-[3px] bg-white/10 px-3 py-2 text-sm font-semibold md:hidden" aria-expanded={open} onClick={() => setOpen(!open)}>
-              {open ? "Tutup" : "Menu"}
+              {open ? t("nav.close") : t("nav.menu")}
             </button>
           </div>
         </div>
@@ -130,25 +134,25 @@ export function Header() {
           >
             <div className="mx-auto max-w-3xl rounded-[4px] border-t-[3px] border-t-signal bg-white p-3 text-ink shadow-lift">
               <ul className="grid grid-cols-3 gap-3">
-                {connTypes.map((t) => (
-                  <li key={t}>
-                    <Link href={`/destinations?type=${t}`} onClick={() => setConnOpen(false)} className="group flex h-full flex-col overflow-hidden rounded-[4px] border border-line transition-shadow hover:shadow-lift">
-                      <div className={`${typeArtBg[t]} px-4 pt-3`}>
-                        <TypeArt type={t} className="mx-auto h-28 w-full" />
+                {connTypes.map((ct) => (
+                  <li key={ct}>
+                    <Link href={`/destinations?type=${ct}`} onClick={() => setConnOpen(false)} className="group flex h-full flex-col overflow-hidden rounded-[4px] border border-line transition-shadow hover:shadow-lift">
+                      <div className={`${typeArtBg[ct]} px-4 pt-3`}>
+                        <TypeArt type={ct} className="mx-auto h-28 w-full" />
                       </div>
                       <div className="flex flex-1 flex-col p-4">
-                        <p className="font-display text-lg font-bold">{typeInfo[t].label}</p>
-                        <p className="mt-1 text-sm text-ink/70">{typeInfo[t].short}.</p>
-                        <p className="mt-auto pt-3 text-sm font-semibold text-deep group-hover:underline">Cari {typeInfo[t].label} →</p>
+                        <p className="font-display text-lg font-bold">{typeInfo[ct].label}</p>
+                        <p className="mt-1 text-sm text-ink/70">{t(`type.${ct}.short`)}.</p>
+                        <p className="mt-auto pt-3 text-sm font-semibold text-deep group-hover:underline">{t("type.find", { type: typeInfo[ct].label })} →</p>
                       </div>
                     </Link>
                   </li>
                 ))}
               </ul>
               <div className="mt-3 flex items-center justify-between gap-4 rounded-[3px] bg-mist px-4 py-3 text-sm">
-                <span className="text-ink/70">Masih bingung pilih yang mana?</span>
+                <span className="text-ink/70">{t("nav.confused")}</span>
                 <Link href="/#cara-terhubung" onClick={() => setConnOpen(false)} className="font-semibold text-deep hover:underline">
-                  Lihat perbandingan →
+                  {t("nav.seeCompare")}
                 </Link>
               </div>
             </div>
@@ -159,7 +163,7 @@ export function Header() {
       <AnimatePresence>
         {open && (
           <motion.nav
-            aria-label="Menu seluler"
+            aria-label={t("nav.mobileAria")}
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
@@ -169,24 +173,24 @@ export function Header() {
             <div className="rounded-[4px] border-t-[3px] border-t-signal bg-white p-3 text-ink shadow-lift">
               {before.map((l) => (
                 <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className="block rounded-[3px] px-4 py-3 font-medium hover:bg-mist">
-                  {l.label}
+                  {t(l.key)}
                 </Link>
               ))}
-              <p className="px-4 pb-1 pt-3 text-xs font-bold uppercase tracking-wider text-ink/55">Pilihan koneksi</p>
-              {connTypes.map((t) => (
-                <Link key={t} href="/destinations" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-[3px] px-4 py-2.5 hover:bg-mist">
-                  <span className={`h-10 w-14 shrink-0 overflow-hidden rounded-[3px] ${typeArtBg[t]}`}>
-                    <TypeArt type={t} fit="slice" className="h-full w-full" />
+              <p className="px-4 pb-1 pt-3 text-xs font-bold uppercase tracking-wider text-ink/55">{t("nav.connection")}</p>
+              {connTypes.map((ct) => (
+                <Link key={ct} href="/destinations" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-[3px] px-4 py-2.5 hover:bg-mist">
+                  <span className={`h-10 w-14 shrink-0 overflow-hidden rounded-[3px] ${typeArtBg[ct]}`}>
+                    <TypeArt type={ct} fit="slice" className="h-full w-full" />
                   </span>
                   <span>
-                    <span className="block font-medium">{typeInfo[t].label}</span>
-                    <span className="block text-sm text-ink/65">{typeInfo[t].short}</span>
+                    <span className="block font-medium">{typeInfo[ct].label}</span>
+                    <span className="block text-sm text-ink/65">{t(`type.${ct}.short`)}</span>
                   </span>
                 </Link>
               ))}
               {after.map((l) => (
                 <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className="block rounded-[3px] px-4 py-3 font-medium hover:bg-mist">
-                  {l.label}
+                  {t(l.key)}
                 </Link>
               ))}
             </div>
