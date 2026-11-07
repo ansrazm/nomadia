@@ -29,7 +29,7 @@ Untuk memeriksa tahap 1 saja, ikuti [Cara menilai](#cara-menilai-10-menit-hanya-
 
 | Kebutuhan test | Yang ada di proyek ini |
 |---|---|
-| Website | Storefront Next.js 14: pencarian destinasi, tab eSIM / SIM Card / WiFi, keranjang, voucher, checkout, halaman status pesanan yang memperbarui diri, bagian FAQ, footer lengkap, header yang menempel saat scroll, pilihan bahasa Indonesia dan English (CMS tetap berbahasa Indonesia), rute perjalanan multi-destinasi (sampai 3 tujuan, satu paket per tujuan ke satu keranjang), tombol WhatsApp dan pusat bantuan melayang |
+| Website | Storefront Next.js 14: pencarian destinasi, tab eSIM / SIM Card / WiFi (jenis atau paket yang stoknya habis tetap tampil bertanda Kosong dan tidak bisa dibeli, bukan menghilang), keranjang, voucher, checkout, halaman status pesanan yang memperbarui diri, bagian FAQ, footer lengkap, header yang menempel saat scroll, pilihan bahasa Indonesia dan English (CMS tetap berbahasa Indonesia), rute perjalanan multi-destinasi (sampai 3 tujuan, satu paket per tujuan ke satu keranjang), tombol WhatsApp dan pusat bantuan melayang |
 | CMS | Area `/admin`: dashboard, CRUD destinasi, produk, dan voucher, unggah gambar destinasi dan banner beranda (sampai 5, berputar otomatis), daftar pesanan dengan filter dan pencarian, batalkan pesanan `pending` |
 | API Connection | Web membaca katalog dan harga dari REST API (Hono + PostgreSQL); API memanggil iPaymu |
 | Payment Gateway | iPaymu sandbox: tagihan dibuat di server, callback diverifikasi ulang lewat Check Transaction |
@@ -172,7 +172,7 @@ Aktif hanya bila `ADMIN_EMAIL`, `ADMIN_PASSWORD` (min 12 karakter), dan `AUTH_SE
 - **Dashboard**: omzet lunas, jumlah pesanan per status, jumlah katalog, 5 pesanan terbaru.
 - **Gambar destinasi**: di tabel Destinasi, tombol **Gambar** mengunggah thumbnail (kartu beranda dan daftar destinasi) dan banner (kepala halaman destinasi). PNG, JPEG, atau WebP, maksimal 2 MB; tanpa gambar toko memakai bendera negara.
 - **Banner beranda**: menu **Banner beranda** mengelola latar hero halaman utama: tambah sampai 5 gambar (PNG, JPEG, atau WebP, maksimal 2 MB masing-masing), geser urutan dengan Naik/Turun, atau Hapus. Dengan lebih dari satu banner, hero memutarnya dengan crossfade sekitar 6 detik per gambar, lengkap dengan titik dan tombol panah; putaran berhenti saat kursor mouse di atas hero atau ada fokus keyboard di dalamnya, dan tidak berjalan sendiri bagi pengunjung yang mengaktifkan "kurangi gerakan". Satu banner tampil statis. Halaman daftar destinasi memakai banner pertama. Saat pengunjung memilih destinasi di hero, latar sementara berganti ke banner destinasi itu. Tanpa banner beranda, hero memakai banner destinasi pertama yang sudah diunggah, atau navy polos bila belum ada. Banner tunggal dari versi sebelumnya otomatis menjadi banner pertama.
-- **Destinasi / Produk / Voucher**: tambah, ubah, hapus, dan saklar Aktif. Harga yang diubah langsung tampil di toko. Item yang sudah terpakai di pesanan tidak bisa dihapus (nonaktifkan saja).
+- **Destinasi / Produk / Voucher**: tambah, ubah, dan hapus. Voucher punya saklar Aktif; produk punya tiga status lewat dropdown **Status**: **Aktif** (tampil dan bisa dibeli), **Kosong** (tetap tampil di toko dengan tanda Kosong tetapi tidak bisa dibeli; untuk stok habis sementara), dan **Sembunyi** (tidak tampil sama sekali; untuk produk yang tidak dijual lagi). Harga yang diubah langsung tampil di toko. Item yang sudah terpakai di pesanan tidak bisa dihapus (sembunyikan atau nonaktifkan saja).
 - **Pesanan**: filter status, cari nomor/nama/email, detail dengan email utuh, batalkan pesanan `pending`.
 - **Pengaturan**: pilih alur pembayaran (halaman bayar iPaymu atau QRIS di halaman toko) tanpa restart. Aktif hanya bila iPaymu sudah dikonfigurasi.
 
@@ -367,8 +367,8 @@ Setelah mengubah `NEXT_PUBLIC_API_URL`, restart `npm run dev` web.
 | Method | Path | Keterangan |
 |---|---|---|
 | GET | `/health` | Cek server + database |
-| GET | `/destinations?region=&q=&type=` | Daftar destinasi + `startingPrice`; `type=esim\|sim\|wifi` hanya menampilkan destinasi yang punya paket jenis itu dan menghitung harga mulai dari jenis itu |
-| GET | `/destinations/:slug` | Destinasi + produk aktif (eSIM, SIM, WiFi) |
+| GET | `/destinations?region=&q=&type=` | Daftar destinasi + `startingPrice`; `type=esim\|sim\|wifi` hanya menampilkan destinasi yang punya paket jenis itu dan menghitung harga mulai dari jenis itu. Paket kosong (`soldOut`) tidak ikut harga mulai dari, tetapi destinasinya tetap muncul di filter jenis, tanpa harga |
+| GET | `/destinations/:slug` | Destinasi + produk aktif (eSIM, SIM, WiFi). Tiap produk membawa `soldOut`; produk kosong ikut dikirim agar toko bisa menampilkannya, tetapi tidak bisa dibeli |
 | GET | `/vouchers/:code` | Cek voucher |
 | GET | `/home-banners` | Banner beranda dari admin, berurutan: `{banners: ["/media/..."]}`; daftar kosong bila belum diunggah |
 | GET | `/home-banner` | Bentuk lama: banner pertama `{bannerUrl}`; `null` bila belum ada |
@@ -411,7 +411,7 @@ Login menghasilkan token; kirim sebagai `Authorization: Bearer <token>`.
 | PUT | `/admin/home-banners/order` | Susun ulang: body `{ids: [...]}` harus berisi persis id yang ada; `409` bila daftar sudah berubah |
 | DELETE | `/admin/home-banners/:id` | Hapus satu banner beserta berkasnya (`404` bila bukan banner beranda) |
 | GET/POST | `/admin/products?dest=` | Daftar (termasuk nonaktif) / tambah |
-| PATCH/DELETE | `/admin/products/:id` | Ubah (harga, `active`, dll.) / hapus |
+| PATCH/DELETE | `/admin/products/:id` | Ubah (harga, `active`, `soldOut`, dll.) / hapus |
 | GET/PATCH | `/admin/settings` | Baca / ubah alur pembayaran `{checkoutFlow: "redirect"\|"qris"\|null}`; `null` kembali ke `IPAYMU_FLOW`. 409 bila iPaymu belum dikonfigurasi |
 | GET/POST | `/admin/vouchers` | Daftar (dengan `used`) / tambah |
 | PATCH/DELETE | `/admin/vouchers/:code` | Ubah persen atau `active` / hapus |
@@ -419,7 +419,7 @@ Login menghasilkan token; kirim sebagai `Authorization: Bearer <token>`.
 | GET | `/admin/orders/:id` | Detail lengkap (email, nomor HP, tanggal berangkat, alamat tidak disamarkan; `deliveryDetail` berupa teks rangkaian, `deliveryAddress` berupa objek terstruktur) + item |
 | POST | `/admin/orders/:id/cancel` | Batalkan order `pending` saja |
 
-Produk, voucher, atau destinasi yang sudah terpakai di order tidak bisa dihapus (409 `IN_USE`); nonaktifkan lewat `active: false`. Harga di order lama tidak berubah karena disalin saat order dibuat.
+Produk, voucher, atau destinasi yang sudah terpakai di order tidak bisa dihapus (409 `IN_USE`); nonaktifkan lewat `active: false`. Untuk stok habis sementara pakai `soldOut: true`: produk tetap tampil di toko, tetapi `/quote` dan `/orders` menolaknya dengan `PRODUCT_NOT_FOUND`. Harga di order lama tidak berubah karena disalin saat order dibuat.
 
 Format galat: `{ "error": { "code", "message", "details?" } }`.
 
@@ -432,6 +432,7 @@ Format galat: `{ "error": { "code", "message", "details?" } }`.
 - **Konten bantuan satu sumber.** FAQ dan nomor WhatsApp hanya didefinisikan di `lib/faq.ts` dan `lib/contact.ts`; beranda, panel bantuan, dan footer membacanya dari sana sehingga tidak bisa saling berbeda. Saat ini statis; memindahkannya ke database dan CMS adalah langkah lanjutan.
 - **Dua bahasa tanpa pustaka tambahan.** Kamus ada di `web/lib/i18n/`: Indonesia sebagai sumber, dan Inggris wajib punya kunci yang sama (dicek TypeScript). Pilihan bahasa disimpan di cookie `nomadia-lang`, jadi server component langsung merender bahasa yang benar tanpa kedipan. Teks katalog dari database tetap Indonesia; nama dan kawasan destinasi dipetakan lewat slug di `catalog-text.ts`, dan data di luar peta (mis. destinasi baru dari admin) tampil apa adanya.
 - **Rute multi-destinasi hanya lapisan tampilan.** Di daftar destinasi, tombol + memilih sampai 3 tujuan; dialog menunjukkan jenis koneksi mana yang dijual di semua tujuan itu beserta harga mulai dari (jumlah paket termurah tiap tujuan), lalu `/trip?d=jepang,turki&type=esim` memilihkan satu paket per tujuan dan memasukkan semuanya ke keranjang yang sama. Keranjang memang sudah bisa memuat banyak destinasi, harga tetap dihitung server per `productId`, dan tidak ada perubahan API atau database. Ketersediaan datang dari tiga permintaan paralel `GET /destinations?type=`, dan bila gagal fitur rute disembunyikan tanpa mengganggu daftar destinasi. Rute disimpan di URL, bukan di akun atau server.
+- **Produk kosong dibedakan dari produk nonaktif.** Satu flag `active` tidak bisa membedakan "stok habis sementara" dari "sudah tidak dijual", dan menyembunyikan keduanya membuat pelanggan mengira jenis seperti Portable WiFi tidak ada. Kolom `sold_out` (migrasi 006) ditambahkan di samping `active`, jadi data lama tidak berubah: aktif dan tidak kosong = bisa dibeli, aktif dan kosong = tampil abu-abu dengan panel "kabari lewat WhatsApp" dan pintasan ke jenis lain, tidak aktif = disembunyikan. Penolakan tetap dilakukan server di `/quote` dan `/orders`, bukan hanya disembunyikan tombolnya.
 - **Admin bisa dimatikan** lewat env kosong, sehingga deployment tanpa CMS tidak punya permukaan serangan `/admin`.
 
 ## Data wilayah (alamat pengiriman)
