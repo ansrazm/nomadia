@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { DestinationSummary, flagUrl, mediaUrl } from "@/lib/catalog-types";
+import { DestinationSummary, ProductType, flagUrl, mediaUrl, productTypes, typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 
 /** Daftar destinasi dengan pencarian dan filter kawasan. Data datang dari server component. */
-export function DestinationBrowser({ destinations }: { destinations: DestinationSummary[] }) {
+export function DestinationBrowser({ destinations, type = null }: { destinations: DestinationSummary[]; type?: ProductType | null }) {
   const [query, setQuery] = useState("");
   const [region, setRegion] = useState<string>("Semua");
   const regions = useMemo(() => Array.from(new Set(destinations.map((d) => d.region))), [destinations]);
@@ -50,7 +50,24 @@ export function DestinationBrowser({ destinations }: { destinations: Destination
         </div>
       </div>
 
-      <p className="mt-6 text-sm text-ink/60" role="status" aria-live="polite">{filtered.length} destinasi</p>
+      {/* Filter jenis koneksi memakai tautan biasa (?type=): URL bisa dibagikan, dan harga mulai dari ikut dihitung ulang oleh server. */}
+      <nav aria-label="Filter jenis koneksi" className="mt-4 flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-sm font-semibold text-ink/60">Jenis koneksi</span>
+        {([null, ...productTypes] as (ProductType | null)[]).map((t) => (
+          <Link
+            key={t ?? "semua"}
+            href={t ? `/destinations?type=${t}` : "/destinations"}
+            replace
+            scroll={false}
+            aria-current={type === t ? "true" : undefined}
+            className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${type === t ? "border-signal bg-signal text-ink" : "border-line bg-white hover:border-lagoon"}`}
+          >
+            {t ? typeInfo[t].label : "Semua jenis"}
+          </Link>
+        ))}
+      </nav>
+
+      <p className="mt-6 text-sm text-ink/60" role="status" aria-live="polite">{filtered.length} destinasi{type ? ` dengan paket ${typeInfo[type].label}` : ""}</p>
 
       {filtered.length === 0 ? (
         <div className="mt-6 rounded-3xl border border-line bg-white p-12 text-center">
@@ -66,7 +83,7 @@ export function DestinationBrowser({ destinations }: { destinations: Destination
               <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {filtered.filter((d) => d.region === r).map((d) => (
                   <li key={d.slug}>
-                    <Link href={`/destinations/${d.slug}`} className="group flex items-center gap-4 rounded-2xl border border-line bg-white p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-lagoon hover:shadow-lift">
+                    <Link href={`/destinations/${d.slug}${type ? `?type=${type}` : ""}`} className="group flex items-center gap-4 rounded-2xl border border-line bg-white p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-lagoon hover:shadow-lift">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {d.thumbUrl ? <img src={mediaUrl(d.thumbUrl)} alt="" width={64} height={48} loading="lazy" className="h-12 w-16 rounded object-cover" /> : <img src={flagUrl(d.code)} alt="" width={48} height={34} className="h-8 w-12 rounded object-cover" />}
                       <span className="min-w-0 flex-1">

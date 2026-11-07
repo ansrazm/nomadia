@@ -1,5 +1,5 @@
 import { ApiRequestError } from "./api";
-import type { DestinationDetail, DestinationSummary } from "./catalog-types";
+import type { DestinationDetail, DestinationSummary, ProductType } from "./catalog-types";
 
 /**
  * Pembaca katalog dari Nomadia API. Hanya dipanggil dari server component.
@@ -21,9 +21,9 @@ async function getData<T>(path: string): Promise<T> {
   return json.data as T;
 }
 
-/** Semua destinasi, urut sesuai posisi di database, lengkap dengan harga mulai dari. */
-export function getDestinations(): Promise<DestinationSummary[]> {
-  return getData<DestinationSummary[]>("/destinations");
+/** Semua destinasi, urut sesuai posisi di database, lengkap dengan harga mulai dari. Dengan `type`, hanya yang punya paket jenis itu. */
+export function getDestinations(type?: ProductType | null): Promise<DestinationSummary[]> {
+  return getData<DestinationSummary[]>(type ? `/destinations?type=${type}` : "/destinations");
 }
 
 /** Banner beranda dari admin (alamat relatif /media/...), atau null. Gagal baca tidak boleh merusak beranda, jadi jatuh ke null. */

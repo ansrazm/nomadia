@@ -7,22 +7,34 @@ interface DestRow { slug: string; name: string; code: string; region: string; ne
 interface ProductRow { id: string; dest_slug: string; type: string; name: string; days: number; data: string; price: number; note: string }
 
 const destDto = (d: DestRow) => ({ slug: d.slug, name: d.name, code: d.code, region: d.region, network: d.network, factor: Number(d.factor), thumbUrl: mediaPath(d.thumb_media), bannerUrl: mediaPath(d.banner_media) });
+const PRODUCT_TYPES: string[] = ["esim", "sim", "wifi"];
 const productDto = (p: ProductRow) => ({ id: p.id, destSlug: p.dest_slug, type: p.type, name: p.name, days: p.days, data: p.data, price: p.price, note: p.note });
 
 export function catalogRoutes(db: Db) {
   const app = new Hono();
 
-  // Daftar destinasi + harga mulai dari. Filter opsional: ?region=Asia&q=jep
+  // Daftar destinasi + harga mulai dari. Filter opsional: ?region=Asia&q=jep&type=esim
+  // Dengan ?type=, hanya destinasi yang punya paket aktif jenis itu yang tampil, dan harga mulai dari dihitung dari jenis itu saja.
   app.get("/destinations", async (c) => {
     const region = c.req.query("region")?.trim();
     const q = c.req.query("q")?.trim();
+    const type = c.req.query("type")?.trim();
+    if (type && !PRODUCT_TYPES.includes(type)) {
+      throw new ApiError(400, "INVALID_TYPE", "Jenis koneksi harus esim, sim, atau wifi.");
+    }
     const params: unknown[] = [];
     const where: string[] = [];
     if (region) { params.push(region); where.push(`d.region = $${params.length}`); }
     if (q) { params.push(`%${q.replace(/[\\%_]/g, "\\$&")}%`); where.push(`d.name ILIKE $${params.length}`); }
+    let typeSql = "";
+    if (type) {
+      params.push(type);
+      typeSql = `AND p.type = $${params.length}`;
+      where.push(`EXISTS (SELECT 1 FROM products p WHERE p.dest_slug = d.slug AND p.active ${typeSql})`);
+    }
     const rows = await db.query<DestRow & { starting_price: number | null }>(
       `SELECT d.slug, d.name, d.code, d.region, d.network, d.factor, d.thumb_media, d.banner_media,
-              (SELECT min(p.price) FROM products p WHERE p.dest_slug = d.slug AND p.active) AS starting_price
+              (SELECT min(p.price) FROM products p WHERE p.dest_slug = d.slug AND p.active ${typeSql}) AS starting_price
          FROM destinations d
         ${where.length ? "WHERE " + where.join(" AND ") : ""}
         ORDER BY d.position, d.name`,

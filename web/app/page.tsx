@@ -93,7 +93,7 @@ export default async function Home() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/destinations" className={`mt-8 inline-flex items-center justify-center gap-2 self-start rounded-full px-5 py-3 text-sm font-bold transition-colors ${tone.cta}`}>
+                <Link href={`/destinations?type=${c.type}`} className={`mt-8 inline-flex items-center justify-center gap-2 self-start rounded-full px-5 py-3 text-sm font-bold transition-colors ${tone.cta}`}>
                   Cari {typeInfo[c.type].label}
                   <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 10h12m-5-5 5 5-5 5" /></svg>
                 </Link>

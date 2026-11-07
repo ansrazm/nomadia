@@ -120,3 +120,42 @@ describe("infrastruktur", () => {
     expect(r.json.error.code).toBe("NOT_FOUND");
   });
 });
+
+describe("GET /destinations?type=", () => {
+  const minPrice = (d: (typeof webDestinations)[number], type: string) =>
+    Math.min(...webProductsFor(d).filter((p) => p.type === type).map((p) => p.price));
+
+  it("harga mulai dari dihitung dari jenis yang dipilih saja", async () => {
+    for (const type of ["esim", "sim", "wifi"]) {
+      const r = await call("GET", `/destinations?type=${type}`);
+      expect(r.status).toBe(200);
+      expect(r.json.data.length).toBe(webDestinations.length);
+      for (const d of webDestinations) {
+        const row = r.json.data.find((x: any) => x.slug === d.slug);
+        expect(row.startingPrice, `${d.slug} ${type}`).toBe(minPrice(d, type));
+      }
+    }
+  });
+
+  it("destinasi tanpa paket aktif jenis itu tidak tampil, jenis lain tetap", async () => {
+    await db.query("UPDATE products SET active = false WHERE dest_slug = 'turki' AND type = 'wifi'");
+    const wifi = await call("GET", "/destinations?type=wifi");
+    expect(wifi.json.data.some((d: any) => d.slug === "turki")).toBe(false);
+    expect(wifi.json.data.length).toBe(webDestinations.length - 1);
+    const esim = await call("GET", "/destinations?type=esim");
+    expect(esim.json.data.some((d: any) => d.slug === "turki")).toBe(true);
+    await db.query("UPDATE products SET active = true WHERE dest_slug = 'turki' AND type = 'wifi'");
+  });
+
+  it("bisa digabung dengan region dan pencarian", async () => {
+    const r = await call("GET", "/destinations?type=sim&region=Asia&q=jep");
+    expect(r.json.data.map((d: any) => d.slug)).toEqual(["jepang"]);
+    expect(r.json.data[0].startingPrice).toBe(minPrice(webDestinations[0]!, "sim"));
+  });
+
+  it("jenis yang tidak dikenal -> 400 berformat error standar", async () => {
+    const r = await call("GET", "/destinations?type=satelit");
+    expect(r.status).toBe(400);
+    expect(r.json.error.code).toBe("INVALID_TYPE");
+  });
+});

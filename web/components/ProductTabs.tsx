@@ -21,11 +21,12 @@ function badgeFor(p: Product, list: Product[]): string | null {
   return p.id === cheapest.id ? "Paling hemat" : null;
 }
 
-export function ProductTabs({ products, network, destName }: { products: Product[]; network: string; destName: string }) {
+export function ProductTabs({ products, network, destName, initialType = null }: { products: Product[]; network: string; destName: string; initialType?: ProductType | null }) {
   const router = useRouter();
   const { add } = useCart();
   const types = (Object.keys(typeInfo) as ProductType[]).filter((t) => products.some((p) => p.type === t));
-  const [tab, setTab] = useState<ProductType>(types[0]);
+  // ?type= di URL memilih tab awal (dipakai tautan dari beranda dan daftar destinasi); jika destinasi ini tidak punya jenis itu, jatuh ke tab pertama.
+  const [tab, setTab] = useState<ProductType>(initialType && types.includes(initialType) ? initialType : types[0]);
   const list = useMemo(() => products.filter((p) => p.type === tab), [products, tab]);
   const [picked, setPicked] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
@@ -43,7 +44,13 @@ export function ProductTabs({ products, network, destName }: { products: Product
   const putInCart = () => { for (let i = 0; i < qty; i++) add(selected); };
   const addOnly = () => { putInCart(); setAdded(true); setTimeout(() => setAdded(false), 1600); };
   const buyNow = () => { putInCart(); router.push("/cart"); };
-  const changeTab = (t: ProductType) => { setTab(t); setPicked(null); setQty(1); };
+  const changeTab = (t: ProductType) => {
+    setTab(t); setPicked(null); setQty(1);
+    // Samakan URL dengan tab aktif supaya tautan yang disalin membuka tab yang sama (tanpa menambah riwayat browser).
+    const url = new URL(window.location.href);
+    url.searchParams.set("type", t);
+    window.history.replaceState(window.history.state, "", url);
+  };
 
   return (
     <div id="paket" className="scroll-mt-24">

@@ -5,7 +5,7 @@ import { DestinationFaq } from "@/components/DestinationFaq";
 import { ProductTabs } from "@/components/ProductTabs";
 import { SignalBars } from "@/components/SignalBars";
 import { getDestination } from "@/lib/catalog";
-import { flagUrl, mediaUrl } from "@/lib/catalog-types";
+import { flagUrl, mediaUrl, parseProductType } from "@/lib/catalog-types";
 import { destinationFaqs, typeOrder, typeStats } from "@/lib/destination-info";
 import { typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   return { title: d ? `eSIM, SIM & WiFi ${d.name} — Nomadia` : "Destinasi tidak ditemukan" };
 }
 
-export default async function DestinationPage({ params }: { params: { slug: string } }) {
+export default async function DestinationPage({ params, searchParams }: { params: { slug: string }; searchParams: { type?: string | string[] } }) {
   const d = await getDestination(params.slug);
   if (!d) notFound();
   const stats = typeStats(d.products);
@@ -69,7 +69,7 @@ export default async function DestinationPage({ params }: { params: { slug: stri
       </section>
       <div className="container-wide py-12">
         {d.products.length > 0 ? (
-          <ProductTabs products={d.products} network={d.network} destName={d.name} />
+          <ProductTabs products={d.products} network={d.network} destName={d.name} initialType={parseProductType(searchParams.type)} />
         ) : (
           <p className="text-ink/70">Paket untuk {d.name} belum tersedia. Coba lagi nanti atau pilih destinasi lain.</p>
         )}

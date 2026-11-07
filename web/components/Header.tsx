@@ -132,7 +132,7 @@ export function Header() {
               <ul className="grid grid-cols-3 gap-3">
                 {connTypes.map((t) => (
                   <li key={t}>
-                    <Link href="/destinations" onClick={() => setConnOpen(false)} className="group flex h-full flex-col overflow-hidden rounded-[4px] border border-line transition-shadow hover:shadow-lift">
+                    <Link href={`/destinations?type=${t}`} onClick={() => setConnOpen(false)} className="group flex h-full flex-col overflow-hidden rounded-[4px] border border-line transition-shadow hover:shadow-lift">
                       <div className={`${typeArtBg[t]} px-4 pt-3`}>
                         <TypeArt type={t} className="mx-auto h-28 w-full" />
                       </div>

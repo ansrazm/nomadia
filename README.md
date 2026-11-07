@@ -342,7 +342,7 @@ Setelah mengubah `NEXT_PUBLIC_API_URL`, restart `npm run dev` web.
 | Method | Path | Keterangan |
 |---|---|---|
 | GET | `/health` | Cek server + database |
-| GET | `/destinations?region=&q=` | Daftar destinasi + `startingPrice` |
+| GET | `/destinations?region=&q=&type=` | Daftar destinasi + `startingPrice`; `type=esim\|sim\|wifi` hanya menampilkan destinasi yang punya paket jenis itu dan menghitung harga mulai dari jenis itu |
 | GET | `/destinations/:slug` | Destinasi + produk aktif (eSIM, SIM, WiFi) |
 | GET | `/vouchers/:code` | Cek voucher |
 | GET | `/media/:id` | Gambar destinasi unggahan admin (di-cache lama; id baru di setiap unggahan) |

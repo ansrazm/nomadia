@@ -1,6 +1,12 @@
 /** Tipe katalog dan konstanta tampilan yang aman dipakai di server maupun client component. */
 export type ProductType = "esim" | "sim" | "wifi";
 
+export const productTypes: ProductType[] = ["esim", "sim", "wifi"];
+
+/** Membaca nilai ?type= dari URL; apa pun yang bukan jenis valid menjadi null (tanpa filter). */
+export const parseProductType = (v: string | string[] | undefined): ProductType | null =>
+  typeof v === "string" && (productTypes as string[]).includes(v) ? (v as ProductType) : null;
+
 export interface Destination {
   slug: string;
   name: string;
