@@ -13,7 +13,7 @@ Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical
 | Kebutuhan test | Yang ada di proyek ini |
 |---|---|
 | Website | Storefront Next.js 14: pencarian destinasi, tab eSIM / SIM Card / WiFi, keranjang, voucher, checkout, halaman status pesanan yang memperbarui diri, bagian FAQ, footer lengkap, header yang menempel saat scroll, tombol WhatsApp dan pusat bantuan melayang |
-| CMS | Area `/admin`: dashboard, CRUD destinasi, produk, dan voucher, daftar pesanan dengan filter dan pencarian, batalkan pesanan `pending` |
+| CMS | Area `/admin`: dashboard, CRUD destinasi, produk, dan voucher, unggah gambar destinasi dan banner beranda, daftar pesanan dengan filter dan pencarian, batalkan pesanan `pending` |
 | API Connection | Web membaca katalog dan harga dari REST API (Hono + PostgreSQL); API memanggil iPaymu |
 | Payment Gateway | iPaymu sandbox: tagihan dibuat di server, callback diverifikasi ulang lewat Check Transaction |
 | Automation (n8n) | Event `order.paid` dikirim ke n8n lewat outbox (tanda tangan HMAC, retry dengan backoff) |
@@ -148,6 +148,7 @@ Aktif hanya bila `ADMIN_EMAIL`, `ADMIN_PASSWORD` (min 12 karakter), dan `AUTH_SE
 
 - **Dashboard**: omzet lunas, jumlah pesanan per status, jumlah katalog, 5 pesanan terbaru.
 - **Gambar destinasi**: di tabel Destinasi, tombol **Gambar** mengunggah thumbnail (kartu beranda dan daftar destinasi) dan banner (kepala halaman destinasi). PNG, JPEG, atau WebP, maksimal 2 MB; tanpa gambar toko memakai bendera negara.
+- **Banner beranda**: menu **Banner beranda** mengunggah latar hero halaman utama dan halaman daftar destinasi (PNG, JPEG, atau WebP, maksimal 2 MB; unggahan baru menggantikan yang lama, tombol Hapus mengembalikan ke latar bawaan). Saat pengunjung memilih destinasi di hero beranda, latar sementara berganti ke banner destinasi itu. Tanpa banner beranda, hero memakai banner destinasi pertama yang sudah diunggah, atau navy polos bila belum ada.
 - **Destinasi / Produk / Voucher**: tambah, ubah, hapus, dan saklar Aktif. Harga yang diubah langsung tampil di toko. Item yang sudah terpakai di pesanan tidak bisa dihapus (nonaktifkan saja).
 - **Pesanan**: filter status, cari nomor/nama/email, detail dengan email utuh, batalkan pesanan `pending`.
 - **Pengaturan**: pilih alur pembayaran (halaman bayar iPaymu atau QRIS di halaman toko) tanpa restart. Aktif hanya bila iPaymu sudah dikonfigurasi.
@@ -346,7 +347,8 @@ Setelah mengubah `NEXT_PUBLIC_API_URL`, restart `npm run dev` web.
 | GET | `/destinations?region=&q=&type=` | Daftar destinasi + `startingPrice`; `type=esim\|sim\|wifi` hanya menampilkan destinasi yang punya paket jenis itu dan menghitung harga mulai dari jenis itu |
 | GET | `/destinations/:slug` | Destinasi + produk aktif (eSIM, SIM, WiFi) |
 | GET | `/vouchers/:code` | Cek voucher |
-| GET | `/media/:id` | Gambar destinasi unggahan admin (di-cache lama; id baru di setiap unggahan) |
+| GET | `/home-banner` | Banner beranda dari admin `{bannerUrl}`; `null` bila belum diunggah |
+| GET | `/media/:id` | Gambar unggahan admin (destinasi dan banner beranda; di-cache lama, id baru di setiap unggahan) |
 | POST | `/quote` | Harga keranjang `{items:[{productId, qty}], voucher?}` → baris, `subtotal`, `discount`, `total` |
 | POST | `/orders` | Buat order `{name, email, phone, items:[{productId, qty}], voucher?, departureDate?, delivery?}`. `phone` wajib (0812…, +62 812…). Keranjang berisi SIM Card atau Portable WiFi: `departureDate` (YYYY-MM-DD, tidak lewat, maks. 2 tahun) dan `delivery` juga wajib: `{method:"ship", address:{recipient, street, district, city, province, postalCode, notes?}}` (provinsi dari daftar 38 provinsi, kode pos 5 digit) atau `{method:"pickup", detail:<titik ambil>}`. 422 `VALIDATION_FAILED` memuat `details` per field; galat alamat juga ditunjuk per kolom (`address.postalCode`, …) |
 | GET | `/orders/:id` | Detail order (email dan nomor HP disamarkan, alamat tidak dikirim) |
@@ -381,6 +383,7 @@ Login menghasilkan token; kirim sebagai `Authorization: Bearer <token>`.
 | GET/POST | `/admin/destinations` | Daftar (dengan `productCount`) / tambah |
 | PATCH/DELETE | `/admin/destinations/:slug` | Ubah sebagian / hapus (gambarnya ikut terhapus) |
 | POST/DELETE | `/admin/destinations/:slug/image/:kind` | Unggah (multipart, field `file`) / hapus gambar; `kind` = `thumb` atau `banner` |
+| GET/POST/DELETE | `/admin/home-banner` | Baca / unggah (multipart, field `file`; menggantikan dan menghapus gambar lama) / hapus banner beranda |
 | GET/POST | `/admin/products?dest=` | Daftar (termasuk nonaktif) / tambah |
 | PATCH/DELETE | `/admin/products/:id` | Ubah (harga, `active`, dll.) / hapus |
 | GET/PATCH | `/admin/settings` | Baca / ubah alur pembayaran `{checkoutFlow: "redirect"\|"qris"\|null}`; `null` kembali ke `IPAYMU_FLOW`. 409 bila iPaymu belum dikonfigurasi |
@@ -416,7 +419,7 @@ Dropdown provinsi, kota/kabupaten, dan kecamatan di checkout memakai data statis
 - Pembatas laju (termasuk pembatas login) ada di memori dan per IP: cukup untuk satu instance, bukan proteksi penuh terhadap serangan terdistribusi. Lihat [Pembatasan laju](#pembatasan-laju) untuk `TRUST_PROXY_HOPS` di belakang proxy.
 - Membatalkan order dari admin hanya mengubah status di database, bukan membatalkan sesi bayar di iPaymu. Bila pelanggan terlanjur bayar sesudahnya, webhook mencatatnya ke log untuk ditinjau manual dan tidak mengembalikan status ke lunas.
 - Beberapa pesan validasi dari zod masih berbahasa Inggris.
-- Gambar destinasi disimpan di PostgreSQL (tabel `media`) supaya demo tidak butuh storage terpisah, dan tidak diubah ukurannya otomatis: unggah gambar yang sudah dioptimalkan (thumbnail ±800×600, banner ±1600×600). Untuk trafik nyata, pindahkan ke object storage dengan CDN. Jenis berkas diperiksa dari isinya (PNG, JPEG, WebP); SVG sengaja ditolak karena bisa memuat skrip.
+- Gambar destinasi dan banner beranda disimpan di PostgreSQL (tabel `media`) supaya demo tidak butuh storage terpisah, dan tidak diubah ukurannya otomatis: unggah gambar yang sudah dioptimalkan (thumbnail ±800×600, banner ±1600×600). Untuk trafik nyata, pindahkan ke object storage dengan CDN. Jenis berkas diperiksa dari isinya (PNG, JPEG, WebP); SVG sengaja ditolak karena bisa memuat skrip.
 - Kode aktivasi dan QR eSIM di email adalah **contoh untuk demo**: acak, format `LPA:1$...`, dan tidak terhubung ke operator mana pun (SM-DP+ `smdp.nomadia.example` tidak ada). Di produksi, `services/esim.ts` diganti pemanggilan API pemasok eSIM. SIM Card dan Portable WiFi hanya mendapat catatan bahwa info pengiriman menyusul.
 - Email konfirmasi memakai Mailpit (SMTP palsu) di Compose; untuk email sungguhan ganti kredensial SMTP di n8n. Kode aktivasi dibuat sekali saat pelunasan dan disimpan di outbox, jadi pengiriman ulang ke n8n membawa kode yang sama; kode itu tidak ditampilkan di halaman pesanan.
 - Alur bayar iPaymu sandbox penuh (bayar sungguhan → callback → n8n) butuh kredensial sandbox dan tunnel publik; tes otomatis memakai gateway palsu.
