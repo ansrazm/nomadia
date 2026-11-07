@@ -161,7 +161,10 @@ export function ProductTabs({ products, network, destName, initialType = null }:
                 {badge && (
                   <span className={`absolute -top-3 left-5 rounded-[3px] px-3 py-1 text-xs font-bold ${badge === "popular" ? "bg-signal text-ink" : "bg-lagoon text-ink"}`}>{badge === "popular" ? t("tabs.popular") : t("tabs.cheapest")}</span>
                 )}
-                <span className={`absolute right-5 top-5 grid h-6 w-6 place-items-center rounded-[3px] border-2 text-xs font-bold ${on ? "border-ink bg-ink text-white" : "border-line text-transparent"}`} aria-hidden>✓</span>
+                {/* Pilihan tunggal: tanda bulat (radio). Kotak centang dipakai di /trip, tempat paket boleh dipilih lebih dari satu. */}
+                <span className={`absolute right-5 top-5 grid h-6 w-6 place-items-center rounded-full border-2 ${on ? "border-ink" : "border-line"}`} aria-hidden>
+                  <span className={`h-3 w-3 rounded-full ${on ? "bg-ink" : "bg-transparent"}`} />
+                </span>
                 <h3 className="font-display text-3xl font-extrabold">{p.days} <span className="text-lg font-bold text-ink/60">{t("unit.days")}</span></h3>
                 <p className="mt-1 font-semibold text-deep">{ct.data(p.data)}</p>
                 <p className="mt-3 text-sm text-ink/65">{ct.note(p.note)}</p>

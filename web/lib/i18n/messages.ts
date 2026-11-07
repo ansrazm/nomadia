@@ -85,6 +85,8 @@ const idBase = {
   "hero.bannerNext": "Banner berikutnya",
   "hero.bannerGo": "Banner {n}",
   "hero.scan": "Pindai untuk aktifkan",
+  "hero.visualFast": "Aktif dalam hitungan menit",
+  "hero.visualNet": "4G / 5G lokal",
 
   // Beranda
   "home.trustAria": "Keunggulan",
@@ -226,6 +228,8 @@ const enBase: Record<keyof typeof idBase, string> = {
   "hero.bannerNext": "Next banner",
   "hero.bannerGo": "Banner {n}",
   "hero.scan": "Scan to activate",
+  "hero.visualFast": "Active in minutes",
+  "hero.visualNet": "Local 4G / 5G",
 
   "home.trustAria": "Highlights",
   "home.trust1.title": "Active in minutes",

@@ -98,7 +98,7 @@ export function HeroVisual({ dest, level }: { dest: DestinationSummary; level: n
         className="absolute -left-24 bottom-32 flex items-center gap-2 rounded-2xl bg-white px-3.5 py-2.5 text-sm font-semibold text-ink shadow-lift"
       >
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">✓</span>
-        Aktif dalam hitungan menit
+        {t("hero.visualFast")}
       </motion.div>
       <motion.div
         initial={{ opacity: 0, x: 20 }}
@@ -106,7 +106,7 @@ export function HeroVisual({ dest, level }: { dest: DestinationSummary; level: n
         transition={{ opacity: { delay: 1.3, duration: 0.5 }, x: { delay: 1.3, duration: 0.5 }, y: { delay: 1.8, duration: 5.5, repeat: Infinity, ease: "easeInOut" } }}
         className="absolute -right-14 top-28 rounded-2xl bg-signal px-3.5 py-2.5 text-sm font-bold text-ink shadow-lift"
       >
-        4G / 5G lokal
+        {t("hero.visualNet")}
       </motion.div>
     </div>
   );
