@@ -16,11 +16,20 @@ Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical
 > - Admin memakai satu akun dari environment variable, tanpa manajemen pengguna atau peran; token login disimpan di `localStorage`.
 > - Tampilan sudah dipoles di halaman utama alur beli (beranda, destinasi, keranjang, checkout), tetapi belum semua halaman dan kondisi tepi diuji di banyak perangkat.
 
+## Urutan pengerjaan
+
+Proyek dikerjakan dalam dua tahap, dan urutannya disengaja:
+
+1. **Fondasi backend dan integrasi dulu.** Semua yang diminta test selesai lebih dulu: REST API (Hono + PostgreSQL) dengan harga dihitung di server, order atomik, voucher, pembayaran iPaymu sandbox dengan callback yang diverifikasi ulang, outbox ke n8n (tanda tangan HMAC dan retry), CMS admin, dan tes otomatis. Alur lengkap dari checkout sampai notifikasi sudah dibuktikan lewat satu pesanan nyata di [`docs/e2e/`](docs/e2e/README.md) (6 Nov 2026).
+2. **Polish tampilan dan fitur tambahan.** Brief meminta frontend yang menarik, jadi sisa waktu dipakai untuk pengalaman belanja: filter jenis koneksi dan kawasan, halaman produk dengan perbandingan paket, pilihan bahasa Indonesia dan English di toko, pilihan metode bayar dan QRIS Direct, alamat pengiriman berjenjang, dan banner beranda dari CMS. Tahap ini memakan sebagian besar waktu pengerjaan.
+
+Untuk memeriksa tahap 1 saja, ikuti [Cara menilai](#cara-menilai-10-menit-hanya-butuh-docker); tahap 2 terlihat langsung di storefront.
+
 ## Ringkasan fitur
 
 | Kebutuhan test | Yang ada di proyek ini |
 |---|---|
-| Website | Storefront Next.js 14: pencarian destinasi, tab eSIM / SIM Card / WiFi, keranjang, voucher, checkout, halaman status pesanan yang memperbarui diri, bagian FAQ, footer lengkap, header yang menempel saat scroll, tombol WhatsApp dan pusat bantuan melayang |
+| Website | Storefront Next.js 14: pencarian destinasi, tab eSIM / SIM Card / WiFi, keranjang, voucher, checkout, halaman status pesanan yang memperbarui diri, bagian FAQ, footer lengkap, header yang menempel saat scroll, pilihan bahasa Indonesia dan English (CMS tetap berbahasa Indonesia), tombol WhatsApp dan pusat bantuan melayang |
 | CMS | Area `/admin`: dashboard, CRUD destinasi, produk, dan voucher, unggah gambar destinasi dan banner beranda (sampai 5, berputar otomatis), daftar pesanan dengan filter dan pencarian, batalkan pesanan `pending` |
 | API Connection | Web membaca katalog dan harga dari REST API (Hono + PostgreSQL); API memanggil iPaymu |
 | Payment Gateway | iPaymu sandbox: tagihan dibuat di server, callback diverifikasi ulang lewat Check Transaction |
@@ -28,9 +37,13 @@ Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical
 
 ## Tampilan
 
-| Beranda | Halaman destinasi (pilih paket, ringkasan pesanan) |
+| Beranda | Daftar destinasi (filter kawasan dan jenis koneksi) |
 |---|---|
-| ![Beranda](docs/img/01-home.png) | ![Halaman destinasi](docs/img/05-destination.png) |
+| ![Beranda](docs/img/01-home.png) | ![Daftar destinasi](docs/img/02-destinations.png) |
+
+| Halaman produk, contoh Jepang (pilih paket, ringkasan pesanan) | Checkout (data pemesan, alamat, metode bayar) |
+|---|---|
+| ![Halaman produk](docs/img/05-destination.png) | ![Checkout](docs/img/06-checkout.png) |
 
 | FAQ (mobile) | CMS admin |
 |---|---|
@@ -415,6 +428,7 @@ Format galat: `{ "error": { "code", "message", "details?" } }`.
 - **Katalog dari database, dikelola lewat CMS.** `api/src/db/catalog-data.ts` hanya data awal (seed); migrasi SQL berurutan dengan kunci advisory, seed idempotent dan tidak menimpa perubahan harga. Data awal sengaja bervariasi (tidak semua destinasi menjual ketiga jenis; mis. Turki hanya eSIM) agar filter jenis dan tab di halaman destinasi punya efek nyata. Halaman katalog dirender di server saat request (tidak di-prerender saat build, karena API belum ada saat `docker build`).
 - **Outbox untuk n8n** supaya perubahan status dan event tidak bisa terpisah, dan n8n yang sedang mati tidak membuat event hilang.
 - **Konten bantuan satu sumber.** FAQ dan nomor WhatsApp hanya didefinisikan di `lib/faq.ts` dan `lib/contact.ts`; beranda, panel bantuan, dan footer membacanya dari sana sehingga tidak bisa saling berbeda. Saat ini statis; memindahkannya ke database dan CMS adalah langkah lanjutan.
+- **Dua bahasa tanpa pustaka tambahan.** Kamus ada di `web/lib/i18n/`: Indonesia sebagai sumber, dan Inggris wajib punya kunci yang sama (dicek TypeScript). Pilihan bahasa disimpan di cookie `nomadia-lang`, jadi server component langsung merender bahasa yang benar tanpa kedipan. Teks katalog dari database tetap Indonesia; nama dan kawasan destinasi dipetakan lewat slug di `catalog-text.ts`, dan data di luar peta (mis. destinasi baru dari admin) tampil apa adanya.
 - **Admin bisa dimatikan** lewat env kosong, sehingga deployment tanpa CMS tidak punya permukaan serangan `/admin`.
 
 ## Data wilayah (alamat pengiriman)
@@ -430,6 +444,7 @@ Dropdown provinsi, kota/kabupaten, dan kecamatan di checkout memakai data statis
 - Pembatas laju (termasuk pembatas login) ada di memori dan per IP: cukup untuk satu instance, bukan proteksi penuh terhadap serangan terdistribusi. Lihat [Pembatasan laju](#pembatasan-laju) untuk `TRUST_PROXY_HOPS` di belakang proxy.
 - Membatalkan order dari admin hanya mengubah status di database, bukan membatalkan sesi bayar di iPaymu. Bila pelanggan terlanjur bayar sesudahnya, webhook mencatatnya ke log untuk ditinjau manual dan tidak mengembalikan status ke lunas.
 - Beberapa pesan validasi dari zod masih berbahasa Inggris.
+- Pilihan bahasa hanya berlaku untuk toko; CMS admin tetap berbahasa Indonesia. Teks produk dari database diterjemahkan lewat pola dan peta destinasi, bukan oleh kolom terjemahan per bahasa; itu langkah lanjutan bila katalog perlu dikelola dua bahasa dari CMS.
 - Gambar destinasi dan banner beranda disimpan di PostgreSQL (tabel `media`) supaya demo tidak butuh storage terpisah, dan tidak diubah ukurannya otomatis: unggah gambar yang sudah dioptimalkan (thumbnail ±800×600, banner ±1600×600). Untuk trafik nyata, pindahkan ke object storage dengan CDN. Jenis berkas diperiksa dari isinya (PNG, JPEG, WebP); SVG sengaja ditolak karena bisa memuat skrip.
 - Kode aktivasi dan QR eSIM di email adalah **contoh untuk demo**: acak, format `LPA:1$...`, dan tidak terhubung ke operator mana pun (SM-DP+ `smdp.nomadia.example` tidak ada). Di produksi, `services/esim.ts` diganti pemanggilan API pemasok eSIM. SIM Card dan Portable WiFi hanya mendapat catatan bahwa info pengiriman menyusul.
 - Email konfirmasi memakai Mailpit (SMTP palsu) di Compose; untuk email sungguhan ganti kredensial SMTP di n8n. Kode aktivasi dibuat sekali saat pelunasan dan disimpan di outbox, jadi pengiriman ulang ke n8n membawa kode yang sama; kode itu tidak ditampilkan di halaman pesanan.

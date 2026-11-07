@@ -3,6 +3,8 @@
 Bukti satu pesanan nyata dari checkout sampai notifikasi, 6 Nov 2026.
 Pesanan: NMD-RV4F4UF7, 2 x eSIM Korea Selatan 1 hari, Rp52.000. Web: https://nomadia.dragonstorepb.com, API: https://nomadia-api.dragonstorepb.com
 
+> Tangkapan layar toko di sini (01 sampai 03) diambil pada 6 Nov 2026. Tampilan toko dipoles sesudahnya (bahasa, checkout dengan alamat dan metode bayar); tampilan terbaru ada di bagian Tampilan README utama. Yang dibuktikan di sini adalah jalur integrasi: iPaymu, callback, n8n, email, dan Telegram.
+
 | # | Berkas | Yang dibuktikan |
 |---|---|---|
 | 01 | 01-web-publik-beranda.png | Web terbuka lewat domain publik (tunnel) |
