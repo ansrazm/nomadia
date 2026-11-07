@@ -41,14 +41,6 @@ Untuk memeriksa tahap 1 saja, ikuti [Cara menilai](#cara-menilai-10-menit-hanya-
 |---|---|
 | ![Beranda](docs/img/01-home.png) | ![Daftar destinasi](docs/img/02-destinations.png) |
 
-| Rute: pilih sampai 3 tujuan di daftar destinasi | Rute: pilih jenis koneksi yang dijual di tujuan itu |
-|---|---|
-| ![Bar rute perjalanan](docs/img/09-route-bar.png) | ![Dialog jenis koneksi untuk rute](docs/img/07-route-dialog.png) |
-
-| Rute: satu paket untuk tiap tujuan (halaman /trip) |
-|---|
-| ![Halaman rute perjalanan](docs/img/08-trip.png) |
-
 | Halaman produk, contoh Jepang (pilih paket, ringkasan pesanan) | Checkout (data pemesan, alamat, metode bayar) |
 |---|---|
 | ![Halaman produk](docs/img/05-destination.png) | ![Checkout](docs/img/06-checkout.png) |
@@ -56,6 +48,14 @@ Untuk memeriksa tahap 1 saja, ikuti [Cara menilai](#cara-menilai-10-menit-hanya-
 | FAQ (mobile) | CMS admin |
 |---|---|
 | ![FAQ](docs/img/03-faq-mobile.png) | ![Admin](docs/img/04-admin.png) |
+
+| Rute: pilih sampai 3 tujuan di daftar destinasi | Rute: pilih jenis koneksi yang dijual di tujuan itu |
+|---|---|
+| ![Bar rute perjalanan](docs/img/09-route-bar.png) | ![Dialog jenis koneksi untuk rute](docs/img/07-route-dialog.png) |
+
+| Rute: satu paket untuk tiap tujuan (halaman /trip) |
+|---|
+| ![Halaman rute perjalanan](docs/img/08-trip.png) |
 
 Tangkapan layar alur bayar iPaymu sandbox sampai email konfirmasi ada di [`docs/e2e/`](docs/e2e/README.md).
 
