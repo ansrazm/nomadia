@@ -7,12 +7,14 @@ import { Card, ConfirmModal, Field, Modal, Notice, PageHead, Toggle, inputCls } 
 
 const TYPES = { esim: "eSIM", sim: "SIM Card", wifi: "Portable WiFi" } as const;
 type Form = { id: string; destSlug: string; type: AdminProduct["type"]; name: string; days: string; data: string; price: string; note: string; active: boolean };
-const empty = (destSlug: string): Form => ({ id: "", destSlug, type: "esim", name: "", days: "1", data: "", price: "", note: "", active: true });
+const empty = (destSlug: string, type: AdminProduct["type"] = "esim"): Form => ({ id: "", destSlug, type, name: "", days: "1", data: "", price: "", note: "", active: true });
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<AdminProduct[] | null>(null);
   const [dests, setDests] = useState<AdminDestination[]>([]);
   const [dest, setDest] = useState("");
+  const [type, setType] = useState<"" | AdminProduct["type"]>("");
+  const [status, setStatus] = useState<"" | "active" | "inactive">("");
   const [q, setQ] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -31,7 +33,15 @@ export default function ProductsPage() {
   useEffect(() => { load(); }, [load]);
 
   const destName = useMemo(() => new Map(dests.map((d) => [d.slug, d.name])), [dests]);
-  const shown = (products ?? []).filter((p) => (!dest || p.destSlug === dest) && (!q || `${p.name} ${p.id}`.toLowerCase().includes(q.toLowerCase())));
+  const shown = (products ?? []).filter(
+    (p) =>
+      (!dest || p.destSlug === dest) &&
+      (!type || p.type === type) &&
+      (!status || (status === "active") === p.active) &&
+      (!q || `${p.name} ${p.id}`.toLowerCase().includes(q.toLowerCase())),
+  );
+  const filtered = !!(dest || type || status || q);
+  const resetFilters = () => { setDest(""); setType(""); setStatus(""); setQ(""); };
 
   const open = (mode: "new" | "edit", form: Form) => { setErrs({}); setFormError(""); setEditing({ mode, form }); };
   const set = (patch: Partial<Form>) => setEditing((s) => (s ? { ...s, form: { ...s.form, ...patch } } : s));
@@ -68,19 +78,34 @@ export default function ProductsPage() {
 
   return (
     <>
-      <PageHead title="Produk" action={<button className="btn-signal !py-2.5 text-sm" disabled={!dests.length} onClick={() => open("new", empty(dest || dests[0]?.slug || ""))}>+ Tambah produk</button>} />
+      <PageHead title="Produk" action={<button className="btn-signal !py-2.5 text-sm" disabled={!dests.length} onClick={() => open("new", empty(dest || dests[0]?.slug || "", type || "esim"))}>+ Tambah produk</button>} />
       <div className="mb-4 flex flex-wrap gap-3">
         <select className={`${inputCls} sm:max-w-[14rem]`} aria-label="Filter destinasi" value={dest} onChange={(e) => setDest(e.target.value)}>
           <option value="">Semua destinasi</option>
           {dests.map((d) => <option key={d.slug} value={d.slug}>{d.name}</option>)}
         </select>
+        <select className={`${inputCls} sm:max-w-[12rem]`} aria-label="Filter jenis" value={type} onChange={(e) => setType(e.target.value as typeof type)}>
+          <option value="">Semua jenis</option>
+          {Object.entries(TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <select className={`${inputCls} sm:max-w-[11rem]`} aria-label="Filter status" value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
+          <option value="">Semua status</option>
+          <option value="active">Aktif</option>
+          <option value="inactive">Nonaktif</option>
+        </select>
         <input className={`${inputCls} sm:max-w-xs`} type="search" placeholder="Cari nama atau ID" aria-label="Cari produk" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
+      {products && (
+        <p className="mb-3 text-sm text-ink/60" role="status">
+          {filtered ? `Menampilkan ${shown.length} dari ${products.length} produk.` : `${products.length} produk.`}
+          {filtered && <button type="button" className="ml-2 font-semibold text-deep hover:underline" onClick={resetFilters}>Reset filter</button>}
+        </p>
+      )}
       {error && <Notice kind="error">{error}</Notice>}
       {notice && <Notice kind="ok">{notice}</Notice>}
       <Card className="overflow-x-auto">
         {!products && !error && <p className="p-6 text-sm text-ink/60" role="status">Memuat…</p>}
-        {products && shown.length === 0 && <p className="p-6 text-sm text-ink/60">Tidak ada produk.</p>}
+        {products && shown.length === 0 && <p className="p-6 text-sm text-ink/60">{filtered ? "Tidak ada produk yang cocok dengan filter." : "Tidak ada produk."}</p>}
         {shown.length > 0 && (
           <table className="w-full min-w-[46rem] text-left text-sm">
             <thead className="border-b border-line text-xs uppercase tracking-wide text-ink/50"><tr><th className="p-4">Produk</th><th className="p-4">Destinasi</th><th className="p-4">Paket</th><th className="p-4">Harga</th><th className="p-4">Aktif</th><th className="p-4 text-right">Aksi</th></tr></thead>
