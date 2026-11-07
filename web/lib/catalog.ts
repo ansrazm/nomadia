@@ -1,7 +1,8 @@
 import { ApiRequestError } from "./api";
 import { localizeDestination } from "./i18n/catalog-text";
 import { getLang } from "./i18n/server";
-import type { DestinationDetail, DestinationSummary, ProductType } from "./catalog-types";
+import { productTypes, type DestinationDetail, type DestinationSummary, type ProductType } from "./catalog-types";
+import type { Availability } from "./trip";
 
 /**
  * Pembaca katalog dari Nomadia API. Hanya dipanggil dari server component.
@@ -28,6 +29,24 @@ export async function getDestinations(type?: ProductType | null): Promise<Destin
   const list = await getData<DestinationSummary[]>(type ? `/destinations?type=${type}` : "/destinations");
   const lang = getLang();
   return list.map((d) => localizeDestination(d, lang));
+}
+
+/**
+ * Ketersediaan tiap jenis koneksi per destinasi untuk rute perjalanan: tiga permintaan /destinations?type= berjalan paralel.
+ * Harga mulai dari sudah menghitung paket yang bisa dibeli saja; null berarti jenis itu ada tetapi kosong.
+ * Mengembalikan null bila gagal, supaya daftar destinasi tetap tampil (hanya fitur rute yang disembunyikan).
+ */
+export async function getAvailability(): Promise<Availability | null> {
+  try {
+    const lists = await Promise.all(productTypes.map((ty) => getData<DestinationSummary[]>(`/destinations?type=${ty}`)));
+    const avail: Availability = {};
+    productTypes.forEach((ty, i) => {
+      for (const d of lists[i]) (avail[d.slug] ??= {})[ty] = d.startingPrice;
+    });
+    return avail;
+  } catch {
+    return null;
+  }
 }
 
 /** Banner beranda dari admin, berurutan (alamat relatif /media/...); daftar kosong bila belum ada. Gagal baca tidak boleh merusak beranda, jadi jatuh ke daftar kosong. */

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Product, ProductType, typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 import { getTypeContent, typeSpecs } from "@/lib/destination-info";
+import { pickDefault } from "@/lib/trip";
 import { CompareDialog } from "./CompareDialog";
 import { PurchaseBar } from "./PurchaseBar";
 import { useCart } from "./CartProvider";
@@ -13,9 +14,6 @@ import { useCatalogText } from "./useCatalogText";
 import { waLink } from "@/lib/contact";
 
 const perDay = (p: Product) => Math.round(p.price / p.days);
-
-/** Paket bawaan: yang 7 hari (paling umum untuk liburan), kalau tidak ada ambil yang di tengah. */
-const pickDefault = (list: Product[]) => list.find((p) => p.days === 7) ?? list[Math.floor(list.length / 2)];
 
 function badgeFor(p: Product, list: Product[]): "popular" | "cheapest" | null {
   if (list.length < 3) return null;

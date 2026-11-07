@@ -4,12 +4,31 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { DestinationSummary, ProductType, flagUrl, mediaUrl, typeInfo } from "@/lib/catalog-types";
 import { TypeChips } from "./TypeChips";
+import { TripBar } from "./TripBar";
+import { TripDialog } from "./TripDialog";
 import { idr } from "@/lib/format";
+import { MAX_STOPS, type Availability, type TripStop } from "@/lib/trip";
 import { useT } from "./LanguageProvider";
 
-/** Daftar destinasi dengan pencarian dan filter kawasan. Data datang dari server component. */
-export function DestinationBrowser({ destinations, type = null }: { destinations: DestinationSummary[]; type?: ProductType | null }) {
+interface Props {
+  destinations: DestinationSummary[];
+  type?: ProductType | null;
+  /** Ketersediaan jenis per destinasi untuk rute perjalanan; null (gagal dibaca) menyembunyikan fitur rute. */
+  availability?: Availability | null;
+  /** Semua destinasi (tanpa filter jenis) untuk nama dan bendera di bar rute, supaya rute tetap utuh saat filter jenis diganti. */
+  pool?: TripStop[];
+  /** Slug rute awal, mis. dari ?trip= saat kembali dari halaman /trip. */
+  initialTrip?: string[];
+}
+
+/** Daftar destinasi dengan pencarian, filter kawasan, dan pemilihan rute (maks. 3 tujuan). Data datang dari server component. */
+export function DestinationBrowser({ destinations, type = null, availability = null, pool = [], initialTrip = [] }: Props) {
   const t = useT();
+  const [trip, setTrip] = useState<string[]>(initialTrip);
+  const [tripOpen, setTripOpen] = useState(false);
+  const tripFull = trip.length >= MAX_STOPS;
+  const toggleStop = (slug: string) => setTrip((cur) => (cur.includes(slug) ? cur.filter((s) => s !== slug) : cur.length >= MAX_STOPS ? cur : [...cur, slug]));
+  const stops = useMemo(() => trip.flatMap((slug) => pool.find((p) => p.slug === slug) ?? []), [trip, pool]);
   const [query, setQuery] = useState("");
   // null = semua kawasan (nilai "Semua" tidak dipakai sebagai kunci supaya tidak bergantung pada bahasa).
   const [region, setRegion] = useState<string | null>(null);
@@ -24,7 +43,7 @@ export function DestinationBrowser({ destinations, type = null }: { destinations
   const shownRegions = regions.filter((r) => filtered.some((d) => d.region === r));
 
   return (
-    <div className="container-wide py-12">
+    <div className={`container-wide py-12 ${availability && stops.length ? "pb-44 sm:pb-32" : ""}`}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-full lg:max-w-sm">
           <label htmlFor="dest-filter" className="sr-only">{t("browser.searchLabel")}</label>
@@ -71,8 +90,8 @@ export function DestinationBrowser({ destinations, type = null }: { destinations
               <h2 id={`r-${r}`} className="font-display text-2xl font-bold">{r}</h2>
               <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {filtered.filter((d) => d.region === r).map((d) => (
-                  <li key={d.slug}>
-                    <Link href={`/destinations/${d.slug}${type ? `?type=${type}` : ""}`} className="group flex items-center gap-4 rounded-2xl border border-line bg-white p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-lagoon hover:shadow-lift">
+                  <li key={d.slug} className={`group flex items-stretch rounded-2xl border bg-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift ${trip.includes(d.slug) ? "border-ink ring-2 ring-signal" : "border-line hover:border-lagoon"}`}>
+                    <Link href={`/destinations/${d.slug}${type ? `?type=${type}` : ""}`} className="flex min-w-0 flex-1 items-center gap-4 p-4">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {d.thumbUrl ? <img src={mediaUrl(d.thumbUrl)} alt="" width={64} height={48} loading="lazy" className="h-12 w-16 rounded object-cover" /> : <img src={flagUrl(d.code)} alt="" width={48} height={34} className="h-8 w-12 rounded object-cover" />}
                       <span className="min-w-0 flex-1">
@@ -89,6 +108,19 @@ export function DestinationBrowser({ destinations, type = null }: { destinations
                       ) : null}
                       <span aria-hidden className="text-ink/30 transition-transform group-hover:translate-x-0.5 group-hover:text-lagoon">→</span>
                     </Link>
+                    {availability && (
+                      <button
+                        type="button"
+                        aria-pressed={trip.includes(d.slug)}
+                        aria-label={trip.includes(d.slug) ? t("trip.toggleRemove", { name: d.name }) : t("trip.toggleAdd", { name: d.name })}
+                        title={!trip.includes(d.slug) && tripFull ? t("trip.toggleFull", { max: MAX_STOPS }) : undefined}
+                        disabled={!trip.includes(d.slug) && tripFull}
+                        onClick={() => toggleStop(d.slug)}
+                        className={`my-auto mr-3 grid h-10 w-10 shrink-0 place-items-center rounded-[4px] border-2 text-lg font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${trip.includes(d.slug) ? "border-ink bg-ink text-signal" : "border-line text-deep hover:border-lagoon"}`}
+                      >
+                        <span aria-hidden>{trip.includes(d.slug) ? "✓" : "+"}</span>
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -96,6 +128,11 @@ export function DestinationBrowser({ destinations, type = null }: { destinations
           ))}
         </div>
       )}
+
+      {availability && (
+        <TripBar stops={stops} onRemove={toggleStop} onClear={() => { setTrip([]); setTripOpen(false); }} onChoose={() => setTripOpen(true)} />
+      )}
+      {availability && tripOpen && stops.length > 1 && <TripDialog stops={stops} availability={availability} onClose={() => setTripOpen(false)} />}
     </div>
   );
 }
