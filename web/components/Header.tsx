@@ -132,14 +132,14 @@ export function Header() {
               <ul className="grid grid-cols-3 gap-3">
                 {connTypes.map((t) => (
                   <li key={t}>
-                    <Link href="/destinations" onClick={() => setConnOpen(false)} className="group block h-full overflow-hidden rounded-[4px] border border-line transition-shadow hover:shadow-lift">
+                    <Link href="/destinations" onClick={() => setConnOpen(false)} className="group flex h-full flex-col overflow-hidden rounded-[4px] border border-line transition-shadow hover:shadow-lift">
                       <div className={`${typeArtBg[t]} px-4 pt-3`}>
                         <TypeArt type={t} className="mx-auto h-28 w-full" />
                       </div>
-                      <div className="p-4">
+                      <div className="flex flex-1 flex-col p-4">
                         <p className="font-display text-lg font-bold">{typeInfo[t].label}</p>
                         <p className="mt-1 text-sm text-ink/70">{typeInfo[t].short}.</p>
-                        <p className="mt-3 text-sm font-semibold text-deep group-hover:underline">Cari {typeInfo[t].label} →</p>
+                        <p className="mt-auto pt-3 text-sm font-semibold text-deep group-hover:underline">Cari {typeInfo[t].label} →</p>
                       </div>
                     </Link>
                   </li>
