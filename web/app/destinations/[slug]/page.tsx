@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Breadcrumb } from "@/components/Breadcrumb";
 import { DestinationFaq } from "@/components/DestinationFaq";
 import { ProductTabs } from "@/components/ProductTabs";
 import { SignalBars } from "@/components/SignalBars";
@@ -38,7 +39,7 @@ export default async function DestinationPage({ params }: { params: { slug: stri
         )}
         <div className="container-wide relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
-            <Link href="/destinations" className="text-sm font-medium text-white/70 hover:text-white">Semua destinasi</Link>
+            <Breadcrumb items={[{ label: "Beranda", href: "/" }, { label: "Destinasi", href: "/destinations" }, { label: d.name }]} />
             <div className="mt-4 flex items-center gap-5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={flagUrl(d.code)} alt="" width={72} height={52} className="h-12 w-16 rounded-[3px] object-cover" />
