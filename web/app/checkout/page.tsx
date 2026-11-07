@@ -4,35 +4,11 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { CheckoutSteps } from "@/components/CheckoutSteps";
 import { useCart } from "@/components/CartProvider";
 import { ApiRequestError, createOrder, quoteCart, type CheckoutResult, type Quote } from "@/lib/api";
 import { idr } from "@/lib/format";
 import { markPendingOrder } from "@/lib/pending-order";
-
-const STEPS = ["Detail pesanan", "Pembayaran", "Selesai"];
-
-/** Penunjuk langkah di kepala halaman; halaman ini selalu langkah 1 (pembayaran terjadi di iPaymu, selesai di /orders). */
-function Steps({ current }: { current: 1 | 2 | 3 }) {
-  return (
-    <ol aria-label="Langkah pembelian" className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-      {STEPS.map((label, i) => {
-        const n = i + 1;
-        const state = n < current ? "done" : n === current ? "current" : "todo";
-        return (
-          <li key={label} className="flex items-center gap-3" aria-current={state === "current" ? "step" : undefined}>
-            <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${state === "todo" ? "bg-white/15 text-white/70" : "bg-signal text-ink"}`}>
-              {state === "done" ? (
-                <svg aria-hidden viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m4.5 10.5 3.5 3.5 7.5-8" /></svg>
-              ) : n}
-            </span>
-            <span className={state === "current" ? "font-semibold text-white" : "text-white/70"}>{label}</span>
-            {n < STEPS.length && <span aria-hidden className="h-px w-8 bg-white/25" />}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
 
 function SectionHead({ n, title, hint }: { n: number; title: string; hint?: string }) {
   return (
@@ -246,7 +222,7 @@ export default function CheckoutPage() {
           <Breadcrumb items={[{ label: "Beranda", href: "/" }, { label: "Keranjang", href: "/cart" }, { label: "Pembayaran" }]} />
           <h1 className="mt-6 font-display text-5xl font-extrabold tracking-tight">Pembayaran</h1>
           <p className="mt-3 max-w-xl text-white/75">Isi data pemesan, lalu lanjut membayar. Pesananmu tercatat setelah tombol bayar ditekan.</p>
-          <div className="mt-8"><Steps current={1} /></div>
+          <div className="mt-8"><CheckoutSteps current={1} /></div>
         </div>
       </section>
       <div className="container-x py-12">

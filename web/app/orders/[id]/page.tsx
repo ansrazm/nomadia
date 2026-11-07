@@ -3,12 +3,21 @@
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import { Breadcrumb } from "@/components/Breadcrumb";
+import { CheckoutSteps } from "@/components/CheckoutSteps";
 import { useCart } from "@/components/CartProvider";
 import { getOrder, OrderQr, OrderView } from "@/lib/api";
 import { idr } from "@/lib/format";
 import { consumePendingOrder } from "@/lib/pending-order";
 
 const POLL_MS = 4000;
+
+const STATUS_BADGE = {
+  pending: { label: "Menunggu pembayaran", cls: "bg-signal/25 text-[#7a5a00]" },
+  paid: { label: "Lunas", cls: "bg-emerald-100 text-emerald-800" },
+  expired: { label: "Kedaluwarsa", cls: "bg-slate-200 text-slate-700" },
+  cancelled: { label: "Dibatalkan", cls: "bg-coral/15 text-coral" },
+} as const;
 
 function fmtRemaining(ms: number): string {
   const t = Math.max(0, Math.floor(ms / 1000));
@@ -127,9 +136,18 @@ function OrderStatus() {
 
   return (
     <div className="mx-auto max-w-2xl rounded-3xl border border-line bg-white p-8 sm:p-10">
-      <p className="text-sm font-semibold text-ink/60">Nomor pesanan {order.id}<CopyOrderId id={order.id} /></p>
+      <CheckoutSteps current={order.status === "paid" ? 4 : 2} tone="light" />
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <p className="text-sm font-semibold text-ink/60">Nomor pesanan {order.id}<CopyOrderId id={order.id} /></p>
+        <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_BADGE[order.status].cls}`}>{STATUS_BADGE[order.status].label}</span>
+      </div>
       <h2 className="mt-2 font-display text-3xl font-extrabold" role="status">{headline}</h2>
-      {order.status === "paid" && <p className="mt-3 text-ink/70">Terima kasih, {order.customerName}. QR eSIM dan bukti pembayaran dikirim ke {order.customerEmail}.</p>}
+      {order.status === "paid" && (
+        <>
+          <p className="mt-3 text-ink/70">Terima kasih, {order.customerName}. QR eSIM dan bukti pembayaran dikirim ke {order.customerEmail}.</p>
+          <p className="mt-2 text-sm text-ink/60">Belum menemukan emailnya? Periksa folder spam, atau lihat <Link href="/#faq" className="font-semibold text-deep underline">pertanyaan umum</Link>.</p>
+        </>
+      )}
       {order.status === "pending" && <p className="mt-3 text-ink/70">Halaman ini diperbarui otomatis setelah pembayaran kamu terkonfirmasi.</p>}
       {order.status === "pending" && order.qr && <QrPanel qr={order.qr} total={order.total} />}
       {failed && <p className="mt-3 text-sm text-coral">Koneksi terputus sebentar, mencoba lagi…</p>}
@@ -159,7 +177,10 @@ export default function OrderPage() {
   return (
     <>
       <section className="bg-ink pb-12 pt-32 text-white">
-        <div className="container-x"><h1 className="font-display text-5xl font-extrabold tracking-tight">Status pesanan</h1></div>
+        <div className="container-x">
+          <Breadcrumb items={[{ label: "Beranda", href: "/" }, { label: "Status pesanan" }]} />
+          <h1 className="mt-6 font-display text-5xl font-extrabold tracking-tight">Status pesanan</h1>
+        </div>
       </section>
       <div className="container-x py-12">
         <Suspense fallback={<p>Memuat…</p>}>
