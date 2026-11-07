@@ -49,6 +49,8 @@ export const idCheckout = {
   "co.totalPay": "Total bayar",
   "co.creating": "Membuat pesanan…",
   "co.payBtn": "Bayar {total}",
+  "co.bar.pay": "Bayar",
+  "co.bar.details": "Rincian & voucher",
   "co.secure2": "Harga final dihitung server, bukan di browser",
 
   // Status pesanan
@@ -216,6 +218,8 @@ export const enCheckout: Record<keyof typeof idCheckout, string> = {
   "co.totalPay": "Total to pay",
   "co.creating": "Creating order…",
   "co.payBtn": "Pay {total}",
+  "co.bar.pay": "Pay",
+  "co.bar.details": "Details & voucher",
   "co.secure2": "The final price is calculated by the server, not in the browser",
 
   "order.crumb": "Order status",

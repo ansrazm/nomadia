@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { PaymentLogo } from "@/components/PaymentLogo";
+import { CheckoutBar } from "@/components/CheckoutBar";
 import { CheckoutSteps } from "@/components/CheckoutSteps";
 import { useCart } from "@/components/CartProvider";
 import { useT } from "@/components/LanguageProvider";
@@ -91,6 +92,7 @@ function CheckoutForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartKey, voucher, retry]);
 
+  const summaryRef = useRef<HTMLElement>(null);
   const lineById = useMemo(() => new Map((quote?.lines ?? []).map((l) => [l.productId, l])), [quote]);
   const canPay = !!quote && !quoteFailed && unavailable.length === 0;
 
@@ -441,7 +443,7 @@ function CheckoutForm() {
       </form>
 
       {/* Ringkasan: selalu terlihat di layar lebar, tombol bayar ada di sini */}
-      <aside className="overflow-hidden rounded-3xl border border-line bg-white shadow-lift lg:sticky lg:top-24" aria-busy={!quote && !quoteFailed}>
+      <aside ref={summaryRef} id="order-summary" className="scroll-mt-24 overflow-hidden rounded-3xl border border-line bg-white shadow-lift lg:sticky lg:top-24" aria-busy={!quote && !quoteFailed}>
         <div className="relative overflow-hidden bg-ink px-6 py-5 text-white">
           <div aria-hidden className="absolute -right-8 -top-10 h-32 w-32 rounded-full border-[14px] border-white/5" />
           <div aria-hidden className="absolute -right-2 -top-4 h-20 w-20 rounded-full border-[10px] border-white/5" />
@@ -502,6 +504,7 @@ function CheckoutForm() {
           </ul>
         </div>
       </aside>
+      <CheckoutBar total={quote?.total ?? null} busy={busy} canPay={canPay} summaryRef={summaryRef} />
     </div>
   );
 }
