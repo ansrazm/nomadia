@@ -156,7 +156,7 @@ export function ProductTabs({ products, network, destName, initialType = null }:
                 role="radio"
                 aria-checked={on}
                 onClick={() => setPicked(p.id)}
-                className={`relative rounded-[4px] border-2 bg-white p-5 text-left transition-all ${on ? "border-ink shadow-lift" : "border-line hover:-translate-y-0.5 hover:border-lagoon"}`}
+                className={`relative rounded-[4px] border-2 p-5 text-left transition-all ${on ? "border-ink bg-signal/15 shadow-lift" : "border-line bg-white hover:-translate-y-0.5 hover:border-lagoon"}`}
               >
                 {badge && (
                   <span className={`absolute -top-3 left-5 rounded-[3px] px-3 py-1 text-xs font-bold ${badge === "popular" ? "bg-signal text-ink" : "bg-lagoon text-ink"}`}>{badge === "popular" ? t("tabs.popular") : t("tabs.cheapest")}</span>
