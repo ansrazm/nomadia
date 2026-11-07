@@ -5,6 +5,7 @@ import { Reveal } from "@/components/Reveal";
 import { getDestinations, getHomeBanners } from "@/lib/catalog";
 import { flagUrl, mediaUrl, parseProductType, typeInfo, type ProductType } from "@/lib/catalog-types";
 import { TypeChips } from "@/components/TypeChips";
+import { TripBanner } from "@/components/TripBanner";
 import { TypeArt, typeArtBg } from "@/components/TypeArt";
 import { idr } from "@/lib/format";
 import { getT } from "@/lib/i18n/server";
@@ -69,7 +70,7 @@ export default async function Home({ searchParams }: { searchParams: { type?: st
     const ds = stops as typeof destinations;
     // Harga mulai dari: paket termurah tiap tujuan dijumlahkan; kosong bila ada tujuan tanpa produk aktif.
     const from = ds.every((d) => d.startingPrice != null) ? ds.reduce((n, d) => n + (d.startingPrice ?? 0), 0) : null;
-    return [{ slugs, ds, from }];
+    return [{ slugs, ds, from, thumbs: ds.map((d) => d.thumbUrl) }];
   });
   return (
     <>
@@ -168,21 +169,41 @@ export default async function Home({ searchParams }: { searchParams: { type?: st
             <p className="mt-3 max-w-xl text-ink/70">{t("home.route.body")}</p>
           </Reveal>
           <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {routes.map(({ slugs, ds, from }) => (
+            {routes.map(({ slugs, ds, from, thumbs }) => {
+              const hasThumb = thumbs.some(Boolean);
+              return (
               <li key={slugs.join(",")}>
-                <Link href={tripHref(slugs)} className="group flex h-full flex-col rounded-3xl border border-line bg-white p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
-                  <span className="flex items-center gap-2" aria-hidden>
-                    {ds.map((d) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={d.slug} src={flagUrl(d.code)} alt="" width={56} height={40} className="h-8 w-12 rounded-md object-cover shadow-sm" />
-                    ))}
-                  </span>
-                  <h3 className="mt-5 font-display text-xl font-bold">{ds.map((d) => d.name).join(" + ")}</h3>
-                  {from != null && <p className="mt-1 text-sm text-ink/65">{t("home.popular.from")} {idr(from)} · {t("trip.priceNote")}</p>}
-                  <span className="mt-6 text-sm font-bold text-deep group-hover:underline">{t("home.route.cta")} →</span>
+                <Link href={tripHref(slugs)} className="group flex h-full flex-col overflow-hidden rounded-3xl border border-line bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
+                  {hasThumb && (
+                    // Foto tujuan terbelah miring (sama seperti hero /trip); bendera jadi chip di atasnya. Tanpa foto: kartu tetap berbendera saja.
+                    <span aria-hidden className="relative block h-32 overflow-hidden bg-ink">
+                      <TripBanner images={thumbs} overlay={false} lazy />
+                      <span className="absolute inset-0 bg-gradient-to-t from-ink/55 to-transparent" />
+                      <span className="absolute bottom-3 left-5 flex items-center gap-2">
+                        {ds.map((d) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img key={d.slug} src={flagUrl(d.code)} alt="" width={56} height={40} className="h-6 w-9 rounded-md border border-white/70 object-cover shadow-sm" />
+                        ))}
+                      </span>
+                    </span>
+                  )}
+                  <div className="flex flex-1 flex-col p-6">
+                    {!hasThumb && (
+                      <span className="mb-5 flex items-center gap-2" aria-hidden>
+                        {ds.map((d) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img key={d.slug} src={flagUrl(d.code)} alt="" width={56} height={40} className="h-8 w-12 rounded-md object-cover shadow-sm" />
+                        ))}
+                      </span>
+                    )}
+                    <h3 className="font-display text-xl font-bold">{ds.map((d) => d.name).join(" + ")}</h3>
+                    {from != null && <p className="mt-1 text-sm text-ink/65">{t("home.popular.from")} {idr(from)} · {t("trip.priceNote")}</p>}
+                    <span className="mt-auto pt-6 text-sm font-bold text-deep group-hover:underline">{t("home.route.cta")} →</span>
+                  </div>
                 </Link>
               </li>
-            ))}
+              );
+            })}
           </ul>
           <Link href="/destinations" className="btn-ghost mt-8 inline-flex">{t("home.route.build")}</Link>
         </section>
