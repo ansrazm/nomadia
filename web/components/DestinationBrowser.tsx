@@ -42,13 +42,17 @@ export function DestinationBrowser({ destinations, type = null, availability = n
   // null = semua kawasan (nilai "Semua" tidak dipakai sebagai kunci supaya tidak bergantung pada bahasa).
   const [region, setRegion] = useState<string | null>(null);
   const regions = useMemo(() => Array.from(new Set(destinations.map((d) => d.region))), [destinations]);
+  // Daftar disaring di server per jenis, jadi sebuah kawasan bisa hilang saat jenis berganti (mis. Americas tidak punya SIM Card).
+  // Kawasan yang sudah tidak ada dianggap "Semua" supaya daftar tidak kosong tanpa chip yang menyala. State `region` sengaja
+  // tidak dihapus: kembali ke jenis yang punya kawasan itu mengaktifkannya lagi.
+  const activeRegion = region !== null && regions.includes(region) ? region : null;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return destinations.filter(
-      (d) => (region === null || d.region === region) && (!q || d.name.toLowerCase().includes(q) || (d.nameId ?? "").toLowerCase().includes(q) || d.network.toLowerCase().includes(q) || d.region.toLowerCase().includes(q)),
+      (d) => (activeRegion === null || d.region === activeRegion) && (!q || d.name.toLowerCase().includes(q) || (d.nameId ?? "").toLowerCase().includes(q) || d.network.toLowerCase().includes(q) || d.region.toLowerCase().includes(q)),
     );
-  }, [destinations, query, region]);
+  }, [destinations, query, activeRegion]);
   const shownRegions = regions.filter((r) => filtered.some((d) => d.region === r));
 
   return (
@@ -72,9 +76,9 @@ export function DestinationBrowser({ destinations, type = null, availability = n
             <button
               key={r ?? "all"}
               type="button"
-              aria-pressed={region === r}
+              aria-pressed={activeRegion === r}
               onClick={() => setRegion(r)}
-              className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${region === r ? "border-ink bg-ink text-white" : "border-line bg-white hover:border-lagoon"}`}
+              className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${activeRegion === r ? "border-ink bg-ink text-white" : "border-line bg-white hover:border-lagoon"}`}
             >
               {r ?? t("browser.regionAll")}
             </button>
