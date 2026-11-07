@@ -6,6 +6,7 @@ import { Product, ProductType, typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 import { typeContent, typeSpecs } from "@/lib/destination-info";
 import { CompareDialog } from "./CompareDialog";
+import { PurchaseBar } from "./PurchaseBar";
 import { useCart } from "./CartProvider";
 
 const perDay = (p: Product) => Math.round(p.price / p.days);
@@ -29,22 +30,12 @@ export function ProductTabs({ products, network, destName }: { products: Product
   const [picked, setPicked] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const [barOn, setBarOn] = useState(true);
+  const summaryRef = useRef<HTMLElement>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const canCompare = types.length > 1;
   // Slot kosong di baris terakhir grid (2 kolom di sm, 3 kolom di xl) diisi kartu ajakan membandingkan.
   const fillSm = list.length % 2 === 1;
   const fillXl = list.length % 3 === 2;
-
-  // Bar bawah hanya tampil selagi pemilih paket terlihat, jadi tidak menutupi info, FAQ, dan footer di bawahnya.
-  useEffect(() => {
-    const el = pickerRef.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver(([e]) => setBarOn(e.isIntersecting));
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
 
   const selected = list.find((p) => p.id === picked) ?? pickDefault(list);
   const total = selected.price * qty;
@@ -97,7 +88,7 @@ export function ProductTabs({ products, network, destName }: { products: Product
       </div>
       <p className="mt-2 text-sm text-ink/60">Cek dulu: {typeContent[tab].checks[0]}.</p>
 
-      <div ref={pickerRef} className="mt-8 grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
+      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
         <div role="radiogroup" aria-label="Pilih paket" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {list.map((p) => {
             const on = p.id === selected.id;
@@ -138,7 +129,7 @@ export function ProductTabs({ products, network, destName }: { products: Product
           )}
         </div>
 
-        <aside className="hidden rounded-3xl border border-line bg-white p-6 lg:sticky lg:top-24 lg:block" aria-label="Ringkasan pesanan">
+        <aside ref={summaryRef} className="hidden rounded-3xl border border-line bg-white p-6 lg:sticky lg:top-24 lg:block" aria-label="Ringkasan pesanan">
           <p className="text-xs font-bold uppercase tracking-wider text-ink/55">Ringkasan pesanan</p>
           <h3 className="mt-3 font-display text-xl font-bold">{selected.name}</h3>
           <p className="mt-1 text-sm text-ink/65">{typeInfo[selected.type].label} · {selected.days} hari · {selected.data}</p>
@@ -163,15 +154,17 @@ export function ProductTabs({ products, network, destName }: { products: Product
         </aside>
       </div>
 
-      {/* Bar bawah untuk layar kecil; pr-24 menyisakan ruang untuk tombol WhatsApp/chat. */}
-      <div className={`fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-line bg-white py-3 pl-5 pr-24 shadow-lift transition-transform duration-300 lg:hidden ${barOn ? "translate-y-0" : "invisible translate-y-full"}`}>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-xs text-ink/60">{selected.days} hari · {selected.data} × {qty}</p>
-          <p className="font-display text-xl font-extrabold">{idr(total)}</p>
-        </div>
-        <button type="button" onClick={addOnly} className={added ? "btn bg-lagoon px-4 py-2.5 text-sm text-ink" : "btn-ghost px-4 py-2.5 text-sm"} aria-live="polite">{added ? "Masuk" : "Keranjang"}</button>
-        <button type="button" onClick={buyNow} className="btn-signal px-4 py-2.5 text-sm">Beli</button>
-      </div>
+      <PurchaseBar
+        name={selected.name}
+        detail={`${typeInfo[selected.type].label} · ${selected.days} hari · ${selected.data} × ${qty}`}
+        qty={qty}
+        total={total}
+        added={added}
+        summaryRef={summaryRef}
+        onQty={setQty}
+        onAdd={addOnly}
+        onBuy={buyNow}
+      />
       {compareOpen && <CompareDialog destName={destName} products={products} onClose={() => setCompareOpen(false)} />}
     </div>
   );
