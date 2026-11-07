@@ -10,6 +10,7 @@ Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical
 
 > [!NOTE]
 > **Batasan waktu pengerjaan.** Proyek ini dikerjakan dalam waktu terbatas (tenggat technical test), jadi pengembangan tampilan dan fitur sengaja dibatasi. Prioritasnya konsep aplikasi, struktur sistem, pembagian modul, dan integrasi yang diminta (API, payment gateway, n8n), bukan kelengkapan fitur toko online penuh. Beberapa hal yang belum ada atau disederhanakan:
+> - Akun member (daftar akun dan dashboard riwayat pesanan) sengaja belum dibuat: di luar spesifikasi test dan butuh waktu yang tidak ada. Checkout memakai alur tamu (tanpa akun); rancangan lanjutannya ada di [Rencana pengembangan lanjutan](#rencana-pengembangan-lanjutan).
 > - Pesan WhatsApp otomatis tidak ada; WhatsApp hanya tautan chat (click-to-chat). Pesan otomatis butuh WhatsApp Business API.
 > - Pembayaran hanya sandbox iPaymu, dan demo berjalan dari laptop lewat tunnel, bukan hosting produksi.
 > - Admin memakai satu akun dari environment variable, tanpa manajemen pengguna atau peran; token login disimpan di `localStorage`.
@@ -433,6 +434,18 @@ Dropdown provinsi, kota/kabupaten, dan kecamatan di checkout memakai data statis
 - Kode aktivasi dan QR eSIM di email adalah **contoh untuk demo**: acak, format `LPA:1$...`, dan tidak terhubung ke operator mana pun (SM-DP+ `smdp.nomadia.example` tidak ada). Di produksi, `services/esim.ts` diganti pemanggilan API pemasok eSIM. SIM Card dan Portable WiFi hanya mendapat catatan bahwa info pengiriman menyusul.
 - Email konfirmasi memakai Mailpit (SMTP palsu) di Compose; untuk email sungguhan ganti kredensial SMTP di n8n. Kode aktivasi dibuat sekali saat pelunasan dan disimpan di outbox, jadi pengiriman ulang ke n8n membawa kode yang sama; kode itu tidak ditampilkan di halaman pesanan.
 - Alur bayar iPaymu sandbox penuh (bayar sungguhan → callback → n8n) butuh kredensial sandbox dan tunnel publik; tes otomatis memakai gateway palsu.
+
+## Rencana pengembangan lanjutan
+
+Belum dikerjakan; ini arah yang dipilih bila proyek dilanjutkan, bukan fitur yang sudah ada.
+
+- **Akun member: daftar akun dan dashboard.** Pelanggan mendaftar atau masuk, lalu melihat riwayat pesanan, mengunduh ulang bukti, dan menyimpan nomor HP dan alamat pengiriman supaya checkout berikutnya terisi otomatis. Rancangan yang cocok dengan struktur sekarang:
+  - Tabel `users` (email, hash password) dan kolom `orders.user_id` yang boleh kosong, sehingga checkout tamu tetap berjalan dan akun hanya menambah, bukan menggantikan.
+  - Pesanan tamu lama bisa ditautkan ke akun lewat email yang sudah terverifikasi (kolom `customer_email` sudah ada di setiap order).
+  - Verifikasi email dan reset password lewat n8n, memakai jalur outbox yang sudah ada untuk email konfirmasi.
+  - Sesi memakai pola token bertanda tangan seperti admin, tetapi disimpan di cookie `HttpOnly` (lihat [Batasan yang diketahui](#batasan-yang-diketahui)), dengan rute `/akun` dan `/akun/pesanan` di web.
+- **Pesan WhatsApp otomatis** (konfirmasi dan status pengiriman) lewat node WhatsApp Business Cloud di n8n, bila kredensial Meta tersedia.
+- **Halaman kategori per jenis koneksi** (eSIM, SIM Card, Portable WiFi) sebagai landing page sendiri, dan FAQ yang dikelola dari CMS.
 
 ## Alur kerja berbantuan AI
 
