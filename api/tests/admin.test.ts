@@ -158,4 +158,18 @@ describe("order & statistik", () => {
     expect(r.json.data.orders).toMatchObject({ cancelled: 1, pending: 1 });
     expect(r.json.data.paidRevenue).toBe(0);
   });
+  it("statistik: omzet 14 hari dan produk terlaris hanya dari pesanan lunas", async () => {
+    const o = await call("POST", "/orders", { name: "Rani", email: "rani@example.com", phone: "081234567890", items: [{ productId: "malaysia-esim-1", qty: 2 }] });
+    expect(o.status).toBe(201);
+    const before = await call("GET", "/admin/stats", undefined, auth);
+    expect(before.json.data.topProducts).toEqual([]);
+    expect(before.json.data.daily).toHaveLength(14);
+
+    await db.query("UPDATE orders SET status = 'paid', paid_at = now() WHERE id = $1", [o.json.data.orderId]);
+    const s = (await call("GET", "/admin/stats", undefined, auth)).json.data;
+    expect(s.topProducts[0]).toMatchObject({ productId: "malaysia-esim-1", units: 2 });
+    expect(s.daily).toHaveLength(14);
+    expect(s.daily[13]).toMatchObject({ orders: 1, revenue: s.paidRevenue });
+    expect(s.daily.slice(0, 13).every((d: { orders: number; revenue: number }) => d.orders === 0 && d.revenue === 0)).toBe(true);
+  });
 });

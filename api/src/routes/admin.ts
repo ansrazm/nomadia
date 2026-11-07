@@ -134,16 +134,38 @@ export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext =
   app.get("/admin/me", (c) => c.json({ data: { email: c.get("admin" as never) as string } }));
 
   app.get("/admin/stats", async (c) => {
-    const [orders, rev, cat] = await Promise.all([
+    const [orders, rev, cat, daily, top] = await Promise.all([
       db.query<{ status: string; n: number }>("SELECT status, count(*)::int AS n FROM orders GROUP BY status"),
       db.query<{ revenue: number }>("SELECT COALESCE(sum(total),0)::bigint AS revenue FROM orders WHERE status = 'paid'"),
       db.query<{ destinations: number; products: number; vouchers: number }>(
         "SELECT (SELECT count(*) FROM destinations)::int AS destinations, (SELECT count(*) FROM products WHERE active)::int AS products, (SELECT count(*) FROM vouchers WHERE active)::int AS vouchers",
       ),
+      // Omzet dan jumlah pesanan lunas per hari (zona Jakarta) untuk 14 hari terakhir, termasuk hari tanpa pesanan.
+      db.query<{ day: string; revenue: string; orders: number }>(
+        `SELECT to_char(g.d, 'YYYY-MM-DD') AS day, COALESCE(sum(o.total), 0)::bigint AS revenue, count(o.id)::int AS orders
+           FROM generate_series(((now() AT TIME ZONE 'Asia/Jakarta')::date - 13)::timestamp, (now() AT TIME ZONE 'Asia/Jakarta')::date::timestamp, interval '1 day') AS g(d)
+           LEFT JOIN orders o ON o.status = 'paid' AND (o.paid_at AT TIME ZONE 'Asia/Jakarta')::date = g.d::date
+          GROUP BY g.d ORDER BY g.d`,
+      ),
+      // Lima produk paling banyak terjual dari pesanan lunas. "gross" = harga satuan x jumlah, sebelum voucher.
+      db.query<{ product_id: string; name: string; units: number; gross: string }>(
+        `SELECT i.product_id, max(i.product_name) AS name, sum(i.qty)::int AS units, sum(i.qty * i.unit_price)::bigint AS gross
+           FROM order_items i JOIN orders o ON o.id = i.order_id
+          WHERE o.status = 'paid'
+          GROUP BY i.product_id ORDER BY units DESC, gross DESC, i.product_id LIMIT 5`,
+      ),
     ]);
     const byStatus = { pending: 0, paid: 0, expired: 0, cancelled: 0 } as Record<string, number>;
     for (const r of orders.rows) byStatus[r.status] = r.n;
-    return c.json({ data: { orders: byStatus, paidRevenue: Number(rev.rows[0]!.revenue), ...cat.rows[0] } });
+    return c.json({
+      data: {
+        orders: byStatus,
+        paidRevenue: Number(rev.rows[0]!.revenue),
+        ...cat.rows[0],
+        daily: daily.rows.map((r) => ({ day: r.day, revenue: Number(r.revenue), orders: r.orders })),
+        topProducts: top.rows.map((r) => ({ productId: r.product_id, name: r.name, units: r.units, gross: Number(r.gross) })),
+      },
+    });
   });
 
   // ---- Pengaturan: alur pembayaran ----
