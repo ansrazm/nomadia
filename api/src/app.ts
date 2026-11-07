@@ -28,7 +28,7 @@ export interface AppDeps {
 export function createApp({ db, corsOrigins, gateway = null, outbox = null, publicApiUrl = "http://localhost:4000", webUrl = "http://localhost:3000", checkoutFlow = "redirect", admin = null, rateLimit: rl = null }: AppDeps) {
   const app = new Hono();
 
-  app.use("*", cors({ origin: corsOrigins, allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"], maxAge: 600 }));
+  app.use("*", cors({ origin: corsOrigins, allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], maxAge: 600 }));
 
   app.get("/health", async (c) => {
     await db.query("SELECT 1");
