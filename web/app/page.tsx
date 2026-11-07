@@ -89,7 +89,7 @@ export default async function Home({ searchParams }: { searchParams: { type?: st
           {compare.map((c) => {
             const tone = cardTone[c.type];
             return (
-              <div key={c.type} className={`group relative flex flex-col rounded-3xl p-7 pt-14 shadow-lift transition-transform duration-300 hover:-translate-y-1 ${typeArtBg[c.type]} ${tone.text}`}>
+              <div key={c.type} className={`group relative flex flex-col rounded-3xl p-7 pt-20 shadow-lift transition-transform duration-300 hover:-translate-y-1 ${typeArtBg[c.type]} ${tone.text}`}>
                 {/* Ilustrasi menimpa tepi atas kartu supaya terasa seperti produk, bukan ikon. */}
                 <TypeArt type={c.type} className="pointer-events-none absolute -top-10 right-3 h-32 w-56 drop-shadow-xl transition-transform duration-300 group-hover:-rotate-2 group-hover:scale-105" />
                 <span className={`self-start rounded-full px-3 py-1 text-xs font-bold ${tone.badge}`}>{t(c.best)}</span>
