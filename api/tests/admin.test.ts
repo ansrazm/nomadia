@@ -3,7 +3,7 @@ import type { Db } from "../src/db/pool.js";
 import { signToken, verifyToken, LoginLimiter } from "../src/services/auth.js";
 import { appFor, freshDb } from "./helpers.js";
 
-const ADMIN = { email: "admin@nomadia.test", password: "kata-sandi-panjang-123", secret: "s".repeat(40) };
+const ADMIN = { email: "admin@nomadia.test", phone: "081234567890", password: "kata-sandi-panjang-123", secret: "s".repeat(40) };
 
 let db: Db;
 let call: ReturnType<typeof appFor>["call"];
@@ -41,7 +41,7 @@ describe("auth admin", () => {
     expect((await call("GET", "/admin/products", undefined, { Authorization: "Bearer salah" })).status).toBe(401);
   });
   it("login salah → 401 dengan pesan sama untuk email atau password salah", async () => {
-    const a = await call("POST", "/admin/login", { email: "x@y.z", password: ADMIN.password });
+    const a = await call("POST", "/admin/login", { email: "x@y.z", phone: "081234567890", password: ADMIN.password });
     const b = await call("POST", "/admin/login", { email: ADMIN.email, password: "salah" }, { "x-forwarded-for": "9.9.9.9" });
     expect(a.status).toBe(401);
     expect(b.status).toBe(401);
@@ -59,7 +59,7 @@ describe("auth admin", () => {
     expect(r.status).toBe(429);
   });
   it("tanpa konfigurasi admin, /admin tidak ada", async () => {
-    const r = await appFor(db).call("POST", "/admin/login", { email: "a", password: "b" });
+    const r = await appFor(db).call("POST", "/admin/login", { email: "a", phone: "081234567890", password: "b" });
     expect(r.status).toBe(404);
   });
 });
@@ -101,7 +101,7 @@ describe("destinasi & produk", () => {
     expect((await call("PATCH", "/admin/products/tidak-ada", { price: 1 }, auth)).status).toBe(404);
   });
   it("produk yang pernah dipesan tidak bisa dihapus (409), yang belum bisa", async () => {
-    const o = await call("POST", "/orders", { name: "Budi", email: "budi@example.com", items: [{ productId: "malaysia-esim-1", qty: 1 }] });
+    const o = await call("POST", "/orders", { name: "Budi", email: "budi@example.com", phone: "081234567890", items: [{ productId: "malaysia-esim-1", qty: 1 }] });
     expect(o.status).toBe(201);
     const r = await call("DELETE", "/admin/products/malaysia-esim-1", undefined, auth);
     expect(r.status).toBe(409);
@@ -124,7 +124,7 @@ describe("voucher", () => {
     expect((await call("DELETE", "/admin/vouchers/HEMAT25", undefined, auth)).status).toBe(200);
   });
   it("voucher yang dipakai order tidak bisa dihapus", async () => {
-    const o = await call("POST", "/orders", { name: "Sari", email: "sari@example.com", items: [{ productId: "malaysia-esim-1", qty: 1 }], voucher: "NOMAD10" });
+    const o = await call("POST", "/orders", { name: "Sari", email: "sari@example.com", phone: "081234567890", items: [{ productId: "malaysia-esim-1", qty: 1 }], voucher: "NOMAD10" });
     expect(o.status).toBe(201);
     expect((await call("DELETE", "/admin/vouchers/NOMAD10", undefined, auth)).status).toBe(409);
   });

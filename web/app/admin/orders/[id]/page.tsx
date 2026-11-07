@@ -7,6 +7,9 @@ import { adminFetch, errMsg, fmtDate, type AdminOrderDetail } from "@/lib/admin-
 import { idr } from "@/lib/format";
 import { Card, ConfirmModal, Notice, PageHead, StatusBadge } from "@/components/admin/ui";
 
+/** Tanggal tanpa jam (YYYY-MM-DD) ditampilkan apa adanya di UTC, supaya tidak bergeser sehari karena zona waktu browser. */
+const fmtDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("id-ID", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [o, setO] = useState<AdminOrderDetail | null>(null);
@@ -51,6 +54,11 @@ export default function OrderDetailPage() {
               {row("Status", <StatusBadge status={o.status} />)}
               {row("Pemesan", o.customerName)}
               {row("Email", o.customerEmail)}
+              {row("Telepon", o.customerPhone ? (
+                <span>{o.customerPhone} <a href={`https://wa.me/62${o.customerPhone.slice(1)}`} target="_blank" rel="noopener noreferrer" className="ml-2 text-deep underline">WhatsApp</a></span>
+              ) : "—")}
+              {o.departureDate && row("Tanggal berangkat", fmtDay(o.departureDate))}
+              {o.deliveryDetail && row(o.deliveryMethod === "pickup" ? "Titik ambil" : "Alamat pengiriman", <span className="block whitespace-pre-wrap text-right">{o.deliveryDetail}</span>)}
               {row("Dibuat", fmtDate(o.createdAt))}
               {row("Dibayar", fmtDate(o.paidAt))}
               {row("Referensi pembayaran", o.paymentRef ?? "—")}

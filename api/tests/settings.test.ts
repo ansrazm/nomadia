@@ -4,7 +4,7 @@ import type { CheckoutInput, DirectQrisInput, DirectQrisResult, PaymentGateway, 
 import { getCheckoutFlow, setCheckoutFlow } from "../src/services/settings.js";
 import { appFor, freshDb } from "./helpers.js";
 
-const ADMIN = { email: "admin@nomadia.test", password: "kata-sandi-panjang-123", secret: "s".repeat(40) };
+const ADMIN = { email: "admin@nomadia.test", phone: "081234567890", password: "kata-sandi-panjang-123", secret: "s".repeat(40) };
 
 /** Tiruan iPaymu yang mendukung kedua alur dan mencatat alur mana yang dipanggil. */
 class BothFlowsGateway implements PaymentGateway {
@@ -41,7 +41,7 @@ async function setup(extra: Parameters<typeof appFor>[1] = {}) {
   const { call } = appFor(db, { admin: ADMIN, ...extra });
   const login = await call("POST", "/admin/login", { email: ADMIN.email, password: ADMIN.password });
   const auth = { Authorization: `Bearer ${login.json.data.token}` };
-  const place = () => call("POST", "/orders", { name: "Budi", email: "budi@example.com", items: [{ productId: "jepang-esim-7", qty: 1 }] });
+  const place = () => call("POST", "/orders", { name: "Budi", email: "budi@example.com", phone: "081234567890", items: [{ productId: "jepang-esim-7", qty: 1 }] });
   return { call, auth, place };
 }
 

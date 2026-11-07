@@ -11,7 +11,7 @@ afterAll(() => db.end());
 beforeEach(async () => { await db.query("TRUNCATE orders CASCADE"); });
 
 const order = async (items: { productId: string; qty: number }[]) =>
-  (await call("POST", "/orders", { name: "Budi", email: "budi@example.com", items })).json.data.orderId as string;
+  (await call("POST", "/orders", { name: "Budi", email: "budi@example.com", phone: "081234567890", departureDate: new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10), delivery: { method: "ship", detail: "Jl. Contoh No. 1, Pekanbaru" }, items })).json.data.orderId as string;
 const payload = async (id: string) => (await db.query("SELECT payload FROM webhook_outbox WHERE order_id = $1", [id])).rows[0]?.payload;
 const pay = async (id: string) => {
   const total = (await db.query("SELECT total FROM orders WHERE id = $1", [id])).rows[0].total as number;

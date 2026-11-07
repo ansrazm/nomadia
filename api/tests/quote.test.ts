@@ -34,7 +34,7 @@ describe("POST /quote", () => {
   it("angka /quote selalu sama dengan angka POST /orders untuk keranjang yang sama", async () => {
     const cart = { items: [{ productId: "jepang-esim-7", qty: 3 }, { productId: "korea-selatan-wifi-3", qty: 1 }, { productId: "jepang-esim-7", qty: 1 }], voucher: "NOMAD10" };
     const q = await call("POST", "/quote", cart);
-    const o = await call("POST", "/orders", { name: "Budi", email: "budi@example.com", ...cart });
+    const o = await call("POST", "/orders", { name: "Budi", email: "budi@example.com", phone: "081234567890", departureDate: new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10), delivery: { method: "ship", detail: "Jl. Contoh No. 1, Pekanbaru" }, ...cart });
     expect(o.status).toBe(201);
     expect(o.json.data).toMatchObject({ subtotal: q.json.data.subtotal, discount: q.json.data.discount, total: q.json.data.total });
   });
@@ -70,8 +70,8 @@ describe("POST /quote", () => {
 
   it("produk kosong (sold_out) ditolak seperti produk yang tidak ada", async () => {
     await db.query("UPDATE products SET sold_out = true WHERE id = 'jepang-wifi-14'");
-    const r = await call("POST", "/quote", { items: [{ productId: "jepang-wifi-14", qty: 1 }] });
-    const o = await call("POST", "/orders", { name: "Budi", email: "budi@example.com", items: [{ productId: "jepang-wifi-14", qty: 1 }] });
+    const r = await call("POST", "/quote", { items: [{ productId: "jepang-wifi-14", qty: 1 }], departureDate: new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10), delivery: { method: "ship", detail: "Jl. Contoh No. 1, Pekanbaru" } });
+    const o = await call("POST", "/orders", { name: "Budi", email: "budi@example.com", phone: "081234567890", items: [{ productId: "jepang-wifi-14", qty: 1 }], departureDate: new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10), delivery: { method: "ship", detail: "Jl. Contoh No. 1, Pekanbaru" } });
     await db.query("UPDATE products SET sold_out = false WHERE id = 'jepang-wifi-14'");
     expect(r.status).toBe(422);
     expect(r.json.error.code).toBe("PRODUCT_NOT_FOUND");

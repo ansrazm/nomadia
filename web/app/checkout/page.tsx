@@ -10,10 +10,11 @@ import { useT } from "@/components/LanguageProvider";
 import { useCatalogText } from "@/components/useCatalogText";
 import { apiErrorMessage } from "@/lib/api-errors";
 import { TypeArt, typeArtBg } from "@/components/TypeArt";
-import { ApiRequestError, createOrder, quoteCart, type CheckoutResult, type Quote } from "@/lib/api";
+import { ApiRequestError, createOrder, getCheckoutFlow, quoteCart, type CheckoutResult, type Quote } from "@/lib/api";
 import { typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 import { markPendingOrder } from "@/lib/pending-order";
+import { isValidPhone, MIN_ADDRESS_LENGTH, todayISO } from "@/lib/order-details";
 
 function SectionHead({ n, title, hint }: { n: number; title: string; hint?: string }) {
   return (
@@ -35,6 +36,9 @@ const ICON_MAIL = "M3.5 6.5h17v11h-17zM3.5 7l8.5 6.5L20.5 7";
 const ICON_SHIELD = "M12 3.5 5 6.2v5.3c0 4.2 2.8 7.4 7 9 4.2-1.6 7-4.8 7-9V6.2zM9 12l2.2 2.2L15.2 10";
 const ICON_REFRESH = "M20 11a8 8 0 0 0-14-4.5L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4.5L20 15M20 20v-5h-5";
 const ICON_TRASH = "M5 7h14M10 7V5h4v2M7.5 7l.8 12h7.4l.8-12";
+
+type FieldErrors = { name?: string; email?: string; phone?: string; departureDate?: string; address?: string };
+const FIELD_ORDER: (keyof FieldErrors)[] = ["name", "email", "phone", "departureDate", "address"];
 
 function CheckoutForm() {
   const { items, setQty, remove } = useCart();
@@ -109,11 +113,23 @@ function CheckoutForm() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [departureDate, setDepartureDate] = useState("");
+  const [address, setAddress] = useState("");
+  // SIM Card dan Portable WiFi dikirim fisik, jadi butuh tanggal berangkat dan alamat. eSIM cukup email.
+  const needsDelivery = items.some((i) => i.type !== "esim");
+  // null = belum diketahui atau gagal diambil: tampilkan teks netral, bukan menebak alurnya.
+  const [flow, setFlow] = useState<"redirect" | "qris" | null>(null);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    getCheckoutFlow(ctrl.signal).then((f) => { if (!ctrl.signal.aborted) setFlow(f); });
+    return () => ctrl.abort();
+  }, []);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<CheckoutResult | null>(null);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<{ name?: string; email?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -124,12 +140,18 @@ function CheckoutForm() {
     e.preventDefault();
     setError("");
     setInfo("");
-    const fe: { name?: string; email?: string } = {};
+    const fe: FieldErrors = {};
     if (!name.trim()) fe.name = t("co.err.name");
     if (!/^\S+@\S+\.\S+$/.test(email)) fe.email = t("co.err.email");
+    if (!isValidPhone(phone)) fe.phone = t("co.err.phone");
+    if (needsDelivery) {
+      if (!departureDate || departureDate < todayISO()) fe.departureDate = t("co.err.dep");
+      if (address.trim().length < MIN_ADDRESS_LENGTH) fe.address = t("co.err.addr");
+    }
     setFieldErrors(fe);
-    if (fe.name || fe.email) {
-      document.getElementById(fe.name ? "name" : "email")?.focus();
+    const firstBad = FIELD_ORDER.find((k) => fe[k]);
+    if (firstBad) {
+      document.getElementById(firstBad === "departureDate" ? "departure" : firstBad)?.focus();
       return;
     }
     if (!canPay) return setError(t("co.err.total"));
@@ -143,7 +165,10 @@ function CheckoutForm() {
     }
     setBusy(true);
     try {
-      const r = await createOrder({ name, email, items, voucher });
+      const r = await createOrder({
+        name, email, phone: phone.trim(), items, voucher,
+        ...(needsDelivery ? { departureDate, delivery: { method: "ship" as const, detail: address.trim() } } : {}),
+      });
       if (r.qr) {
         // QRIS Direct: QR tampil di halaman pesanan sendiri. Keranjang tetap ada sampai pesanan lunas.
         markPendingOrder(r.orderId);
@@ -158,8 +183,23 @@ function CheckoutForm() {
       }
       setResult(r);
     } catch (err) {
-      // Galat 4xx dari server membawa pesan yang jelas; selain itu anggap masalah koneksi.
-      setError(apiErrorMessage(err, t, t("co.err.createFail")));
+      // Server menjadi penentu terakhir: galat per field dipetakan ke kolomnya, bukan satu pesan umum.
+      const serverFields = err instanceof ApiRequestError && err.code === "VALIDATION_FAILED" ? (err.details as Record<string, unknown> | undefined) : undefined;
+      const fe: FieldErrors = {};
+      if (serverFields?.phone) fe.phone = t("co.err.phone");
+      if (serverFields?.departureDate) fe.departureDate = t("co.err.dep");
+      if (serverFields?.delivery) fe.address = t("co.err.addr");
+      if (serverFields?.name) fe.name = t("co.err.name");
+      if (serverFields?.email) fe.email = t("co.err.email");
+      if (Object.keys(fe).length) {
+        setFieldErrors(fe);
+        setError(t("co.err.fixFields"));
+        const firstBad = FIELD_ORDER.find((k) => fe[k]);
+        document.getElementById(firstBad === "departureDate" ? "departure" : firstBad ?? "name")?.focus();
+      } else {
+        // Galat 4xx dari server membawa pesan yang jelas; selain itu anggap masalah koneksi.
+        setError(apiErrorMessage(err, t, t("co.err.createFail")));
+      }
     } finally {
       setBusy(false);
     }
@@ -255,25 +295,51 @@ function CheckoutForm() {
               <input id="email" type="email" inputMode="email" value={email} onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined })); }} autoComplete="email" placeholder={t("co.emailPh")} aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? "email-err" : undefined} className={inputCls(fieldErrors.email)} />
               {fieldErrors.email && <p id="email-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.email}</p>}
             </div>
+            <div>
+              <label htmlFor="phone" className="text-sm font-semibold">{t("co.phone")}</label>
+              <input id="phone" type="tel" inputMode="tel" value={phone} onChange={(e) => { setPhone(e.target.value); if (fieldErrors.phone) setFieldErrors((f) => ({ ...f, phone: undefined })); }} autoComplete="tel" placeholder={t("co.phonePh")} aria-invalid={!!fieldErrors.phone} aria-describedby={fieldErrors.phone ? "phone-err" : "phone-hint"} className={inputCls(fieldErrors.phone)} />
+              {fieldErrors.phone ? <p id="phone-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.phone}</p> : <p id="phone-hint" className="mt-1.5 text-xs text-ink/55">{t("co.phoneHint")}</p>}
+            </div>
+            {needsDelivery && (
+              <div>
+                <label htmlFor="departure" className="text-sm font-semibold">{t("co.dep")}</label>
+                <input id="departure" type="date" min={todayISO()} value={departureDate} onChange={(e) => { setDepartureDate(e.target.value); if (fieldErrors.departureDate) setFieldErrors((f) => ({ ...f, departureDate: undefined })); }} aria-invalid={!!fieldErrors.departureDate} aria-describedby={fieldErrors.departureDate ? "departure-err" : "departure-hint"} className={inputCls(fieldErrors.departureDate)} />
+                {fieldErrors.departureDate ? <p id="departure-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.departureDate}</p> : <p id="departure-hint" className="mt-1.5 text-xs text-ink/55">{t("co.depHint")}</p>}
+              </div>
+            )}
+            {needsDelivery && (
+              <div className="sm:col-span-2">
+                <label htmlFor="address" className="text-sm font-semibold">{t("co.addr")}</label>
+                <textarea id="address" rows={3} maxLength={300} value={address} onChange={(e) => { setAddress(e.target.value); if (fieldErrors.address) setFieldErrors((f) => ({ ...f, address: undefined })); }} autoComplete="street-address" placeholder={t("co.addrPh")} aria-invalid={!!fieldErrors.address} aria-describedby={fieldErrors.address ? "address-err" : "address-hint"} className={`${inputCls(fieldErrors.address)} resize-y`} />
+                {fieldErrors.address ? <p id="address-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.address}</p> : <p id="address-hint" className="mt-1.5 text-xs text-ink/55">{t("co.addrHint")}</p>}
+              </div>
+            )}
           </div>
         </section>
 
         {/* 3. Pembayaran */}
         <section className="rounded-3xl border border-line bg-white p-5 sm:p-7" aria-labelledby="sec-pay">
-          <div id="sec-pay"><SectionHead n={3} title={t("co.s3.title")} hint={t("co.s3.hint")} /></div>
-          <ol className="mt-5 grid gap-3 sm:grid-cols-3">
-            {[
-              { t: t("co.pay1.t"), d: t("co.pay1.d"), icon: ICON_SHIELD },
-              { t: t("co.pay2.t"), d: t("co.pay2.d"), icon: ICON_REFRESH },
-              { t: t("co.pay3.t"), d: t("co.pay3.d"), icon: ICON_MAIL },
-            ].map((x, k) => (
+          <div id="sec-pay"><SectionHead n={3} title={t("co.s3.title")} hint={flow === "qris" ? t("co.s3.hintQris") : flow === "redirect" ? t("co.s3.hint") : t("co.s3.hintNeutral")} /></div>
+          {flow && <ol className="mt-5 grid gap-3 sm:grid-cols-3">
+            {(flow === "qris"
+              ? [
+                  { t: t("co.payq1.t"), d: t("co.payq1.d"), icon: ICON_SHIELD },
+                  { t: t("co.payq2.t"), d: t("co.payq2.d"), icon: ICON_REFRESH },
+                  { t: t("co.pay3.t"), d: t("co.pay3.d"), icon: ICON_MAIL },
+                ]
+              : [
+                  { t: t("co.pay1.t"), d: t("co.pay1.d"), icon: ICON_SHIELD },
+                  { t: t("co.pay2.t"), d: t("co.pay2.d"), icon: ICON_REFRESH },
+                  { t: t("co.pay3.t"), d: t("co.pay3.d"), icon: ICON_MAIL },
+                ]
+            ).map((x, k) => (
               <li key={x.icon} className="rounded-2xl bg-mist p-4">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-ink text-signal"><Icon d={x.icon} /></span>
                 <p className="mt-3 text-sm font-semibold"><span className="text-ink/40">{k + 1}. </span>{x.t}</p>
                 <p className="mt-1 text-xs leading-relaxed text-ink/60">{x.d}</p>
               </li>
             ))}
-          </ol>
+          </ol>}
           {error && <p role="alert" className="mt-5 rounded-xl bg-coral/10 px-4 py-3 text-sm font-medium text-coral">{error}</p>}
           {info && <p role="status" className="mt-5 rounded-xl bg-lagoon/15 px-4 py-3 text-sm font-medium text-deep">{info}</p>}
         </section>

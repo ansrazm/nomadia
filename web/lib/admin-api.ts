@@ -66,7 +66,7 @@ export interface AdminDestination { slug: string; name: string; code: string; re
 export interface AdminProduct { id: string; destSlug: string; type: "esim" | "sim" | "wifi"; name: string; days: number; data: string; price: number; note: string; active: boolean; soldOut: boolean }
 export interface AdminVoucher { code: string; percent: number; active: boolean; used?: number }
 export type OrderStatus = "pending" | "paid" | "expired" | "cancelled";
-export interface AdminOrder { id: string; status: OrderStatus; customerName: string; customerEmail: string; subtotal: number; discount: number; total: number; voucher: string | null; createdAt: string; paidAt: string | null }
+export interface AdminOrder { id: string; status: OrderStatus; customerName: string; customerEmail: string; customerPhone: string | null; departureDate: string | null; deliveryMethod: "ship" | "pickup" | null; deliveryDetail: string | null; subtotal: number; discount: number; total: number; voucher: string | null; createdAt: string; paidAt: string | null }
 export interface AdminOrderDetail extends AdminOrder { paymentRef: string | null; paymentUrl: string | null; items: { productId: string; name: string; unitPrice: number; qty: number }[] }
 export type CheckoutFlow = "redirect" | "qris";
 export interface AdminSettings {

@@ -10,8 +10,11 @@ export interface CheckoutUrls {
   webUrl: string;
 }
 
-// iPaymu mewajibkan nomor telepon; form checkout belum mengumpulkannya.
-const PLACEHOLDER_PHONE = "081234567890";
+/** iPaymu mewajibkan nomor telepon. createOrder sudah mewajibkannya, jadi order tanpa nomor di titik ini berarti ada bug: gagal keras, jangan kirim nomor palsu. */
+function buyerPhoneOf(order: Order): string {
+  if (!order.customerPhone) throw new Error(`Order ${order.id} tidak punya nomor HP; seharusnya ditolak saat dibuat.`);
+  return order.customerPhone;
+}
 
 /** Order batal bila pembayaran gagal dibuat, supaya tidak menggantung pending tanpa cara membayar. */
 async function abortCheckout(db: Db, order: Order, e: unknown): Promise<never> {
@@ -32,7 +35,7 @@ export async function startCheckout(db: Db, gateway: PaymentGateway, order: Orde
       summary: order.items.map((i) => `${i.name} x${i.qty}`).join(", "),
       buyerName: order.customerName,
       buyerEmail: order.customerEmail,
-      buyerPhone: PLACEHOLDER_PHONE,
+      buyerPhone: buyerPhoneOf(order),
       returnUrl: `${urls.webUrl}/orders/${order.id}`,
       cancelUrl: `${urls.webUrl}/orders/${order.id}?cancelled=1`,
       notifyUrl: `${urls.publicApiUrl}/webhooks/ipaymu`,
@@ -58,7 +61,7 @@ export async function startQrisCheckout(db: Db, gateway: PaymentGateway, order: 
       total: order.total,
       buyerName: order.customerName,
       buyerEmail: order.customerEmail,
-      buyerPhone: PLACEHOLDER_PHONE,
+      buyerPhone: buyerPhoneOf(order),
       notifyUrl: `${urls.publicApiUrl}/webhooks/ipaymu`,
     });
     let imageUrl = r.qrImage;

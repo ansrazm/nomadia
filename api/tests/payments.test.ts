@@ -46,7 +46,7 @@ beforeEach(async () => {
 });
 
 const placeOrder = async (over: Record<string, unknown> = {}) => {
-  const r = await call("POST", "/orders", { name: "Budi", email: "budi@example.com", items: [{ productId: "jepang-esim-7", qty: 2 }], ...over });
+  const r = await call("POST", "/orders", { name: "Budi", email: "budi@example.com", phone: "081234567890", items: [{ productId: "jepang-esim-7", qty: 2 }], ...over });
   return r;
 };
 const status = async (id: string) => (await db.query("SELECT status FROM orders WHERE id = $1", [id])).rows[0]?.status as string;

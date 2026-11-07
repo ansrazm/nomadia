@@ -43,7 +43,7 @@ beforeEach(async () => {
   call = appFor(db, { gateway: gw, checkoutFlow: "qris", publicApiUrl: "https://api.test", webUrl: "https://web.test" }).call;
 });
 
-const place = () => call("POST", "/orders", { name: "Budi", email: "budi@example.com", items: [{ productId: "jepang-esim-7", qty: 2 }] });
+const place = () => call("POST", "/orders", { name: "Budi", email: "budi@example.com", phone: "081234567890", items: [{ productId: "jepang-esim-7", qty: 2 }] });
 
 describe("alur QRIS Direct (IPAYMU_FLOW=qris)", () => {
   it("POST /orders: tanpa paymentUrl, ada qr; referenceId = nomor order; notifyUrl ke webhook; QRIS tidak mengirim expired", async () => {
@@ -59,7 +59,7 @@ describe("alur QRIS Direct (IPAYMU_FLOW=qris)", () => {
   it("URL gambar iPaymu diselesaikan jadi data URI sebelum disimpan, sehingga <img> bisa menampilkannya", async () => {
     const rg = new ResolvingGateway();
     const c = appFor(db, { gateway: rg, checkoutFlow: "qris", publicApiUrl: "https://api.test", webUrl: "https://web.test" }).call;
-    const r = await c("POST", "/orders", { name: "Budi", email: "budi@example.com", items: [{ productId: "jepang-esim-7", qty: 1 }] });
+    const r = await c("POST", "/orders", { name: "Budi", email: "budi@example.com", phone: "081234567890", items: [{ productId: "jepang-esim-7", qty: 1 }] });
     expect(r.json.data.qr.imageUrl).toBe(DATA_URI);
     expect(rg.resolved).toEqual([expect.stringMatching(/^https:\/\/sandbox\.ipaymu\.com\/qris-basic\//)]);
     const g = await c("GET", `/orders/${r.json.data.orderId}`);
@@ -111,7 +111,7 @@ describe("alur QRIS Direct (IPAYMU_FLOW=qris)", () => {
   it("alur redirect (default) tidak berubah: qr null, paymentUrl dari createCheckout", async () => {
     const redirectGw = Object.assign(new QrisGateway(), { createCheckout: async (i: CheckoutInput) => ({ sessionId: "S-1", url: "https://sandbox.ipaymu.com/payment/S-1" }) });
     const c = appFor(db, { gateway: redirectGw }).call;
-    const r = await c("POST", "/orders", { name: "Budi", email: "budi@example.com", items: [{ productId: "jepang-esim-7", qty: 1 }] });
+    const r = await c("POST", "/orders", { name: "Budi", email: "budi@example.com", phone: "081234567890", items: [{ productId: "jepang-esim-7", qty: 1 }] });
     expect(r.json.data.paymentUrl).toBe("https://sandbox.ipaymu.com/payment/S-1");
     expect(r.json.data.qr).toBeNull();
   });

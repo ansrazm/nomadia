@@ -18,7 +18,7 @@ beforeEach(async () => {
 const count = async (t: string) => (await db.query(`SELECT count(*)::int AS n FROM ${t}`)).rows[0].n as number;
 const valid = (over: Record<string, unknown> = {}) => ({
   name: "Budi Santoso",
-  email: "Budi@Example.com",
+  email: "Budi@Example.com", phone: "081234567890",
   items: [{ productId: "jepang-esim-7", qty: 2 }],
   ...over,
 });

@@ -3,6 +3,11 @@ import type { CartItem } from "@/components/CartProvider";
 export interface CheckoutPayload {
   name: string;
   email: string;
+  phone: string;
+  /** YYYY-MM-DD. Wajib bila keranjang berisi SIM Card atau Portable WiFi. */
+  departureDate?: string;
+  /** Alamat pengiriman. Wajib bila keranjang berisi SIM Card atau Portable WiFi. */
+  delivery?: { method: "ship"; detail: string };
   items: CartItem[];
   voucher?: string;
 }
@@ -43,6 +48,9 @@ export async function createOrder(payload: CheckoutPayload): Promise<CheckoutRes
     body: JSON.stringify({
       name: payload.name,
       email: payload.email,
+      phone: payload.phone,
+      departureDate: payload.departureDate,
+      delivery: payload.delivery,
       voucher: payload.voucher,
       items: payload.items.map((i) => ({ productId: i.id, qty: i.qty })),
     }),
@@ -117,4 +125,20 @@ export async function getOrder(id: string): Promise<OrderView | null> {
   const json = await res.json().catch(() => null);
   if (!res.ok) throw new ApiRequestError(res.status, json?.error?.code ?? "UNKNOWN", json?.error?.message ?? "Permintaan gagal.", json?.error?.details);
   return json.data as OrderView;
+}
+
+/**
+ * GET {API_URL}/checkout-config: alur bayar yang aktif ("redirect" = halaman iPaymu, "qris" = QR di halaman pesanan).
+ * null bila gagal diambil, supaya checkout tetap tampil dengan teks netral dan bukan teks yang salah.
+ */
+export async function getCheckoutFlow(signal?: AbortSignal): Promise<"redirect" | "qris" | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await fetch(`${API_URL}/checkout-config`, { cache: "no-store", ...(signal ? { signal } : {}) });
+    if (!res.ok) return null;
+    const flow = (await res.json())?.data?.checkoutFlow;
+    return flow === "redirect" || flow === "qris" ? flow : null;
+  } catch {
+    return null;
+  }
 }
