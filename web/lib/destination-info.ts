@@ -2,6 +2,7 @@ import { Product, ProductType, typeInfo } from "./catalog-types";
 import { idr } from "./format";
 import type { Faq } from "./faq";
 import type { Lang, TFn } from "./i18n/messages";
+import { localizeProductName } from "./i18n/catalog-text";
 
 /** Urutan tampil jenis koneksi di seluruh halaman destinasi. */
 export const typeOrder: ProductType[] = ["esim", "sim", "wifi"];
@@ -116,7 +117,7 @@ export const getCompareRows = (t: TFn): { label: string; values: Record<ProductT
 ];
 
 /** FAQ khusus satu destinasi. Semua angka dan nama jaringan berasal dari data destinasi yang sedang dibuka. */
-export function destinationFaqs(d: { name: string; network: string }, products: Product[], t: TFn): Faq[] {
+export function destinationFaqs(d: { name: string; network: string }, products: Product[], t: TFn, lang: Lang): Faq[] {
   const stats = typeStats(products);
   const present = typeOrder.filter((ty) => stats[ty]);
   const cheapest = products.reduce((a, b) => (b.price < a.price ? b : a));
@@ -130,7 +131,7 @@ export function destinationFaqs(d: { name: string; network: string }, products: 
         detail: present.map((ty) => `${typeInfo[ty].label}: ${daysLabel(stats[ty]!.days, t)}`).join(". "),
       }),
     },
-    { q: t("dfaq.q.price", v), a: t("dfaq.a.price", { price: idr(cheapest.price), plan: cheapest.name }) },
+    { q: t("dfaq.q.price", v), a: t("dfaq.a.price", { price: idr(cheapest.price), plan: localizeProductName(cheapest.name, lang) }) },
   ];
   if (stats.esim) list.push({ q: t("dfaq.q.esim", v), a: t("dfaq.a.esim") });
   if (stats.wifi) list.push({ q: t("dfaq.q.wifi"), a: t("dfaq.a.wifi", v) });

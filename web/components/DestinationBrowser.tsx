@@ -18,7 +18,7 @@ export function DestinationBrowser({ destinations, type = null }: { destinations
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return destinations.filter(
-      (d) => (region === null || d.region === region) && (!q || d.name.toLowerCase().includes(q) || d.network.toLowerCase().includes(q) || d.region.toLowerCase().includes(q)),
+      (d) => (region === null || d.region === region) && (!q || d.name.toLowerCase().includes(q) || (d.nameId ?? "").toLowerCase().includes(q) || d.network.toLowerCase().includes(q) || d.region.toLowerCase().includes(q)),
     );
   }, [destinations, query, region]);
   const shownRegions = regions.filter((r) => filtered.some((d) => d.region === r));

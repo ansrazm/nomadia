@@ -30,7 +30,7 @@ export function Hero({ destinations, homeBannerUrl = null }: { destinations: Des
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return destinations.filter((d) => !q || d.name.toLowerCase().includes(q) || d.region.toLowerCase().includes(q)).slice(0, 6);
+    return destinations.filter((d) => !q || d.name.toLowerCase().includes(q) || (d.nameId ?? "").toLowerCase().includes(q) || d.region.toLowerCase().includes(q)).slice(0, 6);
   }, [query, destinations]);
 
   // Latar hero: banner destinasi yang dipilih; sebelum memilih, banner beranda dari admin, lalu banner destinasi

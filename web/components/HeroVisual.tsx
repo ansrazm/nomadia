@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { SignalBars } from "./SignalBars";
 import { DestinationSummary, flagUrl } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
+import { useT } from "./LanguageProvider";
 
 const N = 21;
 
@@ -32,6 +33,7 @@ function Finder({ x, y }: { x: number; y: number }) {
 
 /** Mockup ponsel berisi kartu eSIM. Mengikuti destinasi yang sedang dipilih di pencarian. */
 export function HeroVisual({ dest, level }: { dest: DestinationSummary; level: number }) {
+  const t = useT();
   const cells = useQrCells();
   return (
     <div className="relative mx-auto w-[17rem]" aria-hidden>
@@ -81,10 +83,10 @@ export function HeroVisual({ dest, level }: { dest: DestinationSummary; level: n
             </div>
 
             <div className="mt-4 flex items-center justify-between rounded-xl bg-white/5 px-3 py-2.5">
-              <span className="text-xs text-white/60">Mulai dari</span>
+              <span className="text-xs text-white/60">{t("detail.startFrom")}</span>
               <span className="font-display text-base font-bold text-signal">{dest.startingPrice != null ? idr(dest.startingPrice) : "–"}</span>
             </div>
-            <div className="mt-3 rounded-full bg-signal py-2.5 text-center text-sm font-bold text-ink">Pindai untuk aktifkan</div>
+            <div className="mt-3 rounded-full bg-signal py-2.5 text-center text-sm font-bold text-ink">{t("hero.scan")}</div>
           </div>
         </motion.div>
       </motion.div>

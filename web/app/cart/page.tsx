@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { useCart } from "@/components/CartProvider";
 import { useT } from "@/components/LanguageProvider";
+import { useCatalogText } from "@/components/useCatalogText";
+import { apiErrorMessage } from "@/lib/api-errors";
 import { TypeArt, typeArtBg } from "@/components/TypeArt";
 import { ApiRequestError, quoteCart, type Quote } from "@/lib/api";
 import { typeInfo } from "@/lib/catalog-types";
@@ -28,6 +30,7 @@ const ICON_CART = "M3.5 4.5h2.2l2 11h9.6l2-8H7M10 20h.01M17 20h.01";
 export default function CartPage() {
   const { items, setQty, remove } = useCart();
   const t = useT();
+  const ct = useCatalogText();
   const router = useRouter();
   const [code, setCode] = useState("");
   const [applied, setApplied] = useState<string | null>(null);
@@ -59,7 +62,7 @@ export default function CartPage() {
         if (err instanceof ApiRequestError && err.code === "VOUCHER_INVALID") {
           // Voucher yang tadinya sah sudah tidak berlaku: lepas dan hitung ulang tanpa voucher.
           setApplied(null);
-          setVoucherError(err.message);
+          setVoucherError(apiErrorMessage(err, t, t("cart.voucherCheckFail")));
           return;
         }
         if (err instanceof ApiRequestError && err.code === "PRODUCT_NOT_FOUND") {
@@ -103,7 +106,7 @@ export default function CartPage() {
       return q.voucher?.code ?? null;
     } catch (err) {
       setApplied(null);
-      setVoucherError(err instanceof ApiRequestError && err.status < 500 ? err.message : t("cart.voucherCheckFail"));
+      setVoucherError(apiErrorMessage(err, t, t("cart.voucherCheckFail")));
       return null;
     } finally {
       setQuoting(false);
@@ -173,7 +176,7 @@ export default function CartPage() {
                       <li key={i.id} className="flex flex-wrap items-center gap-x-4 gap-y-3 py-4 first:pt-0 last:pb-0">
                         <div className={`h-16 w-16 shrink-0 overflow-hidden rounded-2xl ${gone ? "opacity-40" : ""} ${typeArtBg[i.type]}`}><TypeArt type={i.type} fit="slice" className="h-full w-full" /></div>
                         <div className="min-w-0 flex-1 basis-52">
-                          <p className={`font-semibold leading-snug ${gone ? "text-coral" : ""}`}>{i.name}</p>
+                          <p className={`font-semibold leading-snug ${gone ? "text-coral" : ""}`}>{ct.name(i.name)}</p>
                           <p className="mt-0.5 text-sm text-ink/60">
                             {typeInfo[i.type].label} · {t("cart.perPackage", { price: idr(unit) })}
                             {gone && <span className="font-medium text-coral">{t("cart.gone")}</span>}
@@ -182,12 +185,12 @@ export default function CartPage() {
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="inline-flex items-center rounded-full border border-line">
-                            <button aria-label={t("cart.dec", { name: i.name })} className="h-9 w-9 text-lg" onClick={() => setQty(i.id, i.qty - 1)}>−</button>
+                            <button aria-label={t("cart.dec", { name: ct.name(i.name) })} className="h-9 w-9 text-lg" onClick={() => setQty(i.id, i.qty - 1)}>−</button>
                             <span className="w-6 text-center font-semibold" aria-live="polite">{i.qty}</span>
-                            <button aria-label={t("cart.inc", { name: i.name })} className="h-9 w-9 text-lg" onClick={() => setQty(i.id, i.qty + 1)}>+</button>
+                            <button aria-label={t("cart.inc", { name: ct.name(i.name) })} className="h-9 w-9 text-lg" onClick={() => setQty(i.id, i.qty + 1)}>+</button>
                           </div>
                           <p className="w-28 text-right font-display text-lg font-bold">{idr(unit * i.qty)}</p>
-                          <button aria-label={t("cart.remove", { name: i.name })} className="rounded-full p-2 text-ink/40 hover:bg-coral/10 hover:text-coral" onClick={() => remove(i.id)}><Icon d={ICON_TRASH} className="h-5 w-5" /></button>
+                          <button aria-label={t("cart.remove", { name: ct.name(i.name) })} className="rounded-full p-2 text-ink/40 hover:bg-coral/10 hover:text-coral" onClick={() => remove(i.id)}><Icon d={ICON_TRASH} className="h-5 w-5" /></button>
                         </div>
                       </li>
                     );

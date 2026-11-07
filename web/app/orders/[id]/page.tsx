@@ -6,6 +6,9 @@ import { useParams, useSearchParams } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { CheckoutSteps } from "@/components/CheckoutSteps";
 import { useCart } from "@/components/CartProvider";
+import { useT } from "@/components/LanguageProvider";
+import { useCatalogText } from "@/components/useCatalogText";
+import type { TFn } from "@/lib/i18n/messages";
 import { getOrder, OrderQr, OrderView } from "@/lib/api";
 import { idr } from "@/lib/format";
 import { consumePendingOrder } from "@/lib/pending-order";
@@ -13,27 +16,28 @@ import { consumePendingOrder } from "@/lib/pending-order";
 const POLL_MS = 4000;
 
 const STATUS_BADGE = {
-  pending: { label: "Menunggu pembayaran", cls: "bg-signal/25 text-[#7a5a00]" },
-  paid: { label: "Lunas", cls: "bg-emerald-100 text-emerald-800" },
-  expired: { label: "Kedaluwarsa", cls: "bg-slate-200 text-slate-700" },
-  cancelled: { label: "Dibatalkan", cls: "bg-coral/15 text-coral" },
+  pending: "bg-signal/25 text-[#7a5a00]",
+  paid: "bg-emerald-100 text-emerald-800",
+  expired: "bg-slate-200 text-slate-700",
+  cancelled: "bg-coral/15 text-coral",
 } as const;
 
-function fmtRemaining(ms: number): string {
-  const t = Math.max(0, Math.floor(ms / 1000));
-  const h = Math.floor(t / 3600);
-  const mm = String(Math.floor((t % 3600) / 60)).padStart(2, "0");
-  const ss = String(t % 60).padStart(2, "0");
-  return h > 0 ? `${h} jam ${mm} menit` : `${mm}:${ss}`;
+function fmtRemaining(ms: number, t: TFn): string {
+  const sec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(sec / 3600);
+  const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+  const ss = String(sec % 60).padStart(2, "0");
+  return h > 0 ? t("time.hm", { h, m: mm }) : `${mm}:${ss}`;
 }
 
 /** QRIS Direct: QR di halaman sendiri dengan hitung mundur dari waktu kedaluwarsa yang diberikan iPaymu. */
 function QrPanel({ qr, total }: { qr: OrderQr; total: number }) {
+  const t = useT();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!qr.expiresAt) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
   }, [qr.expiresAt]);
 
   const [imgBroken, setImgBroken] = useState(false);
@@ -41,9 +45,9 @@ function QrPanel({ qr, total }: { qr: OrderQr; total: number }) {
   if (remaining !== null && remaining <= 0) {
     return (
       <div className="mt-6 rounded-2xl bg-mist p-6 text-center" role="alert">
-        <p className="font-semibold">QR sudah kedaluwarsa.</p>
-        <p className="mt-1 text-sm text-ink/70">Kalau kamu belum membayar, buat pesanan baru dari keranjang. Kalau sudah membayar, halaman ini akan berubah sendiri begitu pembayaran terkonfirmasi.</p>
-        <Link href="/cart" className="btn-signal mt-4">Kembali ke keranjang</Link>
+        <p className="font-semibold">{t("qr.expired")}</p>
+        <p className="mt-1 text-sm text-ink/70">{t("qr.expiredBody")}</p>
+        <Link href="/cart" className="btn-signal mt-4">{t("qr.backCart")}</Link>
       </div>
     );
   }
@@ -51,21 +55,22 @@ function QrPanel({ qr, total }: { qr: OrderQr; total: number }) {
     <div className="mt-6 rounded-2xl bg-mist p-6 text-center">
       {imgBroken ? (
         <div className="mx-auto flex h-64 w-64 flex-col items-center justify-center gap-3 rounded-xl bg-white p-4 text-sm" role="alert">
-          <p>Gambar QR tidak bisa ditampilkan di sini.</p>
-          {/^https?:/.test(qr.imageUrl) && <a href={qr.imageUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-deep underline">Buka QR di tab baru</a>}
+          <p>{t("qr.imgBroken")}</p>
+          {/^https?:/.test(qr.imageUrl) && <a href={qr.imageUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-deep underline">{t("qr.openTab")}</a>}
         </div>
       ) : (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={qr.imageUrl} onError={() => setImgBroken(true)} alt={`Kode QRIS untuk membayar ${idr(total)}`} width={256} height={256} className="mx-auto h-64 w-64 rounded-xl bg-white object-contain p-2" />
+        <img src={qr.imageUrl} onError={() => setImgBroken(true)} alt={t("qr.alt", { total: idr(total) })} width={256} height={256} className="mx-auto h-64 w-64 rounded-xl bg-white object-contain p-2" />
       )}
-      <p className="mt-4 font-display text-xl font-bold">Bayar {idr(total)}</p>
-      <p className="mt-1 text-sm text-ink/70">Scan dengan aplikasi bank atau e-wallet yang mendukung QRIS.</p>
-      {remaining !== null && <p className="mt-3 text-sm font-semibold" aria-live="off">Berlaku {fmtRemaining(remaining)} lagi</p>}
+      <p className="mt-4 font-display text-xl font-bold">{t("qr.pay", { total: idr(total) })}</p>
+      <p className="mt-1 text-sm text-ink/70">{t("qr.scan")}</p>
+      {remaining !== null && <p className="mt-3 text-sm font-semibold" aria-live="off">{t("qr.remaining", { time: fmtRemaining(remaining, t) })}</p>}
     </div>
   );
 }
 
 function CopyOrderId({ id }: { id: string }) {
+  const t = useT();
   const [done, setDone] = useState(false);
   return (
     <button
@@ -74,7 +79,7 @@ function CopyOrderId({ id }: { id: string }) {
       className="ml-2 rounded-full border border-line px-2.5 py-0.5 text-xs font-semibold text-deep hover:border-lagoon"
       aria-live="polite"
     >
-      {done ? "Tersalin ✓" : "Salin"}
+      {done ? t("promo.copied") : t("order.copy")}
     </button>
   );
 }
@@ -85,6 +90,8 @@ function OrderStatus() {
   const [order, setOrder] = useState<OrderView | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const { settle } = useCart();
+  const t = useT();
+  const ct = useCatalogText();
 
   // Redirect: pengguna kembali dari iPaymu (bukan batal), pesanan sudah di tangan iPaymu, jadi barisnya keluar dari keranjang.
   // QRIS: keranjang dipertahankan sampai lunas, supaya QR yang kedaluwarsa bisa diganti tanpa mengisi ulang keranjang.
@@ -117,73 +124,74 @@ function OrderStatus() {
     return () => { stop = true; clearTimeout(timer); };
   }, [id]);
 
-  if (order === undefined) return <p>{failed ? "Gagal memuat pesanan. Mencoba lagi…" : "Memuat pesanan…"}</p>;
+  if (order === undefined) return <p>{failed ? t("order.loadFail") : t("order.loading")}</p>;
   if (order === null) {
     return (
       <div className="rounded-3xl border border-line bg-white p-10 text-center">
-        <p className="font-display text-2xl font-bold">Pesanan tidak ditemukan</p>
-        <Link href="/" className="btn-signal mt-6">Kembali ke beranda</Link>
+        <p className="font-display text-2xl font-bold">{t("order.notFound")}</p>
+        <Link href="/" className="btn-signal mt-6">{t("co.backHome")}</Link>
       </div>
     );
   }
 
   const headline = {
-    pending: cancelled ? "Pembayaran belum diselesaikan" : "Menunggu pembayaran",
-    paid: "Pembayaran diterima",
-    expired: "Waktu pembayaran habis",
-    cancelled: "Pesanan dibatalkan",
+    pending: cancelled ? t("order.head.pendingCancelled") : t("order.head.pending"),
+    paid: t("order.head.paid"),
+    expired: t("order.head.expired"),
+    cancelled: t("order.head.cancelled"),
   }[order.status];
 
   return (
     <div className="mx-auto max-w-2xl rounded-3xl border border-line bg-white p-8 sm:p-10">
       <CheckoutSteps current={order.status === "paid" ? 4 : 2} tone="light" />
       <div className="mt-6 flex flex-wrap items-center gap-2">
-        <p className="text-sm font-semibold text-ink/60">Nomor pesanan {order.id}<CopyOrderId id={order.id} /></p>
-        <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_BADGE[order.status].cls}`}>{STATUS_BADGE[order.status].label}</span>
+        <p className="text-sm font-semibold text-ink/60">{t("order.number", { id: order.id })}<CopyOrderId id={order.id} /></p>
+        <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_BADGE[order.status]}`}>{t(`order.status.${order.status}`)}</span>
       </div>
       <h2 className="mt-2 font-display text-3xl font-extrabold" role="status">{headline}</h2>
       {order.status === "paid" && (
         <>
-          <p className="mt-3 text-ink/70">Terima kasih, {order.customerName}. QR eSIM dan bukti pembayaran dikirim ke {order.customerEmail}.</p>
-          <p className="mt-2 text-sm text-ink/60">Belum menemukan emailnya? Periksa folder spam, atau lihat <Link href="/#faq" className="font-semibold text-deep underline">pertanyaan umum</Link>.</p>
+          <p className="mt-3 text-ink/70">{t("order.paidThanks", { name: order.customerName, email: order.customerEmail })}</p>
+          <p className="mt-2 text-sm text-ink/60">{t("order.noEmailA")}<Link href="/#faq" className="font-semibold text-deep underline">{t("order.noEmailLink")}</Link>.</p>
         </>
       )}
-      {order.status === "pending" && <p className="mt-3 text-ink/70">Halaman ini diperbarui otomatis setelah pembayaran kamu terkonfirmasi.</p>}
+      {order.status === "pending" && <p className="mt-3 text-ink/70">{t("order.autoRefresh")}</p>}
       {order.status === "pending" && order.qr && <QrPanel qr={order.qr} total={order.total} />}
-      {failed && <p className="mt-3 text-sm text-coral">Koneksi terputus sebentar, mencoba lagi…</p>}
+      {failed && <p className="mt-3 text-sm text-coral">{t("order.connLost")}</p>}
 
       <ul className="mt-6 divide-y divide-line border-y border-line">
         {order.items.map((i) => (
           <li key={i.productId} className="flex justify-between gap-4 py-3 text-sm">
-            <span>{i.name} <span className="text-ink/60">× {i.qty}</span></span>
+            <span>{ct.name(i.name)} <span className="text-ink/60">× {i.qty}</span></span>
             <span className="font-semibold">{idr(i.unitPrice * i.qty)}</span>
           </li>
         ))}
       </ul>
       <dl className="mt-4 space-y-1 text-sm">
-        {order.discount > 0 && <div className="flex justify-between text-deep"><dt>Voucher {order.voucher}</dt><dd>−{idr(order.discount)}</dd></div>}
-        <div className="flex justify-between text-base font-bold"><dt>Total</dt><dd>{idr(order.total)}</dd></div>
+        {order.discount > 0 && <div className="flex justify-between text-deep"><dt>{t("order.voucher", { code: order.voucher ?? "" })}</dt><dd>−{idr(order.discount)}</dd></div>}
+        <div className="flex justify-between text-base font-bold"><dt>{t("tabs.total")}</dt><dd>{idr(order.total)}</dd></div>
       </dl>
 
       <div className="mt-8 flex flex-wrap gap-3">
-        {order.status === "pending" && order.paymentUrl && <a href={order.paymentUrl} className="btn-signal">Lanjutkan pembayaran</a>}
-        {order.status !== "pending" && <Link href="/destinations" className="btn-signal">Pesan lagi</Link>}
+        {order.status === "pending" && order.paymentUrl && <a href={order.paymentUrl} className="btn-signal">{t("order.continuePay")}</a>}
+        {order.status !== "pending" && <Link href="/destinations" className="btn-signal">{t("order.orderAgain")}</Link>}
       </div>
     </div>
   );
 }
 
 export default function OrderPage() {
+  const t = useT();
   return (
     <>
       <section className="bg-ink pb-12 pt-32 text-white">
         <div className="container-x">
-          <Breadcrumb items={[{ label: "Beranda", href: "/" }, { label: "Status pesanan" }]} />
-          <h1 className="mt-6 font-display text-5xl font-extrabold tracking-tight">Status pesanan</h1>
+          <Breadcrumb items={[{ label: t("crumb.home"), href: "/" }, { label: t("order.crumb") }]} />
+          <h1 className="mt-6 font-display text-5xl font-extrabold tracking-tight">{t("order.title")}</h1>
         </div>
       </section>
       <div className="container-x py-12">
-        <Suspense fallback={<p>Memuat…</p>}>
+        <Suspense fallback={<p>{t("co.loading")}</p>}>
           <OrderStatus />
         </Suspense>
       </div>

@@ -17,6 +17,9 @@ export interface Destination {
   /** Alamat relatif terhadap API (mis. /media/ab12...), diunggah dari CMS. null = belum ada, tampilkan bendera. */
   thumbUrl: string | null;
   bannerUrl: string | null;
+  /** Nama dan kawasan asli (Indonesia) dari database; name/region bisa sudah diterjemahkan sesuai bahasa. */
+  nameId?: string;
+  regionId?: string;
 }
 
 /** Item di GET /destinations. startingPrice null bila destinasi belum punya produk aktif. */

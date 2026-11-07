@@ -6,6 +6,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { CheckoutSteps } from "@/components/CheckoutSteps";
 import { useCart } from "@/components/CartProvider";
+import { useT } from "@/components/LanguageProvider";
+import { useCatalogText } from "@/components/useCatalogText";
+import { apiErrorMessage } from "@/lib/api-errors";
 import { TypeArt, typeArtBg } from "@/components/TypeArt";
 import { ApiRequestError, createOrder, quoteCart, type CheckoutResult, type Quote } from "@/lib/api";
 import { typeInfo } from "@/lib/catalog-types";
@@ -35,6 +38,8 @@ const ICON_TRASH = "M5 7h14M10 7V5h4v2M7.5 7l.8 12h7.4l.8-12";
 
 function CheckoutForm() {
   const { items, setQty, remove } = useCart();
+  const t = useT();
+  const ct = useCatalogText();
   const params = useSearchParams();
   const router = useRouter();
   const [voucher, setVoucher] = useState<string | undefined>(params.get("voucher") ?? undefined);
@@ -62,7 +67,7 @@ function CheckoutForm() {
         if (ctrl.signal.aborted) return;
         if (err instanceof ApiRequestError && err.code === "VOUCHER_INVALID") {
           setVoucher(undefined);
-          setVoucherNote(err.message);
+          setVoucherNote(apiErrorMessage(err, t, t("cart.voucherCheckFail")));
           return;
         }
         if (err instanceof ApiRequestError && err.code === "PRODUCT_NOT_FOUND") {
@@ -95,7 +100,7 @@ function CheckoutForm() {
       setCode("");
       return true;
     } catch (err) {
-      setVoucherError(err instanceof ApiRequestError && err.status < 500 ? err.message : "Voucher belum bisa dicek. Periksa koneksi lalu coba lagi.");
+      setVoucherError(apiErrorMessage(err, t, t("cart.voucherCheckFail")));
       return false;
     } finally {
       setApplying(false);
@@ -120,20 +125,20 @@ function CheckoutForm() {
     setError("");
     setInfo("");
     const fe: { name?: string; email?: string } = {};
-    if (!name.trim()) fe.name = "Isi nama lengkap sesuai identitas.";
-    if (!/^\S+@\S+\.\S+$/.test(email)) fe.email = "Alamat email belum valid. Contoh: nama@email.com";
+    if (!name.trim()) fe.name = t("co.err.name");
+    if (!/^\S+@\S+\.\S+$/.test(email)) fe.email = t("co.err.email");
     setFieldErrors(fe);
     if (fe.name || fe.email) {
       document.getElementById(fe.name ? "name" : "email")?.focus();
       return;
     }
-    if (!canPay) return setError("Total belum bisa dihitung. Tunggu sebentar atau periksa keranjang.");
+    if (!canPay) return setError(t("co.err.total"));
     // Kode sudah diketik tapi belum ditekan "Pakai": jangan membayar penuh diam-diam. Pakai dulu, tampilkan
     // total terbaru, dan minta tekan Bayar sekali lagi supaya pengguna melihat angka yang akan dibayar.
     if (code.trim() && !quote?.voucher) {
       const ok = await applyVoucher();
-      if (ok) setInfo("Voucher dipakai dan total sudah diperbarui. Cek totalnya, lalu tekan Bayar lagi.");
-      else setError("Kode voucher belum bisa dipakai. Perbaiki atau kosongkan kolomnya, lalu tekan Bayar lagi.");
+      if (ok) setInfo(t("co.info.voucher"));
+      else setError(t("co.err.voucherPending"));
       return;
     }
     setBusy(true);
@@ -154,7 +159,7 @@ function CheckoutForm() {
       setResult(r);
     } catch (err) {
       // Galat 4xx dari server membawa pesan yang jelas; selain itu anggap masalah koneksi.
-      setError(err instanceof ApiRequestError && err.status < 500 ? err.message : "Pesanan belum bisa dibuat. Periksa koneksi lalu coba lagi.");
+      setError(apiErrorMessage(err, t, t("co.err.createFail")));
     } finally {
       setBusy(false);
     }
@@ -163,9 +168,9 @@ function CheckoutForm() {
   if (redirectUrl) {
     return (
       <div className="rounded-3xl border border-line bg-white p-10 text-center" role="status" aria-live="polite">
-        <p className="font-display text-2xl font-bold">Mengalihkan ke halaman pembayaran…</p>
-        <p className="mt-3 text-ink/70">Jangan tutup halaman ini. Kamu akan kembali ke sini setelah pembayaran selesai.</p>
-        <a href={redirectUrl} className="mt-6 inline-block text-sm font-semibold text-deep underline">Belum berpindah? Klik di sini</a>
+        <p className="font-display text-2xl font-bold">{t("co.redirectTitle")}</p>
+        <p className="mt-3 text-ink/70">{t("co.redirectBody")}</p>
+        <a href={redirectUrl} className="mt-6 inline-block text-sm font-semibold text-deep underline">{t("co.redirectLink")}</a>
       </div>
     );
   }
@@ -174,12 +179,12 @@ function CheckoutForm() {
     // Tanpa kunci iPaymu di server, pesanan tetap dibuat (pending) tetapi tidak ada tautan bayar.
     return (
       <div className="rounded-3xl border border-line bg-white p-10 text-center">
-        <p className="font-display text-3xl font-extrabold">Pesanan tercatat</p>
-        <p className="mt-3 text-ink/70">Nomor pesanan <span className="font-semibold text-ink">{result.orderId}</span>.</p>
-        <p className="mx-auto mt-2 max-w-md text-sm text-ink/60">Tautan pembayaran belum tersedia di server ini. QR eSIM dan bukti pembayaran dikirim ke {email} setelah pembayaran diterima.</p>
+        <p className="font-display text-3xl font-extrabold">{t("co.recordedTitle")}</p>
+        <p className="mt-3 text-ink/70">{t("co.orderNo")} <span className="font-semibold text-ink">{result.orderId}</span>.</p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-ink/60">{t("co.noPayLink", { email })}</p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <Link href={`/orders/${result.orderId}`} className="btn-signal">Lihat status pesanan</Link>
-          <Link href="/" className="btn-ghost">Kembali ke beranda</Link>
+          <Link href={`/orders/${result.orderId}`} className="btn-signal">{t("co.viewStatus")}</Link>
+          <Link href="/" className="btn-ghost">{t("co.backHome")}</Link>
         </div>
       </div>
     );
@@ -188,8 +193,8 @@ function CheckoutForm() {
   if (items.length === 0) {
     return (
       <div className="rounded-3xl border border-line bg-white p-10 text-center">
-        <p className="font-display text-2xl font-bold">Belum ada paket yang dipilih</p>
-        <Link href="/destinations" className="btn-signal mt-6">Pilih destinasi</Link>
+        <p className="font-display text-2xl font-bold">{t("co.noItems")}</p>
+        <Link href="/destinations" className="btn-signal mt-6">{t("cart.pickDest")}</Link>
       </div>
     );
   }
@@ -203,8 +208,8 @@ function CheckoutForm() {
         {/* 1. Pesanan */}
         <section className="rounded-3xl border border-line bg-white p-5 sm:p-7" aria-labelledby="sec-items">
           <div className="flex items-start justify-between gap-3">
-            <div id="sec-items"><SectionHead n={1} title="Pesananmu" hint={`${totalQty} paket. Jumlah bisa diubah di sini.`} /></div>
-            <Link href="/destinations" className="shrink-0 pt-1 text-sm font-semibold text-deep hover:underline">+ Tambah paket</Link>
+            <div id="sec-items"><SectionHead n={1} title={t("co.s1.title")} hint={t("co.s1.hint", { count: totalQty })} /></div>
+            <Link href="/destinations" className="shrink-0 pt-1 text-sm font-semibold text-deep hover:underline">{t("co.addPackage")}</Link>
           </div>
           <ul className="mt-5 divide-y divide-line">
             {items.map((i) => {
@@ -215,20 +220,20 @@ function CheckoutForm() {
                 <li key={i.id} className="flex flex-wrap items-center gap-x-4 gap-y-3 py-4 first:pt-0 last:pb-0">
                   <div className={`h-14 w-14 shrink-0 overflow-hidden rounded-2xl ${typeArtBg[i.type]}`}><TypeArt type={i.type} fit="slice" className="h-full w-full" /></div>
                   <div className="min-w-0 flex-1 basis-48">
-                    <p className={`font-semibold leading-snug ${gone ? "text-coral" : ""}`}>{i.name}</p>
+                    <p className={`font-semibold leading-snug ${gone ? "text-coral" : ""}`}>{ct.name(i.name)}</p>
                     <p className="mt-0.5 text-sm text-ink/60">
-                      {typeInfo[i.type].label} · {idr(unit)} · {typeInfo[i.type].delivery}
-                      {gone && <span className="font-medium text-coral"> · tidak tersedia</span>}
+                      {typeInfo[i.type].label} · {idr(unit)} · {t(`type.${i.type}.delivery`)}
+                      {gone && <span className="font-medium text-coral">{t("cart.gone")}</span>}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="inline-flex items-center rounded-full border border-line">
-                      <button type="button" aria-label={`Kurangi ${i.name}`} className="h-9 w-9 text-lg" onClick={() => setQty(i.id, i.qty - 1)}>−</button>
+                      <button type="button" aria-label={t("cart.dec", { name: ct.name(i.name) })} className="h-9 w-9 text-lg" onClick={() => setQty(i.id, i.qty - 1)}>−</button>
                       <span className="w-6 text-center font-semibold" aria-live="polite">{i.qty}</span>
-                      <button type="button" aria-label={`Tambah ${i.name}`} className="h-9 w-9 text-lg" onClick={() => setQty(i.id, i.qty + 1)}>+</button>
+                      <button type="button" aria-label={t("cart.inc", { name: ct.name(i.name) })} className="h-9 w-9 text-lg" onClick={() => setQty(i.id, i.qty + 1)}>+</button>
                     </div>
                     <p className="w-28 text-right font-display text-lg font-bold">{idr(unit * i.qty)}</p>
-                    <button type="button" aria-label={`Hapus ${i.name}`} className="rounded-full p-2 text-ink/40 hover:bg-coral/10 hover:text-coral" onClick={() => remove(i.id)}><Icon d={ICON_TRASH} className="h-5 w-5" /></button>
+                    <button type="button" aria-label={t("cart.remove", { name: ct.name(i.name) })} className="rounded-full p-2 text-ink/40 hover:bg-coral/10 hover:text-coral" onClick={() => remove(i.id)}><Icon d={ICON_TRASH} className="h-5 w-5" /></button>
                   </div>
                 </li>
               );
@@ -238,16 +243,16 @@ function CheckoutForm() {
 
         {/* 2. Data pemesan */}
         <section className="rounded-3xl border border-line bg-white p-5 sm:p-7" aria-labelledby="sec-buyer">
-          <div id="sec-buyer"><SectionHead n={2} title="Data pemesan" hint="Bukti bayar dan QR eSIM dikirim ke email ini, jadi pastikan benar." /></div>
+          <div id="sec-buyer"><SectionHead n={2} title={t("co.s2.title")} hint={t("co.s2.hint")} /></div>
           <div className="mt-5 grid gap-5 sm:grid-cols-2">
             <div>
-              <label htmlFor="name" className="text-sm font-semibold">Nama lengkap</label>
-              <input id="name" value={name} onChange={(e) => { setName(e.target.value); if (fieldErrors.name) setFieldErrors((f) => ({ ...f, name: undefined })); }} autoComplete="name" placeholder="Sesuai identitas" aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? "name-err" : undefined} className={inputCls(fieldErrors.name)} />
+              <label htmlFor="name" className="text-sm font-semibold">{t("co.name")}</label>
+              <input id="name" value={name} onChange={(e) => { setName(e.target.value); if (fieldErrors.name) setFieldErrors((f) => ({ ...f, name: undefined })); }} autoComplete="name" placeholder={t("co.namePh")} aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? "name-err" : undefined} className={inputCls(fieldErrors.name)} />
               {fieldErrors.name && <p id="name-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.name}</p>}
             </div>
             <div>
-              <label htmlFor="email" className="text-sm font-semibold">Email</label>
-              <input id="email" type="email" inputMode="email" value={email} onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined })); }} autoComplete="email" placeholder="nama@email.com" aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? "email-err" : undefined} className={inputCls(fieldErrors.email)} />
+              <label htmlFor="email" className="text-sm font-semibold">{t("co.email")}</label>
+              <input id="email" type="email" inputMode="email" value={email} onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined })); }} autoComplete="email" placeholder={t("co.emailPh")} aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? "email-err" : undefined} className={inputCls(fieldErrors.email)} />
               {fieldErrors.email && <p id="email-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.email}</p>}
             </div>
           </div>
@@ -255,14 +260,14 @@ function CheckoutForm() {
 
         {/* 3. Pembayaran */}
         <section className="rounded-3xl border border-line bg-white p-5 sm:p-7" aria-labelledby="sec-pay">
-          <div id="sec-pay"><SectionHead n={3} title="Pembayaran" hint="Metode bayar dipilih di halaman iPaymu setelah kamu menekan tombol bayar." /></div>
+          <div id="sec-pay"><SectionHead n={3} title={t("co.s3.title")} hint={t("co.s3.hint")} /></div>
           <ol className="mt-5 grid gap-3 sm:grid-cols-3">
             {[
-              { t: "Bayar di iPaymu", d: "Kamu diarahkan ke halaman pembayaran (mode sandbox untuk demo).", icon: ICON_SHIELD },
-              { t: "Pesanan diperbarui", d: "Kamu kembali ke halaman pesanan yang memeriksa status otomatis.", icon: ICON_REFRESH },
-              { t: "Bukti masuk email", d: "Konfirmasi dan QR eSIM dikirim ke emailmu setelah pembayaran diterima.", icon: ICON_MAIL },
+              { t: t("co.pay1.t"), d: t("co.pay1.d"), icon: ICON_SHIELD },
+              { t: t("co.pay2.t"), d: t("co.pay2.d"), icon: ICON_REFRESH },
+              { t: t("co.pay3.t"), d: t("co.pay3.d"), icon: ICON_MAIL },
             ].map((x, k) => (
-              <li key={x.t} className="rounded-2xl bg-mist p-4">
+              <li key={x.icon} className="rounded-2xl bg-mist p-4">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-ink text-signal"><Icon d={x.icon} /></span>
                 <p className="mt-3 text-sm font-semibold"><span className="text-ink/40">{k + 1}. </span>{x.t}</p>
                 <p className="mt-1 text-xs leading-relaxed text-ink/60">{x.d}</p>
@@ -279,60 +284,60 @@ function CheckoutForm() {
         <div className="relative overflow-hidden bg-ink px-6 py-5 text-white">
           <div aria-hidden className="absolute -right-8 -top-10 h-32 w-32 rounded-full border-[14px] border-white/5" />
           <div aria-hidden className="absolute -right-2 -top-4 h-20 w-20 rounded-full border-[10px] border-white/5" />
-          <p className="relative text-xs font-semibold uppercase tracking-[0.2em] text-signal">Ringkasan pesanan</p>
-          <p className="relative mt-1 font-display text-lg font-bold">{totalQty} paket</p>
+          <p className="relative text-xs font-semibold uppercase tracking-[0.2em] text-signal">{t("co.summary")}</p>
+          <p className="relative mt-1 font-display text-lg font-bold">{t("cart.packages", { count: totalQty })}</p>
         </div>
         <div className="p-6">
           <ul className="space-y-2.5 text-sm">
             {items.map((i) => (
-              <li key={i.id} className="flex justify-between gap-3"><span className="text-ink/80">{i.qty} × {i.name}</span><span className="shrink-0 font-semibold">{idr((lineById.get(i.id)?.unitPrice ?? i.price) * i.qty)}</span></li>
+              <li key={i.id} className="flex justify-between gap-3"><span className="text-ink/80">{i.qty} × {ct.name(i.name)}</span><span className="shrink-0 font-semibold">{idr((lineById.get(i.id)?.unitPrice ?? i.price) * i.qty)}</span></li>
             ))}
           </ul>
 
           <div className="mt-5 border-t border-line pt-5">
-            <label htmlFor="voucher" className="text-sm font-semibold">Kode voucher</label>
+            <label htmlFor="voucher" className="text-sm font-semibold">{t("cart.voucher")}</label>
             {quote?.voucher ? (
               <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-lagoon/40 bg-lagoon/10 px-4 py-2.5 text-sm">
-                <span><span className="font-semibold">{quote.voucher.code}</span> · potongan {quote.voucher.percent}%</span>
-                <button type="button" className="font-semibold text-deep underline" onClick={() => { setVoucher(undefined); setVoucherError(""); }}>Lepas</button>
+                <span><span className="font-semibold">{quote.voucher.code}</span>{t("cart.voucherApplied", { percent: quote.voucher.percent })}</span>
+                <button type="button" className="font-semibold text-deep underline" onClick={() => { setVoucher(undefined); setVoucherError(""); }}>{t("cart.release")}</button>
               </div>
             ) : (
               <div className="mt-2 flex gap-2">
-                <input id="voucher" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyVoucher(); } }} placeholder="Contoh: NOMAD10" autoComplete="off" className="min-w-0 flex-1 rounded-xl border border-line bg-white px-4 py-2.5 outline-none focus:border-lagoon focus:ring-2 focus:ring-lagoon/20" />
-                <button type="button" className="btn-ghost !px-4 !py-2.5 disabled:opacity-60" onClick={applyVoucher} disabled={applying || !code.trim()}>{applying ? "…" : "Pakai"}</button>
+                <input id="voucher" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyVoucher(); } }} placeholder={t("cart.voucherPlaceholder")} autoComplete="off" className="min-w-0 flex-1 rounded-xl border border-line bg-white px-4 py-2.5 outline-none focus:border-lagoon focus:ring-2 focus:ring-lagoon/20" />
+                <button type="button" className="btn-ghost !px-4 !py-2.5 disabled:opacity-60" onClick={applyVoucher} disabled={applying || !code.trim()}>{applying ? "…" : t("cart.apply")}</button>
               </div>
             )}
             {voucherError && <p role="alert" className="mt-2 text-sm text-coral">{voucherError}</p>}
-            {voucherNote && <p role="alert" className="mt-2 text-sm text-coral">{voucherNote} Voucher dilepas, total dihitung tanpa voucher.</p>}
+            {voucherNote && <p role="alert" className="mt-2 text-sm text-coral">{t("co.voucherNote", { message: voucherNote })}</p>}
           </div>
 
           {unavailable.length > 0 && (
             <p role="alert" className="mt-4 text-sm font-medium text-coral">
-              Ada paket yang sudah tidak tersedia. Hapus paket bertanda merah di daftar pesanan untuk melanjutkan.
+              {t("co.unavailable")}
             </p>
           )}
           {quoteFailed ? (
             <div role="alert" className="mt-5 text-sm text-coral">
-              <p>Harga belum bisa dihitung. Periksa koneksi lalu coba lagi.</p>
-              <button type="button" className="mt-2 font-semibold underline" onClick={() => setRetry((n) => n + 1)}>Coba lagi</button>
+              <p>{t("cart.priceFail")}</p>
+              <button type="button" className="mt-2 font-semibold underline" onClick={() => setRetry((n) => n + 1)}>{t("cart.retry")}</button>
             </div>
           ) : quote ? (
             <dl className="mt-5 space-y-2 text-sm">
-              <div className="flex justify-between"><dt className="text-ink/70">Subtotal</dt><dd>{idr(quote.subtotal)}</dd></div>
-              {quote.discount > 0 && <div className="flex justify-between text-deep"><dt>Potongan voucher</dt><dd>−{idr(quote.discount)}</dd></div>}
-              <div className="flex items-end justify-between border-t border-line pt-4"><dt className="font-semibold">Total bayar</dt><dd className="font-display text-3xl font-extrabold leading-none">{idr(quote.total)}</dd></div>
+              <div className="flex justify-between"><dt className="text-ink/70">{t("co.subtotal")}</dt><dd>{idr(quote.subtotal)}</dd></div>
+              {quote.discount > 0 && <div className="flex justify-between text-deep"><dt>{t("cart.discount")}</dt><dd>−{idr(quote.discount)}</dd></div>}
+              <div className="flex items-end justify-between border-t border-line pt-4"><dt className="font-semibold">{t("co.totalPay")}</dt><dd className="font-display text-3xl font-extrabold leading-none">{idr(quote.total)}</dd></div>
             </dl>
           ) : unavailable.length === 0 ? (
-            <p className="mt-5 text-sm text-ink/60" role="status">Menghitung total…</p>
+            <p className="mt-5 text-sm text-ink/60" role="status">{t("cart.calculating")}</p>
           ) : null}
 
           <button type="submit" form="checkout-form" className="btn-signal mt-6 w-full !py-3.5 text-base disabled:cursor-not-allowed disabled:opacity-60" disabled={busy || !canPay}>
-            {busy ? "Membuat pesanan…" : quote ? `Bayar ${idr(quote.total)}` : "Menghitung total…"}
+            {busy ? t("co.creating") : quote ? t("co.payBtn", { total: idr(quote.total) }) : t("cart.calculating")}
           </button>
           <ul className="mt-5 space-y-2 text-xs text-ink/60">
-            <li className="flex items-center gap-2"><Icon d={ICON_LOCK} className="h-4 w-4 shrink-0 text-deep" /> Pembayaran diproses lewat iPaymu (sandbox)</li>
-            <li className="flex items-center gap-2"><Icon d={ICON_SHIELD} className="h-4 w-4 shrink-0 text-deep" /> Harga final dihitung server, bukan di browser</li>
-            <li className="flex items-center gap-2"><Icon d={ICON_MAIL} className="h-4 w-4 shrink-0 text-deep" /> QR eSIM dan bukti bayar dikirim ke email</li>
+            <li className="flex items-center gap-2"><Icon d={ICON_LOCK} className="h-4 w-4 shrink-0 text-deep" /> {t("cart.secure1")}</li>
+            <li className="flex items-center gap-2"><Icon d={ICON_SHIELD} className="h-4 w-4 shrink-0 text-deep" /> {t("co.secure2")}</li>
+            <li className="flex items-center gap-2"><Icon d={ICON_MAIL} className="h-4 w-4 shrink-0 text-deep" /> {t("cart.secure3")}</li>
           </ul>
         </div>
       </aside>
@@ -341,22 +346,23 @@ function CheckoutForm() {
 }
 
 export default function CheckoutPage() {
+  const t = useT();
   return (
     <>
       <section className="bg-ink pb-9 pt-28 text-white">
         <div className="container-x">
-          <Breadcrumb items={[{ label: "Beranda", href: "/" }, { label: "Keranjang", href: "/cart" }, { label: "Pembayaran" }]} />
+          <Breadcrumb items={[{ label: t("crumb.home"), href: "/" }, { label: t("cart.title"), href: "/cart" }, { label: t("co.crumb") }]} />
           <div className="mt-5 flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
             <div>
-              <h1 className="font-display text-4xl font-extrabold tracking-tight sm:text-5xl">Pembayaran</h1>
-              <p className="mt-2 max-w-xl text-white/75">Periksa pesanan, isi data pemesan, lalu bayar. Pesananmu tercatat setelah tombol bayar ditekan.</p>
+              <h1 className="font-display text-4xl font-extrabold tracking-tight sm:text-5xl">{t("co.title")}</h1>
+              <p className="mt-2 max-w-xl text-white/75">{t("co.intro")}</p>
             </div>
             <CheckoutSteps current={1} />
           </div>
         </div>
       </section>
       <div className="container-x py-8 sm:py-10">
-        <Suspense fallback={<p>Memuat…</p>}>
+        <Suspense fallback={<p>{t("co.loading")}</p>}>
           <CheckoutForm />
         </Suspense>
       </div>

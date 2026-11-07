@@ -9,6 +9,7 @@ import { CompareDialog } from "./CompareDialog";
 import { PurchaseBar } from "./PurchaseBar";
 import { useCart } from "./CartProvider";
 import { useLang } from "./LanguageProvider";
+import { useCatalogText } from "./useCatalogText";
 
 const perDay = (p: Product) => Math.round(p.price / p.days);
 
@@ -27,6 +28,7 @@ export function ProductTabs({ products, network, destName, initialType = null }:
   const { add } = useCart();
   const { lang, t } = useLang();
   const content = getTypeContent(lang);
+  const ct = useCatalogText();
   const types = (Object.keys(typeInfo) as ProductType[]).filter((ty) => products.some((p) => p.type === ty));
   // ?type= di URL memilih tab awal (dipakai tautan dari beranda dan daftar destinasi); jika destinasi ini tidak punya jenis itu, jatuh ke tab pertama.
   const [tab, setTab] = useState<ProductType>(initialType && types.includes(initialType) ? initialType : types[0]);
@@ -128,8 +130,8 @@ export function ProductTabs({ products, network, destName, initialType = null }:
                 )}
                 <span className={`absolute right-5 top-5 grid h-6 w-6 place-items-center rounded-[3px] border-2 text-xs font-bold ${on ? "border-ink bg-ink text-white" : "border-line text-transparent"}`} aria-hidden>✓</span>
                 <h3 className="font-display text-3xl font-extrabold">{p.days} <span className="text-lg font-bold text-ink/60">{t("unit.days")}</span></h3>
-                <p className="mt-1 font-semibold text-deep">{p.data}</p>
-                <p className="mt-3 text-sm text-ink/65">{p.note}</p>
+                <p className="mt-1 font-semibold text-deep">{ct.data(p.data)}</p>
+                <p className="mt-3 text-sm text-ink/65">{ct.note(p.note)}</p>
                 <div className="mt-5 flex items-end justify-between border-t border-line pt-4">
                   <p className="font-display text-2xl font-bold">{idr(p.price)}</p>
                   <p className="text-sm text-ink/60">{t("unit.perDay", { price: idr(perDay(p)) })}</p>
@@ -152,8 +154,8 @@ export function ProductTabs({ products, network, destName, initialType = null }:
 
         <aside ref={summaryRef} className="hidden rounded-[4px] border border-t-[3px] border-line border-t-signal bg-white p-6 lg:sticky lg:top-24 lg:block" aria-label={t("tabs.orderSummary")}>
           <p className="text-xs font-bold uppercase tracking-wider text-ink/55">{t("tabs.orderSummary")}</p>
-          <h3 className="mt-3 font-display text-xl font-bold">{selected.name}</h3>
-          <p className="mt-1 text-sm text-ink/65">{typeInfo[selected.type].label} · {selected.days} {t("unit.days")} · {selected.data}</p>
+          <h3 className="mt-3 font-display text-xl font-bold">{ct.name(selected.name)}</h3>
+          <p className="mt-1 text-sm text-ink/65">{typeInfo[selected.type].label} · {selected.days} {t("unit.days")} · {ct.data(selected.data)}</p>
 
           <div className="mt-5 flex items-center justify-between">
             <span className="text-sm font-semibold">{t("tabs.qty")}</span>
@@ -176,8 +178,8 @@ export function ProductTabs({ products, network, destName, initialType = null }:
       </div>
 
       <PurchaseBar
-        name={selected.name}
-        detail={`${typeInfo[selected.type].label} · ${selected.days} ${t("unit.days")} · ${selected.data} × ${qty}`}
+        name={ct.name(selected.name)}
+        detail={`${typeInfo[selected.type].label} · ${selected.days} ${t("unit.days")} · ${ct.data(selected.data)} × ${qty}`}
         qty={qty}
         total={total}
         added={added}

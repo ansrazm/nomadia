@@ -22,14 +22,14 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 export default async function DestinationPage({ params, searchParams }: { params: { slug: string }; searchParams: { type?: string | string[] } }) {
-  const { t } = getT();
+  const { t, lang } = getT();
   const d = await getDestination(params.slug);
   if (!d) notFound();
   const stats = typeStats(d.products);
   const present = typeOrder.filter((ty) => stats[ty]);
   const cheapest = d.products.length ? Math.min(...d.products.map((p) => p.price)) : null;
   // Kartu "cakupan lebih luas" hanya muncul bila ada produk regional yang benar-benar ada di katalog.
-  const regional = d.slug !== "eropa" && d.region === "Eropa" ? { slug: "eropa", name: t("detail.europeName") } : null;
+  const regional = d.slug !== "eropa" && d.regionId === "Eropa" ? { slug: "eropa", name: t("detail.europeName") } : null;
   return (
     <>
       <section className="relative overflow-hidden bg-ink pb-14 pt-32 text-white">
@@ -88,7 +88,7 @@ export default async function DestinationPage({ params, searchParams }: { params
           </div>
         </aside>
       )}
-      {d.products.length > 0 && <DestinationFaq destName={d.name} faqs={destinationFaqs(d, d.products, t)} />}
+      {d.products.length > 0 && <DestinationFaq destName={d.name} faqs={destinationFaqs(d, d.products, t, lang)} />}
     </>
   );
 }

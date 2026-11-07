@@ -1,14 +1,20 @@
-const STEPS = ["Detail pesanan", "Pembayaran", "Selesai"];
+"use client";
+
+import { useT } from "./LanguageProvider";
+
+const STEP_KEYS = ["steps.1", "steps.2", "steps.3"] as const;
 
 /**
  * Penunjuk langkah pembelian. `current` 1-3 = langkah yang sedang berjalan; 4 = semua langkah selesai.
  * tone "dark" untuk kepala halaman gelap, "light" untuk di dalam kartu putih.
  */
 export function CheckoutSteps({ current, tone = "dark" }: { current: 1 | 2 | 3 | 4; tone?: "dark" | "light" }) {
+  const t = useT();
   const dark = tone === "dark";
   return (
-    <ol aria-label="Langkah pembelian" className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-      {STEPS.map((label, i) => {
+    <ol aria-label={t("steps.aria")} className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+      {STEP_KEYS.map((key, i) => {
+        const label = t(key);
         const n = i + 1;
         const state = n < current ? "done" : n === current ? "current" : "todo";
         const circle = state === "todo" ? (dark ? "bg-white/15 text-white/70" : "bg-mist text-ink/50") : dark ? "bg-signal text-ink" : "bg-ink text-signal";
@@ -21,7 +27,7 @@ export function CheckoutSteps({ current, tone = "dark" }: { current: 1 | 2 | 3 |
               ) : n}
             </span>
             <span className={text}>{label}</span>
-            {n < STEPS.length && <span aria-hidden className={`h-px w-8 ${dark ? "bg-white/25" : "bg-line"}`} />}
+            {n < STEP_KEYS.length && <span aria-hidden className={`h-px w-8 ${dark ? "bg-white/25" : "bg-line"}`} />}
           </li>
         );
       })}

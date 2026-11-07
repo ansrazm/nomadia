@@ -1,4 +1,6 @@
 import { ApiRequestError } from "./api";
+import { localizeDestination } from "./i18n/catalog-text";
+import { getLang } from "./i18n/server";
 import type { DestinationDetail, DestinationSummary, ProductType } from "./catalog-types";
 
 /**
@@ -22,8 +24,10 @@ async function getData<T>(path: string): Promise<T> {
 }
 
 /** Semua destinasi, urut sesuai posisi di database, lengkap dengan harga mulai dari. Dengan `type`, hanya yang punya paket jenis itu. */
-export function getDestinations(type?: ProductType | null): Promise<DestinationSummary[]> {
-  return getData<DestinationSummary[]>(type ? `/destinations?type=${type}` : "/destinations");
+export async function getDestinations(type?: ProductType | null): Promise<DestinationSummary[]> {
+  const list = await getData<DestinationSummary[]>(type ? `/destinations?type=${type}` : "/destinations");
+  const lang = getLang();
+  return list.map((d) => localizeDestination(d, lang));
 }
 
 /** Banner beranda dari admin (alamat relatif /media/...), atau null. Gagal baca tidak boleh merusak beranda, jadi jatuh ke null. */
@@ -38,7 +42,7 @@ export async function getHomeBanner(): Promise<string | null> {
 /** Satu destinasi beserta produk aktifnya, atau null bila slug tidak ada. Galat lain dilempar ke error.tsx. */
 export async function getDestination(slug: string): Promise<DestinationDetail | null> {
   try {
-    return await getData<DestinationDetail>(`/destinations/${encodeURIComponent(slug)}`);
+    return localizeDestination(await getData<DestinationDetail>(`/destinations/${encodeURIComponent(slug)}`), getLang());
   } catch (e) {
     if (e instanceof ApiRequestError && e.status === 404 && e.code === "DESTINATION_NOT_FOUND") return null;
     throw e;
