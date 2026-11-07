@@ -3,15 +3,13 @@ import { FaqSection } from "@/components/FaqSection";
 import { Hero } from "@/components/Hero";
 import { Reveal } from "@/components/Reveal";
 import { getDestinations, getHomeBanner } from "@/lib/catalog";
-import { flagUrl, mediaUrl, typeInfo } from "@/lib/catalog-types";
+import { flagUrl, mediaUrl, typeInfo, type ProductType } from "@/lib/catalog-types";
+import { TypeArt, typeArtBg } from "@/components/TypeArt";
 import { idr } from "@/lib/format";
 
 
 const I = { className: "h-6 w-6", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, viewBox: "0 0 24 24", "aria-hidden": true };
 const icons = {
-  esim: <svg {...I}><rect x="7" y="2.5" width="10" height="19" rx="2.5" /><path d="M10.5 18.5h3" /><path d="M10 8.5a3 3 0 0 1 4 0M8.5 6.5a5.5 5.5 0 0 1 7 0" /></svg>,
-  sim: <svg {...I}><path d="M8 2.5h6.5L19 7v13a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 7 20V4A1.5 1.5 0 0 1 8 2.5Z" /><rect x="9.5" y="11" width="6" height="6" rx="1" /></svg>,
-  wifi: <svg {...I}><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.5 16a5 5 0 0 1 7 0" /><circle cx="12" cy="19" r="1" fill="currentColor" /></svg>,
   pick: <svg {...I}><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></svg>,
   pay: <svg {...I}><rect x="2.5" y="5.5" width="19" height="13" rx="2.5" /><path d="M2.5 10h19M6.5 15h4" /></svg>,
   go: <svg {...I}><path d="M3 11.5 21 4l-7.5 18-2.5-7.5L3 11.5Z" /></svg>,
@@ -31,6 +29,13 @@ const compare = [
   { type: "sim" as const, best: "Ponsel tanpa dukungan eSIM", points: ["Kartu fisik dikirim sebelum berangkat", "Bisa isi ulang di tengah perjalanan", "Cocok untuk perjalanan 1–2 minggu"] },
   { type: "wifi" as const, best: "Keluarga dan rombongan", points: ["Satu alat untuk hingga 5 perangkat", "Kuota tanpa batas", "Baterai tahan seharian"] },
 ];
+
+// Warna teks, badge, dan tombol per kartu; latar kartu memakai typeArtBg supaya menyatu dengan ilustrasinya.
+const cardTone: Record<ProductType, { text: string; sub: string; badge: string; check: string; cta: string }> = {
+  esim: { text: "text-ink", sub: "text-ink/80", badge: "bg-ink text-white", check: "text-ink", cta: "bg-ink text-white hover:bg-deep" },
+  sim: { text: "text-ink", sub: "text-ink/85", badge: "bg-ink text-white", check: "text-ink", cta: "bg-ink text-white hover:bg-deep" },
+  wifi: { text: "text-white", sub: "text-white/80", badge: "bg-signal text-ink", check: "text-signal", cta: "bg-signal text-ink hover:bg-white" },
+};
 
 const steps = [
   { icon: icons.pick, title: "Pilih destinasi dan paket", body: "Cari negara tujuan, lalu pilih durasi dan kuota yang sesuai." },
@@ -71,27 +76,30 @@ export default async function Home() {
           <h2 className="max-w-2xl font-display text-4xl font-extrabold tracking-tight">Tiga cara tetap terhubung</h2>
           <p className="mt-3 max-w-xl text-ink/70">Semua pilihan memakai jaringan operator lokal. Bedanya ada di cara kamu memakainya.</p>
         </Reveal>
-        <Reveal delay={0.1} className="mt-10 overflow-hidden rounded-3xl border border-line bg-white">
-          {compare.map((c, i) => (
-            <div key={c.type} className={`grid gap-4 p-6 transition-colors hover:bg-mist/60 md:grid-cols-[16rem_1fr_auto] md:items-center md:gap-8 md:p-8 ${i > 0 ? "border-t border-line" : ""}`}>
-              <div className="flex items-center gap-4">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-ink text-signal">{icons[c.type]}</span>
-                <div>
-                  <h3 className="font-display text-2xl font-bold leading-tight">{typeInfo[c.type].label}</h3>
-                  <p className="mt-0.5 text-sm font-medium text-deep">{c.best}</p>
-                </div>
+        <Reveal delay={0.1} className="mt-16 grid gap-x-5 gap-y-16 md:grid-cols-3">
+          {compare.map((c) => {
+            const tone = cardTone[c.type];
+            return (
+              <div key={c.type} className={`group relative flex flex-col rounded-3xl p-7 pt-14 shadow-lift transition-transform duration-300 hover:-translate-y-1 ${typeArtBg[c.type]} ${tone.text}`}>
+                {/* Ilustrasi menimpa tepi atas kartu supaya terasa seperti produk, bukan ikon. */}
+                <TypeArt type={c.type} className="pointer-events-none absolute -top-10 right-3 h-32 w-56 drop-shadow-xl transition-transform duration-300 group-hover:-rotate-2 group-hover:scale-105" />
+                <span className={`self-start rounded-full px-3 py-1 text-xs font-bold ${tone.badge}`}>{c.best}</span>
+                <h3 className="mt-4 font-display text-3xl font-extrabold leading-tight">{typeInfo[c.type].label}</h3>
+                <ul className={`mt-4 space-y-2 text-sm font-medium ${tone.sub}`}>
+                  {c.points.slice(0, 2).map((pt) => (
+                    <li key={pt} className="flex items-start gap-2">
+                      <svg viewBox="0 0 20 20" className={`mt-0.5 h-4 w-4 shrink-0 ${tone.check}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m4.5 10.5 3.5 3.5 7.5-8" /></svg>
+                      {pt}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/destinations" className={`mt-8 inline-flex items-center justify-center gap-2 self-start rounded-full px-5 py-3 text-sm font-bold transition-colors ${tone.cta}`}>
+                  Cari {typeInfo[c.type].label}
+                  <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 10h12m-5-5 5 5-5 5" /></svg>
+                </Link>
               </div>
-              <ul className="space-y-1.5 text-ink/75">
-                {c.points.map((p) => (
-                  <li key={p} className="flex items-start gap-2">
-                    <svg viewBox="0 0 20 20" className="mt-1 h-4 w-4 shrink-0 text-lagoon" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m4.5 10.5 3.5 3.5 7.5-8" /></svg>
-                    {p}
-                  </li>
-                ))}
-              </ul>
-              <Link href="/destinations" className="btn-ghost justify-self-start md:justify-self-end">Cari {typeInfo[c.type].label}</Link>
-            </div>
-          ))}
+            );
+          })}
         </Reveal>
       </section>
 

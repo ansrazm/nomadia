@@ -1,6 +1,6 @@
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { DestinationBrowser } from "@/components/DestinationBrowser";
-import { getDestinations } from "@/lib/catalog";
+import { getDestinations, getHomeBanner } from "@/lib/catalog";
 import { mediaUrl } from "@/lib/catalog-types";
 
 export const metadata = { title: "Semua destinasi — Nomadia" };
@@ -8,9 +8,10 @@ export const metadata = { title: "Semua destinasi — Nomadia" };
 export const dynamic = "force-dynamic";
 
 export default async function DestinationsPage() {
-  const destinations = await getDestinations();
-  // Latar kepala halaman: banner pertama yang sudah diunggah dari CMS (tanpa banner, tetap navy polos).
-  const bg = destinations.find((d) => d.bannerUrl)?.bannerUrl ?? null;
+  const [destinations, homeBanner] = await Promise.all([getDestinations(), getHomeBanner()]);
+  // Latar kepala halaman sama seperti beranda: banner beranda dari admin, lalu banner destinasi pertama
+  // yang sudah diunggah; tanpa keduanya tetap navy polos.
+  const bg = homeBanner ?? destinations.find((d) => d.bannerUrl)?.bannerUrl ?? null;
   return (
     <>
       <section className="relative overflow-hidden bg-ink pb-14 pt-32 text-white">
