@@ -172,7 +172,7 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
                           type="button"
                           aria-pressed={on}
                           onClick={() => toggle(p)}
-                          className={`relative rounded-[4px] border-2 bg-white p-3 text-left transition-all ${on ? "border-ink shadow-lift" : "border-line hover:-translate-y-0.5 hover:border-lagoon"}`}
+                          className={`relative rounded-[4px] border-2 p-3 text-left transition-all ${on ? "border-ink bg-signal/15 shadow-lift" : "border-line bg-white hover:-translate-y-0.5 hover:border-lagoon"}`}
                         >
                           <span aria-hidden className={`absolute right-2.5 top-2.5 grid h-5 w-5 place-items-center rounded-[3px] border-2 text-[11px] font-bold ${on ? "border-ink bg-ink text-white" : "border-line text-transparent"}`}>✓</span>
                           <span className="block font-display text-xl font-extrabold">{p.days} <span className="text-sm font-bold text-ink/60">{t("unit.days")}</span></span>
