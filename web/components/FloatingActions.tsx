@@ -62,7 +62,7 @@ export function FloatingActions() {
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
             style={{ transformOrigin: "bottom right" }}
-            className="absolute bottom-full right-0 mb-3 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-3xl border border-line bg-white text-ink shadow-lift"
+            className="absolute bottom-full right-0 mb-3 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-[4px] border border-line bg-white text-ink shadow-lift"
           >
             <div className="bg-ink px-5 py-4 text-white">
               <p className="font-display text-lg font-bold">Butuh bantuan?</p>
@@ -91,15 +91,24 @@ export function FloatingActions() {
       </AnimatePresence>
 
       {WA_HREF && (
-        <a
-          href={WA_HREF}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Chat lewat WhatsApp"
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lift transition-transform hover:scale-105"
-        >
-          <WhatsAppIcon />
-        </a>
+        <div className="group relative">
+          {/* Label muncul saat kursor di atas tombol atau tombol difokus keyboard; tidak tampil di layar sentuh kecil. */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute right-full top-1/2 mr-3 hidden -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-[4px] bg-white px-4 py-2.5 text-sm font-bold text-[#128C4A] opacity-0 shadow-lift transition-all duration-200 group-focus-within:translate-x-0 group-focus-within:opacity-100 group-hover:translate-x-0 group-hover:opacity-100 sm:block"
+          >
+            Klik untuk info lebih lanjut
+          </span>
+          <a
+            href={WA_HREF}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Chat lewat WhatsApp"
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lift transition-transform hover:scale-105"
+          >
+            <WhatsAppIcon />
+          </a>
+        </div>
       )}
 
       <button

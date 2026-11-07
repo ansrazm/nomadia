@@ -27,12 +27,12 @@ export function DestinationFaq({ destName, faqs }: { destName: string; faqs: Faq
           </div>
         </Reveal>
         <Reveal delay={0.1}>
-          <div className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-mist/50">
+          <div className="divide-y divide-line overflow-hidden rounded-[4px] border border-line bg-mist/50">
             {faqs.map((f) => (
               <details key={f.q} className="group px-6 py-4">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
                   {f.q}
-                  <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-lg leading-none text-deep transition-transform group-open:rotate-45">+</span>
+                  <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[3px] bg-white text-lg leading-none text-deep transition-transform group-open:rotate-45">+</span>
                 </summary>
                 <p className="mt-3 max-w-2xl leading-relaxed text-ink/70">{f.a}</p>
               </details>

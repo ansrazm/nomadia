@@ -47,14 +47,14 @@ export function ProductTabs({ products, network, destName }: { products: Product
 
   return (
     <div id="paket" className="scroll-mt-24">
-      <div role="tablist" aria-label="Jenis koneksi" className="inline-flex rounded-full border border-line bg-white p-1">
+      <div role="tablist" aria-label="Jenis koneksi" className="inline-flex rounded-[4px] border border-line bg-white p-1">
         {types.map((t) => (
           <button
             key={t}
             role="tab"
             aria-selected={tab === t}
             onClick={() => changeTab(t)}
-            className={`rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${tab === t ? "bg-signal text-ink" : "text-ink/70 hover:text-ink"}`}
+            className={`rounded-[3px] px-5 py-2.5 text-sm font-semibold transition-colors ${tab === t ? "bg-signal text-ink" : "text-ink/70 hover:text-ink"}`}
           >
             {typeInfo[t].label}
           </button>
@@ -111,12 +111,12 @@ export function ProductTabs({ products, network, destName }: { products: Product
                 role="radio"
                 aria-checked={on}
                 onClick={() => setPicked(p.id)}
-                className={`relative rounded-3xl border-2 bg-white p-5 text-left transition-all ${on ? "border-ink shadow-lift" : "border-line hover:-translate-y-0.5 hover:border-lagoon"}`}
+                className={`relative rounded-[4px] border-2 bg-white p-5 text-left transition-all ${on ? "border-ink shadow-lift" : "border-line hover:-translate-y-0.5 hover:border-lagoon"}`}
               >
                 {badge && (
-                  <span className={`absolute -top-3 left-5 rounded-full px-3 py-1 text-xs font-bold ${badge === "Terpopuler" ? "bg-signal text-ink" : "bg-lagoon text-ink"}`}>{badge}</span>
+                  <span className={`absolute -top-3 left-5 rounded-[3px] px-3 py-1 text-xs font-bold ${badge === "Terpopuler" ? "bg-signal text-ink" : "bg-lagoon text-ink"}`}>{badge}</span>
                 )}
-                <span className={`absolute right-5 top-5 grid h-6 w-6 place-items-center rounded-full border-2 text-xs font-bold ${on ? "border-ink bg-ink text-white" : "border-line text-transparent"}`} aria-hidden>✓</span>
+                <span className={`absolute right-5 top-5 grid h-6 w-6 place-items-center rounded-[3px] border-2 text-xs font-bold ${on ? "border-ink bg-ink text-white" : "border-line text-transparent"}`} aria-hidden>✓</span>
                 <h3 className="font-display text-3xl font-extrabold">{p.days} <span className="text-lg font-bold text-ink/60">hari</span></h3>
                 <p className="mt-1 font-semibold text-deep">{p.data}</p>
                 <p className="mt-3 text-sm text-ink/65">{p.note}</p>
@@ -131,7 +131,7 @@ export function ProductTabs({ products, network, destName }: { products: Product
             <button
               type="button"
               onClick={() => setCompareOpen(true)}
-              className={`hidden flex-col justify-center rounded-3xl border-2 border-dashed border-line bg-white/60 p-5 text-left transition-colors hover:border-lagoon ${fillSm ? "sm:flex" : ""} ${fillXl ? "xl:flex" : "xl:hidden"}`}
+              className={`hidden flex-col justify-center rounded-[4px] border-2 border-dashed border-line bg-white/60 p-5 text-left transition-colors hover:border-lagoon ${fillSm ? "sm:flex" : ""} ${fillXl ? "xl:flex" : "xl:hidden"}`}
             >
               <span className="font-display text-xl font-bold">Bingung pilih mana?</span>
               <span className="mt-2 text-sm text-ink/65">Bandingkan eSIM, SIM Card, dan Portable WiFi untuk {destName}.</span>
@@ -140,17 +140,17 @@ export function ProductTabs({ products, network, destName }: { products: Product
           )}
         </div>
 
-        <aside ref={summaryRef} className="hidden rounded-3xl border border-line bg-white p-6 lg:sticky lg:top-24 lg:block" aria-label="Ringkasan pesanan">
+        <aside ref={summaryRef} className="hidden rounded-[4px] border border-t-[3px] border-line border-t-signal bg-white p-6 lg:sticky lg:top-24 lg:block" aria-label="Ringkasan pesanan">
           <p className="text-xs font-bold uppercase tracking-wider text-ink/55">Ringkasan pesanan</p>
           <h3 className="mt-3 font-display text-xl font-bold">{selected.name}</h3>
           <p className="mt-1 text-sm text-ink/65">{typeInfo[selected.type].label} · {selected.days} hari · {selected.data}</p>
 
           <div className="mt-5 flex items-center justify-between">
             <span className="text-sm font-semibold">Jumlah</span>
-            <div className="inline-flex items-center rounded-full border border-line">
-              <button type="button" aria-label="Kurangi jumlah" disabled={qty <= 1} onClick={() => setQty(qty - 1)} className="h-10 w-10 rounded-full text-lg disabled:opacity-35">−</button>
+            <div className="inline-flex items-center rounded-[4px] border border-line">
+              <button type="button" aria-label="Kurangi jumlah" disabled={qty <= 1} onClick={() => setQty(qty - 1)} className="h-10 w-10 rounded-[3px] text-lg disabled:opacity-35">−</button>
               <span className="w-8 text-center font-semibold" aria-live="polite">{qty}</span>
-              <button type="button" aria-label="Tambah jumlah" disabled={qty >= 9} onClick={() => setQty(qty + 1)} className="h-10 w-10 rounded-full text-lg disabled:opacity-35">+</button>
+              <button type="button" aria-label="Tambah jumlah" disabled={qty >= 9} onClick={() => setQty(qty + 1)} className="h-10 w-10 rounded-[3px] text-lg disabled:opacity-35">+</button>
             </div>
           </div>
 

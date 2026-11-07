@@ -24,13 +24,13 @@ export function CompareDialog({ destName, products, onClose }: { destName: strin
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 sm:items-center sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div ref={ref} role="dialog" aria-modal="true" aria-label={`Bandingkan paket untuk ${destName}`} className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-t-3xl bg-white p-6 shadow-lift sm:rounded-3xl sm:p-8">
+      <div ref={ref} role="dialog" aria-modal="true" aria-label={`Bandingkan paket untuk ${destName}`} className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-t-[4px] bg-white p-6 shadow-lift sm:rounded-[4px] sm:p-8">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 className="font-display text-2xl font-extrabold">Bandingkan untuk {destName}</h2>
             <p className="mt-1 text-sm text-ink/70">Pilih yang paling cocok dengan ponsel dan cara kamu bepergian.</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Tutup" className="rounded-full px-3 py-1 text-2xl leading-none text-ink/50 hover:bg-mist">×</button>
+          <button type="button" onClick={onClose} aria-label="Tutup" className="rounded-[3px] px-3 py-1 text-2xl leading-none text-ink/50 hover:bg-mist">×</button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[34rem] border-collapse text-left text-sm">

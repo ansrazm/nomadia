@@ -34,7 +34,7 @@ export default async function DestinationPage({ params }: { params: { slug: stri
             <Link href="/destinations" className="text-sm font-medium text-white/70 hover:text-white">Semua destinasi</Link>
             <div className="mt-4 flex items-center gap-5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={flagUrl(d.code)} alt="" width={72} height={52} className="h-12 w-16 rounded-md object-cover" />
+              <img src={flagUrl(d.code)} alt="" width={72} height={52} className="h-12 w-16 rounded-[3px] object-cover" />
               <h1 className="font-display text-5xl font-extrabold tracking-tight">{d.name}</h1>
             </div>
             <p className="mt-5 flex items-center gap-3 text-white/80">
@@ -43,15 +43,15 @@ export default async function DestinationPage({ params }: { params: { slug: stri
           </div>
           {cheapest != null && (
             <ul aria-label="Ringkasan paket" className="flex flex-wrap gap-3">
-              <li className="rounded-2xl bg-white/10 px-5 py-3">
+              <li className="rounded-[4px] bg-white/10 px-5 py-3">
                 <span className="block text-xs text-white/60">Mulai dari</span>
                 <span className="font-display text-xl font-bold">{idr(cheapest)}</span>
               </li>
-              <li className="rounded-2xl bg-white/10 px-5 py-3">
+              <li className="rounded-[4px] bg-white/10 px-5 py-3">
                 <span className="block text-xs text-white/60">Jenis koneksi</span>
                 <span className="font-display text-xl font-bold">{present.map((t) => typeInfo[t].label).join(" · ")}</span>
               </li>
-              <li className="rounded-2xl bg-white/10 px-5 py-3">
+              <li className="rounded-[4px] bg-white/10 px-5 py-3">
                 <span className="block text-xs text-white/60">Pilihan paket</span>
                 <span className="font-display text-xl font-bold">{d.products.length}</span>
               </li>
@@ -68,7 +68,7 @@ export default async function DestinationPage({ params }: { params: { slug: stri
       </div>
       {d.products.length > 0 && regional && (
         <aside aria-label="Cakupan lebih luas" className="container-wide pb-12">
-          <div className="flex flex-col gap-4 rounded-3xl border border-line bg-white p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+          <div className="flex flex-col gap-4 rounded-[4px] border border-line bg-white p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
             <div>
               <h2 className="font-display text-2xl font-extrabold">Butuh cakupan lebih luas?</h2>
               <p className="mt-1 max-w-xl text-ink/70">Kalau rutemu melewati lebih dari satu negara, paket {regional.name} bisa lebih praktis daripada membeli per negara.</p>

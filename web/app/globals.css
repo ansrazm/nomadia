@@ -10,7 +10,7 @@ body { @apply bg-mist font-sans text-ink antialiased; }
 :focus-visible { outline: 3px solid #FFC93C; outline-offset: 2px; border-radius: 8px; }
 
 @layer components {
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 font-semibold transition-colors; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-[4px] px-6 py-3 font-semibold transition-colors; }
   .btn-signal { @apply btn bg-signal text-ink hover:bg-[#ffd86b]; }
   .btn-ink { @apply btn bg-ink text-white hover:bg-deep; }
   .btn-ghost { @apply btn border border-line bg-white text-ink hover:border-lagoon; }
