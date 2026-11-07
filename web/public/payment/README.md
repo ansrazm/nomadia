@@ -1,9 +1,8 @@
 # Logo metode pembayaran
 
-Taruh logo resmi di folder ini, satu file per metode, bernama sesuai id metode:
+Satu file PNG per metode, bernama sesuai id metode: `qris.png`, `va_bca.png`, `va_mandiri.png`, `va_bni.png`, `va_bri.png`, `redirect.png`.
+Yang sudah ada: BCA, Mandiri, BNI, BRI. QRIS dan halaman bayar iPaymu (`redirect`) belum punya logo, jadi tampil lencana teks bawaan.
 
-    qris.svg  va_bca.svg  va_mandiri.svg  va_bni.svg  va_bri.svg  redirect.svg
-
-Komponen `PaymentLogo` memuat `/payment/<id>.svg` dan, kalau filenya belum ada, menampilkan lencana teks bawaan.
-Pakai aset dari halaman brand resmi masing-masing bank/QRIS (periksa syarat pemakaiannya), jangan menggambar ulang logonya.
-Rasio ideal kira-kira 3:2 (mis. 120x80), latar transparan.
+Komponen `PaymentLogo` memuat `/payment/<id>.png` dan, kalau filenya tidak ada, menampilkan lencana teks.
+Untuk menambah logo: taruh file di folder ini (latar putih atau transparan, rasio kira-kira 3:2 hingga 3:1, lebar 300-400px cukup).
+Pakai aset dari halaman brand resmi dan periksa syarat pemakaiannya.

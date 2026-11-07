@@ -14,7 +14,7 @@ const FALLBACK: Record<string, { text: string; cls: string }> = {
 const CARD = "M3.5 6.5h17v11h-17zM3.5 10h17M7 14.5h3";
 
 /**
- * Logo metode bayar. `id` = id metode dari API (qris, va_bca, ...). Memuat /payment/<id>.svg;
+ * Logo metode bayar. `id` = id metode dari API (qris, va_bca, ...). Memuat /payment/<id>.png;
  * bila file itu tidak ada, tampil lencana teks (atau ikon kartu untuk halaman bayar iPaymu).
  */
 export function PaymentLogo({ id, className = "" }: { id: string; className?: string }) {
@@ -24,7 +24,7 @@ export function PaymentLogo({ id, className = "" }: { id: string; className?: st
     return (
       <span className={box}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`/payment/${id}.svg`} alt="" width={56} height={36} onError={() => setBroken(true)} className="h-full w-full object-contain p-1.5" />
+        <img src={`/payment/${id}.png`} alt="" width={56} height={36} onError={() => setBroken(true)} className="h-full w-full object-contain p-1.5" />
       </span>
     );
   }
