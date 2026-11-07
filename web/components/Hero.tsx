@@ -5,7 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SignalBars } from "./SignalBars";
 import { HeroVisual } from "./HeroVisual";
-import { DestinationSummary, flagUrl } from "@/lib/catalog-types";
+import { DestinationSummary, flagUrl, mediaUrl } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 
 const popular = ["jepang", "korea-selatan", "singapura", "thailand", "eropa"];
@@ -31,6 +31,10 @@ export function Hero({ destinations }: { destinations: DestinationSummary[] }) {
     return destinations.filter((d) => !q || d.name.toLowerCase().includes(q) || d.region.toLowerCase().includes(q)).slice(0, 6);
   }, [query, destinations]);
 
+  // Latar hero: banner destinasi yang dipilih; sebelum memilih, banner pertama yang sudah diunggah dari CMS.
+  // Tanpa banner sama sekali, hero tampil seperti biasa (latar navy polos).
+  const bgUrl = picked?.bannerUrl ?? destinations.find((d) => d.bannerUrl)?.bannerUrl ?? null;
+
   function choose(d: DestinationSummary) {
     setPicked(d);
     setQuery(d.name);
@@ -46,6 +50,23 @@ export function Hero({ destinations }: { destinations: DestinationSummary[] }) {
 
   return (
     <section className="relative overflow-hidden bg-ink pb-24 pt-32 text-white md:pb-32 md:pt-40">
+      {bgUrl && (
+        <div aria-hidden className="absolute inset-0">
+          <AnimatePresence initial={false}>
+            <motion.img
+              key={bgUrl}
+              src={mediaUrl(bgUrl)}
+              alt=""
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.6 }}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          </AnimatePresence>
+          <div className="absolute inset-0 bg-gradient-to-r from-ink/95 via-ink/80 to-ink/50" />
+        </div>
+      )}
       <div aria-hidden className="pointer-events-none absolute -right-40 top-10 h-[34rem] w-[34rem] rounded-full border border-lagoon/25" />
       <div aria-hidden className="pointer-events-none absolute -right-20 top-28 h-[26rem] w-[26rem] rounded-full border border-lagoon/25" />
       <div aria-hidden className="pointer-events-none absolute right-0 top-52 h-[18rem] w-[18rem] rounded-full border border-lagoon/30" />
