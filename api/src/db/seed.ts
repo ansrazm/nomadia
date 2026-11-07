@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import type { Db } from "./pool.js";
 import { productsFor, seedDestinations, seedVouchers } from "./catalog-data.js";
+import { seedImages } from "./seed-images.js";
 
 /** Idempotent: aman dijalankan ulang. Harga/nama yang diubah admin di DB tidak ditimpa untuk produk yang sudah ada. */
 export async function seed(db: Db): Promise<{ destinations: number; products: number }> {
@@ -36,6 +37,27 @@ export async function seed(db: Db): Promise<{ destinations: number; products: nu
   return { destinations: seedDestinations.length, products };
 }
 
+const SEEDED_KEY = "catalog_seeded";
+
+/**
+ * Dipanggil saat API start: mengisi katalog (dan gambar bawaan) hanya pada instalasi yang benar-benar kosong.
+ * Penanda `catalog_seeded` di tabel settings mencegah katalog muncul lagi bila admin sengaja menghapus semua destinasi.
+ * Instalasi lama yang sudah berisi destinasi hanya diberi penanda, tanpa diubah.
+ */
+export async function autoSeed(db: Db): Promise<"sudah" | "diisi" | "ditandai"> {
+  const flag = await db.query("SELECT 1 FROM settings WHERE key = $1", [SEEDED_KEY]);
+  if (flag.rowCount) return "sudah";
+  const n = (await db.query<{ n: number }>("SELECT count(*)::int AS n FROM destinations")).rows[0]!.n;
+  let result: "diisi" | "ditandai" = "ditandai";
+  if (n === 0) {
+    await seed(db);
+    await seedImages(db);
+    result = "diisi";
+  }
+  await db.query("INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING", [SEEDED_KEY, new Date().toISOString()]);
+  return result;
+}
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const { loadConfig } = await import("../config.js");
   const { createPool } = await import("./pool.js");
@@ -43,6 +65,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const db = createPool(loadConfig().databaseUrl);
   await migrate(db);
   const r = await seed(db);
-  console.log(`Seed selesai: ${r.destinations} destinasi, ${r.products} produk baru.`);
+  const im = await seedImages(db);
+  console.log(`Seed selesai: ${r.destinations} destinasi, ${r.products} produk baru, ${im.destinationImages} gambar destinasi, ${im.homeBanners} banner beranda.`);
   await db.end();
 }

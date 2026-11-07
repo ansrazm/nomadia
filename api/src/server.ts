@@ -3,6 +3,7 @@ import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { createPool } from "./db/pool.js";
 import { migrate } from "./db/migrate.js";
+import { autoSeed } from "./db/seed.js";
 import { IpaymuClient } from "./payments/ipaymu.js";
 import { OutboxDispatcher } from "./services/outbox.js";
 import { getCheckoutFlow } from "./services/settings.js";
@@ -10,6 +11,8 @@ import { getCheckoutFlow } from "./services/settings.js";
 const config = loadConfig();
 const db = createPool(config.databaseUrl);
 await migrate(db);
+const seeded = await autoSeed(db);
+if (seeded === "diisi") console.log("Katalog kosong: contoh destinasi, produk, voucher, dan gambar bawaan sudah dipasang otomatis.");
 
 const gateway = config.ipaymu ? new IpaymuClient(config.ipaymu) : null;
 const outbox = config.n8n ? new OutboxDispatcher({ db, url: config.n8n.url, secret: config.n8n.secret }) : null;

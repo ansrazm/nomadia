@@ -67,7 +67,7 @@ Urutan ini sudah dijalankan dari instalasi bersih. Tanpa kredensial iPaymu pun s
    ```bash
    cp .env.example .env     # isi N8N_WEBHOOK_SECRET (min 16 karakter); ADMIN_* bila ingin mencoba CMS
    docker compose up -d --build
-   docker compose exec api npx tsx src/db/seed.ts   # sekali saja: isi katalog
+   # Katalog, voucher, dan gambar bawaan terpasang otomatis saat API pertama kali start (database kosong).
    ```
 2. **Siapkan n8n (sekali)**: buka http://localhost:5678, buat akun pemilik, lalu jalankan empat perintah di [Menguji n8n](#1-siapkan-sekali).
 3. **Belanja**: buka http://localhost:3000, pilih destinasi, tambahkan produk ke keranjang (coba voucher), lalu checkout. Tanpa `IPAYMU_*`, pesanan dibuat tanpa tautan bayar dan statusnya `pending`; catat nomornya (`NMD-...`).
@@ -116,7 +116,7 @@ api/                       Hono + PostgreSQL (TypeScript)
   src/routes/              catalog, quote, orders, webhooks, admin, schemas (validasi zod bersama)
   src/services/            pricing (satu-satunya tempat harga dihitung), orders, payments, outbox, auth, esim (kode aktivasi + QR contoh)
   src/payments/ipaymu.ts   klien iPaymu (tanda tangan, buat tagihan, cek transaksi)
-  src/db/                  migrasi SQL berurutan, seed katalog, pool
+  src/db/                  migrasi SQL berurutan, seed katalog + gambar bawaan (seed-images/), pool
   src/dev/                 alat uji: n8n-send, mark-paid (lihat "Menguji n8n")
   tests/                   vitest + PostgreSQL sungguhan
 n8n/                       workflow order.paid (import ke n8n)
@@ -128,7 +128,7 @@ docker-compose.yml         db + api + web + n8n
 ```bash
 cp .env.example .env     # isi N8N_WEBHOOK_SECRET; ADMIN_* bila ingin CMS; IPAYMU_* bila ingin uji bayar
 docker compose up --build
-docker compose exec api npx tsx src/db/seed.ts   # sekali saja: isi katalog (migrasi jalan otomatis saat API start)
+docker compose exec api npx tsx src/db/seed.ts   # opsional: katalog dan gambar bawaan sudah terpasang otomatis saat API pertama kali start; perintah ini aman diulang
 ```
 
 Web http://localhost:3000, API http://localhost:4000, n8n http://localhost:5678, CMS http://localhost:3000/admin.
@@ -154,7 +154,7 @@ cd api
 cp .env.example .env          # ubah DATABASE_URL ke port 5433 bila memakai perintah di atas
                               # web di port selain 3000? tambahkan ke CORS_ORIGINS, mis. http://localhost:3000,http://localhost:3001
 npm install
-npm run seed                  # migrasi + isi katalog (aman diulang)
+npm run seed                  # migrasi + isi katalog dan gambar bawaan (aman diulang)
 npm run dev                   # http://localhost:4000
 ```
 
