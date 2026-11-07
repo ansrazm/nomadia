@@ -31,3 +31,15 @@ export function appFor(db: Db, extra: Partial<Parameters<typeof createApp>[0]> =
   };
   return { app, call };
 }
+
+/** Alamat kirim valid untuk tes. Teks rangkaian yang tersimpan di delivery_detail ada di SHIP_DETAIL. */
+export const SHIP_ADDRESS = {
+  recipient: "Budi Santoso",
+  street: "Jl. Merdeka No. 12",
+  district: "Sukajadi",
+  city: "Pekanbaru",
+  province: "Riau",
+  postalCode: "28111",
+  notes: "Rumah pagar hijau",
+};
+export const SHIP_DETAIL = "Penerima: Budi Santoso\nJl. Merdeka No. 12, Sukajadi, Pekanbaru, Riau 28111\nPatokan: Rumah pagar hijau";

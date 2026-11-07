@@ -348,7 +348,7 @@ Setelah mengubah `NEXT_PUBLIC_API_URL`, restart `npm run dev` web.
 | GET | `/vouchers/:code` | Cek voucher |
 | GET | `/media/:id` | Gambar destinasi unggahan admin (di-cache lama; id baru di setiap unggahan) |
 | POST | `/quote` | Harga keranjang `{items:[{productId, qty}], voucher?}` → baris, `subtotal`, `discount`, `total` |
-| POST | `/orders` | Buat order `{name, email, phone, items:[{productId, qty}], voucher?, departureDate?, delivery?}`. `phone` wajib (0812…, +62 812…). Keranjang berisi SIM Card atau Portable WiFi: `departureDate` (YYYY-MM-DD, tidak lewat, maks. 2 tahun) dan `delivery` `{method:"ship", detail:<alamat>}` juga wajib. 422 `VALIDATION_FAILED` memuat `details` per field |
+| POST | `/orders` | Buat order `{name, email, phone, items:[{productId, qty}], voucher?, departureDate?, delivery?}`. `phone` wajib (0812…, +62 812…). Keranjang berisi SIM Card atau Portable WiFi: `departureDate` (YYYY-MM-DD, tidak lewat, maks. 2 tahun) dan `delivery` juga wajib: `{method:"ship", address:{recipient, street, district, city, province, postalCode, notes?}}` (provinsi dari daftar 38 provinsi, kode pos 5 digit) atau `{method:"pickup", detail:<titik ambil>}`. 422 `VALIDATION_FAILED` memuat `details` per field; galat alamat juga ditunjuk per kolom (`address.postalCode`, …) |
 | GET | `/orders/:id` | Detail order (email dan nomor HP disamarkan, alamat tidak dikirim) |
 | GET | `/checkout-config` | Alur bayar yang aktif `{checkoutFlow: "redirect"\|"qris"}`, dipakai halaman checkout untuk teks langkah 3 |
 | POST | `/webhooks/ipaymu` | Callback iPaymu (form atau JSON) |
@@ -370,7 +370,7 @@ Login menghasilkan token; kirim sebagai `Authorization: Bearer <token>`.
 | GET/POST | `/admin/vouchers` | Daftar (dengan `used`) / tambah |
 | PATCH/DELETE | `/admin/vouchers/:code` | Ubah persen atau `active` / hapus |
 | GET | `/admin/orders?status=&q=&limit=&offset=` | Daftar order + `total`; `q` mencari id, nama, email |
-| GET | `/admin/orders/:id` | Detail lengkap (email, nomor HP, tanggal berangkat, alamat tidak disamarkan) + item |
+| GET | `/admin/orders/:id` | Detail lengkap (email, nomor HP, tanggal berangkat, alamat tidak disamarkan; `deliveryDetail` berupa teks rangkaian, `deliveryAddress` berupa objek terstruktur) + item |
 | POST | `/admin/orders/:id/cancel` | Batalkan order `pending` saja |
 
 Produk, voucher, atau destinasi yang sudah terpakai di order tidak bisa dihapus (409 `IN_USE`); nonaktifkan lewat `active: false`. Harga di order lama tidak berubah karena disalin saat order dibuat.

@@ -1,5 +1,16 @@
 import type { CartItem } from "@/components/CartProvider";
 
+/** Alamat kirim terstruktur; bentuknya sama dengan skema server (api/src/routes/orders.ts). */
+export interface ShipAddress {
+  recipient: string;
+  street: string;
+  district: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  notes?: string;
+}
+
 export interface CheckoutPayload {
   name: string;
   email: string;
@@ -7,7 +18,7 @@ export interface CheckoutPayload {
   /** YYYY-MM-DD. Wajib bila keranjang berisi SIM Card atau Portable WiFi. */
   departureDate?: string;
   /** Alamat pengiriman. Wajib bila keranjang berisi SIM Card atau Portable WiFi. */
-  delivery?: { method: "ship"; detail: string };
+  delivery?: { method: "ship"; address: ShipAddress };
   items: CartItem[];
   voucher?: string;
   /** Id metode dari GET /payment-methods. Tanpa ini server memakai metode pertama yang ditawarkan. */

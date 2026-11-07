@@ -98,7 +98,7 @@ function buildUpdate(table: string, key: string, keyVal: string, patch: Record<s
 const destDto = (r: any) => ({ slug: r.slug, name: r.name, code: r.code, region: r.region, network: r.network, factor: Number(r.factor), position: r.position, thumbUrl: mediaPath(r.thumb_media), bannerUrl: mediaPath(r.banner_media), ...(r.product_count !== undefined ? { productCount: r.product_count } : {}) });
 const productDto = (r: any) => ({ id: r.id, destSlug: r.dest_slug, type: r.type, name: r.name, days: r.days, data: r.data, price: r.price, note: r.note, active: r.active, soldOut: r.sold_out });
 const voucherDto = (r: any) => ({ code: r.code, percent: r.percent, active: r.active, ...(r.used !== undefined ? { used: r.used } : {}) });
-const orderDto = (r: any) => ({ id: r.id, status: r.status, customerName: r.customer_name, customerEmail: r.customer_email, customerPhone: r.customer_phone, departureDate: r.departure_date, deliveryMethod: r.delivery_method, deliveryDetail: r.delivery_detail, subtotal: r.subtotal, discount: r.discount, total: r.total, voucher: r.voucher_code, createdAt: r.created_at, paidAt: r.paid_at });
+const orderDto = (r: any) => ({ id: r.id, status: r.status, customerName: r.customer_name, customerEmail: r.customer_email, customerPhone: r.customer_phone, departureDate: r.departure_date, deliveryMethod: r.delivery_method, deliveryDetail: r.delivery_detail, deliveryAddress: r.delivery_address ?? null, subtotal: r.subtotal, discount: r.discount, total: r.total, voucher: r.voucher_code, createdAt: r.created_at, paidAt: r.paid_at });
 
 export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext = { gateway: null, defaultFlow: "redirect" }) {
   const app = new Hono();

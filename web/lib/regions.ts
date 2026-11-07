@@ -1,0 +1,10 @@
+/** 38 provinsi Indonesia untuk pilihan di form alamat. Harus sama dengan PROVINCES di api/src/services/order-details.ts: server menolak nama di luar daftar ini. */
+export const PROVINCES = [
+  "Aceh", "Sumatera Utara", "Sumatera Barat", "Riau", "Kepulauan Riau", "Jambi", "Sumatera Selatan", "Kepulauan Bangka Belitung", "Bengkulu", "Lampung",
+  "DKI Jakarta", "Jawa Barat", "Banten", "Jawa Tengah", "DI Yogyakarta", "Jawa Timur",
+  "Bali", "Nusa Tenggara Barat", "Nusa Tenggara Timur",
+  "Kalimantan Barat", "Kalimantan Tengah", "Kalimantan Selatan", "Kalimantan Timur", "Kalimantan Utara",
+  "Sulawesi Utara", "Gorontalo", "Sulawesi Tengah", "Sulawesi Barat", "Sulawesi Selatan", "Sulawesi Tenggara",
+  "Maluku", "Maluku Utara",
+  "Papua", "Papua Barat", "Papua Barat Daya", "Papua Selatan", "Papua Tengah", "Papua Pegunungan",
+] as const;

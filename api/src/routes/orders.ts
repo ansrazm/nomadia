@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Db } from "../db/pool.js";
 import { ApiError } from "../errors.js";
 import { createOrder, getOrder, maskEmail } from "../services/orders.js";
-import { departureDateError, maskPhone, normalizePhone } from "../services/order-details.js";
+import { departureDateError, maskPhone, normalizePhone, PROVINCES } from "../services/order-details.js";
 import { startPayment, type CheckoutUrls } from "../services/payments.js";
 import { PAYMENT_METHODS, PAYMENT_METHOD_IDS, type PaymentMethodId } from "../payments/methods.js";
 import type { PaymentGateway } from "../payments/ipaymu.js";
@@ -40,12 +40,36 @@ const departureField = z
     return v;
   });
 
+// Alamat kirim dipecah per kolom supaya tiap salah isi bisa ditunjuk ke kolomnya, dan kurir/admin mendapat data yang bisa dicari.
+const shipAddress = z.object({
+  recipient: z.string().trim().min(2, "Isi nama penerima").max(80),
+  street: z.string().trim().min(5, "Isi jalan dan nomor rumah").max(160),
+  district: z.string().trim().min(2, "Isi kecamatan").max(60),
+  city: z.string().trim().min(2, "Isi kota atau kabupaten").max(60),
+  province: z.enum(PROVINCES, { errorMap: () => ({ message: "Pilih provinsi dari daftar" }) }),
+  postalCode: z.string().trim().regex(/^\d{5}$/, "Kode pos harus 5 digit"),
+  notes: z.string().trim().max(120, "Patokan maksimal 120 karakter").optional().transform((v) => v || undefined),
+});
+
 const deliveryField = z
-  .object({
-    method: z.enum(["ship", "pickup"], { errorMap: () => ({ message: "Cara terima harus ship atau pickup" }) }),
-    detail: z.string().trim().min(5, "Isi alamat atau titik ambil dengan lengkap").max(300),
-  })
+  .discriminatedUnion(
+    "method",
+    [
+      z.object({ method: z.literal("ship"), address: shipAddress }),
+      z.object({ method: z.literal("pickup"), detail: z.string().trim().min(5, "Isi titik ambil dengan lengkap").max(300) }),
+    ],
+    { errorMap: () => ({ message: "Cara terima harus ship (dengan address) atau pickup (dengan detail)" }) },
+  )
   .optional();
+
+/** Galat zod per field. Galat di dalam alamat juga dilaporkan per kolom (`address.postalCode`) di samping `delivery`. */
+function fieldErrors(error: z.ZodError): Record<string, string[]> {
+  const out: Record<string, string[]> = { ...error.flatten().fieldErrors } as Record<string, string[]>;
+  for (const i of error.issues) {
+    if (i.path[0] === "delivery" && i.path[1] === "address" && typeof i.path[2] === "string") (out[`address.${i.path[2]}`] ??= []).push(i.message);
+  }
+  return out;
+}
 
 const body = z.object({
   name: z.string().trim().min(1, "Nama wajib diisi").max(80),
@@ -72,7 +96,7 @@ export function orderRoutes(db: Db, gateway: PaymentGateway | null, urls: Checko
     });
     const parsed = body.safeParse(raw);
     if (!parsed.success) {
-      throw new ApiError(422, "VALIDATION_FAILED", "Data pesanan tidak valid.", parsed.error.flatten().fieldErrors);
+      throw new ApiError(422, "VALIDATION_FAILED", "Data pesanan tidak valid.", fieldErrors(parsed.error));
     }
     // Metode dicek sebelum order dibuat: metode yang tidak ditawarkan tidak boleh meninggalkan order menggantung.
     const enabled = await methods();

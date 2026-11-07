@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Db } from "../db/pool.js";
 import { ApiError } from "../errors.js";
-import { missingDetails } from "./order-details.js";
+import { formatAddress, missingDetails, type ShipAddress } from "./order-details.js";
 import { priceCart } from "./pricing.js";
 
 export { discountFor } from "./pricing.js";
@@ -15,14 +15,19 @@ export interface OrderInput {
   phone?: string | undefined;
   /** YYYY-MM-DD. */
   departureDate?: string | undefined;
-  delivery?: OrderDelivery | undefined;
+  delivery?: DeliveryInput | undefined;
 }
 
 export interface OrderDelivery {
   method: "ship" | "pickup";
-  /** Alamat lengkap (ship) atau nama titik ambil (pickup). */
+  /** Alamat sebagai teks (ship, dirangkai dari `address`) atau nama titik ambil (pickup). */
   detail: string;
+  /** Alamat terstruktur; hanya ada untuk ship. Order lama (alamat bebas) tidak punya. */
+  address?: ShipAddress;
 }
+
+/** Bentuk yang diterima createOrder: ship membawa alamat terstruktur, pickup membawa nama titik ambil. */
+export type DeliveryInput = { method: "ship"; address: ShipAddress } | { method: "pickup"; detail: string };
 
 /** Data QR untuk pembayaran QRIS Direct. imageUrl bisa URL gambar iPaymu atau data URI PNG buatan kita. */
 export interface OrderQr { imageUrl: string; expiresAt: string | null }
@@ -82,11 +87,13 @@ export async function createOrder(db: Db, input: OrderInput): Promise<Order> {
     const id = newOrderId();
     await client.query(
       `INSERT INTO orders (id, customer_name, customer_email, subtotal, discount, total, voucher_code,
-                           customer_phone, departure_date, delivery_method, delivery_detail)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+                           customer_phone, departure_date, delivery_method, delivery_detail, delivery_address)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [
         id, input.name, input.email.toLowerCase(), subtotal, discount, total, voucher?.code ?? null,
-        input.phone ?? null, input.departureDate ?? null, input.delivery?.method ?? null, input.delivery?.detail ?? null,
+        input.phone ?? null, input.departureDate ?? null, input.delivery?.method ?? null,
+        input.delivery ? (input.delivery.method === "ship" ? formatAddress(input.delivery.address) : input.delivery.detail) : null,
+        input.delivery?.method === "ship" ? JSON.stringify(input.delivery.address) : null,
       ],
     );
     await client.query(
@@ -110,7 +117,7 @@ export async function createOrder(db: Db, input: OrderInput): Promise<Order> {
 
 interface OrderRow {
   id: string; status: Order["status"]; customer_name: string; customer_email: string;
-  customer_phone: string | null; departure_date: string | null; delivery_method: OrderDelivery["method"] | null; delivery_detail: string | null;
+  customer_phone: string | null; departure_date: string | null; delivery_method: OrderDelivery["method"] | null; delivery_detail: string | null; delivery_address: ShipAddress | null;
   subtotal: number; discount: number; total: number; voucher_code: string | null;
   payment_url: string | null; payment_qr: OrderQr | null; payment_method: string | null; payment_va: OrderVa | null; created_at: Date; paid_at: Date | null;
 }
@@ -132,7 +139,7 @@ export async function getOrder(db: Queryable, id: string): Promise<Order | null>
     customerEmail: r.customer_email,
     customerPhone: r.customer_phone,
     departureDate: r.departure_date,
-    delivery: r.delivery_method && r.delivery_detail ? { method: r.delivery_method, detail: r.delivery_detail } : null,
+    delivery: r.delivery_method && r.delivery_detail ? { method: r.delivery_method, detail: r.delivery_detail, ...(r.delivery_address ? { address: r.delivery_address } : {}) } : null,
     subtotal: r.subtotal,
     discount: r.discount,
     total: r.total,

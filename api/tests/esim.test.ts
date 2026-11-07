@@ -3,7 +3,7 @@ import type { Db } from "../src/db/pool.js";
 import { buildEsimActivations, newActivationCode } from "../src/services/esim.js";
 import { getOrder } from "../src/services/orders.js";
 import { settleFromTransaction } from "../src/services/payments.js";
-import { appFor, freshDb } from "./helpers.js";
+import { appFor, freshDb, SHIP_ADDRESS } from "./helpers.js";
 
 let db: Db, call: ReturnType<typeof appFor>["call"];
 beforeAll(async () => { db = await freshDb(); call = appFor(db).call; });
@@ -11,7 +11,7 @@ afterAll(() => db.end());
 beforeEach(async () => { await db.query("TRUNCATE orders CASCADE"); });
 
 const order = async (items: { productId: string; qty: number }[]) =>
-  (await call("POST", "/orders", { name: "Budi", email: "budi@example.com", phone: "081234567890", departureDate: new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10), delivery: { method: "ship", detail: "Jl. Contoh No. 1, Pekanbaru" }, items })).json.data.orderId as string;
+  (await call("POST", "/orders", { name: "Budi", email: "budi@example.com", phone: "081234567890", departureDate: new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10), delivery: { method: "ship", address: SHIP_ADDRESS }, items })).json.data.orderId as string;
 const payload = async (id: string) => (await db.query("SELECT payload FROM webhook_outbox WHERE order_id = $1", [id])).rows[0]?.payload;
 const pay = async (id: string) => {
   const total = (await db.query("SELECT total FROM orders WHERE id = $1", [id])).rows[0].total as number;

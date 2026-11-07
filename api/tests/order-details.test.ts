@@ -3,8 +3,8 @@ import type { Db } from "../src/db/pool.js";
 import { GatewayError, type CheckoutInput, type PaymentGateway, type TxInfo } from "../src/payments/ipaymu.js";
 import { OutboxDispatcher } from "../src/services/outbox.js";
 import { setCheckoutFlow } from "../src/services/settings.js";
-import { departureDateError, maskPhone, normalizePhone, todayJakarta } from "../src/services/order-details.js";
-import { appFor, freshDb } from "./helpers.js";
+import { departureDateError, formatAddress, maskPhone, normalizePhone, PROVINCES, todayJakarta } from "../src/services/order-details.js";
+import { appFor, freshDb, SHIP_ADDRESS, SHIP_DETAIL } from "./helpers.js";
 
 const ADMIN = { email: "admin@nomadia.test", password: "kata-sandi-panjang-123", secret: "s".repeat(40) };
 
@@ -100,13 +100,12 @@ beforeEach(async () => {
   auth = { Authorization: `Bearer ${r.json.data.token}` };
 });
 
-const ADDRESS = "Jl. Merdeka No. 12, Pekanbaru, Riau 28111";
 const place = (over: Record<string, unknown> = {}) =>
   call("POST", "/orders", { name: "Budi", email: "budi@example.com", items: [{ productId: "jepang-esim-7", qty: 1 }], ...over });
 const full = (over: Record<string, unknown> = {}) => ({
   phone: "+62 812-3456-7890",
   departureDate: plusDays(30),
-  delivery: { method: "ship", detail: ADDRESS },
+  delivery: { method: "ship", address: SHIP_ADDRESS },
   items: [{ productId: "jepang-sim-7", qty: 1 }],
   ...over,
 });
@@ -118,7 +117,7 @@ describe("POST /orders: data pesanan", () => {
     const r = await place(full({ departureDate: date }));
     expect(r.status).toBe(201);
     const [row] = await rows();
-    expect(row).toMatchObject({ customer_phone: "081234567890", departure_date: date, delivery_method: "ship", delivery_detail: ADDRESS });
+    expect(row).toMatchObject({ customer_phone: "081234567890", departure_date: date, delivery_method: "ship", delivery_detail: SHIP_DETAIL });
   });
 
   it("titik ambil (pickup) juga diterima", async () => {
@@ -145,9 +144,9 @@ describe("POST /orders: data pesanan", () => {
     ["tanggal sudah lewat", { departureDate: plusDays(-1) }, "departureDate"],
     ["tanggal tidak ada di kalender", { departureDate: "2027-02-31" }, "departureDate"],
     ["format tanggal salah", { departureDate: "20-12-2027" }, "departureDate"],
-    ["cara terima tidak dikenal", { delivery: { method: "kurir-drone", detail: ADDRESS } }, "delivery"],
-    ["alamat terlalu pendek", { delivery: { method: "ship", detail: "Jl" } }, "delivery"],
-    ["alamat berlebihan panjang", { delivery: { method: "ship", detail: "x".repeat(301) } }, "delivery"],
+    ["cara terima tidak dikenal", { delivery: { method: "kurir-drone", detail: SHIP_DETAIL } }, "delivery"],
+    ["alamat terlalu pendek", { delivery: { method: "ship", address: { ...SHIP_ADDRESS, street: "Jl" } } }, "delivery"],
+    ["alamat berlebihan panjang", { delivery: { method: "ship", address: { ...SHIP_ADDRESS, street: "x".repeat(161) } } }, "delivery"],
   ])("422 dan tidak ada order dibuat: %s", async (_label, over, field) => {
     const r = await place(over);
     expect(r.status).toBe(422);
@@ -195,9 +194,9 @@ describe("admin melihat data lengkap", () => {
     const date = plusDays(10);
     const id = (await place(full({ departureDate: date }))).json.data.orderId as string;
     const detail = await adminCall("GET", `/admin/orders/${id}`, undefined, auth);
-    expect(detail.json.data).toMatchObject({ customerPhone: "081234567890", departureDate: date, deliveryMethod: "ship", deliveryDetail: ADDRESS });
+    expect(detail.json.data).toMatchObject({ customerPhone: "081234567890", departureDate: date, deliveryMethod: "ship", deliveryDetail: SHIP_DETAIL, deliveryAddress: SHIP_ADDRESS });
     const list = await adminCall("GET", "/admin/orders", undefined, auth);
-    expect(list.json.data[0]).toMatchObject({ id, customerPhone: "081234567890", deliveryDetail: ADDRESS });
+    expect(list.json.data[0]).toMatchObject({ id, customerPhone: "081234567890", deliveryDetail: SHIP_DETAIL });
   });
   it("tanpa token tetap 401", async () => {
     const id = (await place(full())).json.data.orderId as string;
@@ -229,7 +228,7 @@ describe("event order.paid ke n8n", () => {
     const hook = await call("POST", "/webhooks/ipaymu", new URLSearchParams({ trx_id: String(trx), status: "berhasil", status_code: "1", reference_id: id, sub_total: "1" }).toString(), { "Content-Type": "application/x-www-form-urlencoded" });
     expect(hook.status).toBe(200);
     const ev = (await db.query("SELECT payload FROM webhook_outbox WHERE order_id = $1 AND event = 'order.paid'", [id])).rows[0].payload;
-    expect(ev.order).toMatchObject({ customerPhone: "085711112222", departureDate: date, delivery: { method: "ship", detail: ADDRESS } });
+    expect(ev.order).toMatchObject({ customerPhone: "085711112222", departureDate: date, delivery: { method: "ship", detail: SHIP_DETAIL, address: SHIP_ADDRESS } });
   });
 });
 
@@ -237,7 +236,7 @@ const wifi = [{ productId: "jepang-wifi-7", qty: 1 }];
 const sim = [{ productId: "jepang-sim-7", qty: 1 }];
 const esim = [{ productId: "jepang-esim-7", qty: 1 }];
 const okDate = () => plusDays(20);
-const okAddr = { method: "ship", detail: ADDRESS };
+const okAddr = { method: "ship", address: SHIP_ADDRESS };
 
 describe("data wajib menurut isi keranjang", () => {
   it("nomor HP wajib untuk semua order, termasuk eSIM", async () => {
@@ -282,7 +281,7 @@ describe("data wajib menurut isi keranjang", () => {
   it("WiFi dengan data lengkap diterima dan tersimpan", async () => {
     const r = await place({ items: wifi, phone: "081234567890", departureDate: okDate(), delivery: okAddr });
     expect(r.status).toBe(201);
-    expect((await rows())[0]).toMatchObject({ delivery_method: "ship", delivery_detail: ADDRESS });
+    expect((await rows())[0]).toMatchObject({ delivery_method: "ship", delivery_detail: SHIP_DETAIL });
   });
 
   it("produk yang tidak ada dilaporkan lebih dulu daripada data yang kurang", async () => {
@@ -297,5 +296,100 @@ describe("GET /checkout-config", () => {
     await setCheckoutFlow(db, "qris");
     expect((await call("GET", "/checkout-config")).json.data).toMatchObject({ checkoutFlow: "qris" });
     await setCheckoutFlow(db, null);
+  });
+});
+
+
+describe("alamat terstruktur", () => {
+  it("tersimpan per kolom (jsonb) dan sebagai teks rangkaian di delivery_detail", async () => {
+    expect((await place(full())).status).toBe(201);
+    const [row] = await rows();
+    expect(row.delivery_address).toEqual(SHIP_ADDRESS);
+    expect(row.delivery_detail).toBe(SHIP_DETAIL);
+  });
+
+  it("patokan opsional: tanpa patokan tidak ada baris Patokan, string kosong dianggap tidak diisi", async () => {
+    const { notes: _n, ...noNotes } = SHIP_ADDRESS;
+    expect((await place(full({ delivery: { method: "ship", address: { ...noNotes, notes: "   " } } }))).status).toBe(201);
+    const [row] = await rows();
+    expect(row.delivery_address).not.toHaveProperty("notes");
+    expect(row.delivery_detail).not.toContain("Patokan");
+  });
+
+  it("spasi di tepi dipangkas sebelum disimpan", async () => {
+    await place(full({ delivery: { method: "ship", address: { ...SHIP_ADDRESS, city: "  Pekanbaru  ", postalCode: " 28111 " } } }));
+    expect((await rows())[0].delivery_address).toMatchObject({ city: "Pekanbaru", postalCode: "28111" });
+  });
+
+  it.each([
+    ["penerima kosong", { recipient: "" }, "address.recipient"],
+    ["jalan terlalu pendek", { street: "Jl" }, "address.street"],
+    ["kecamatan kosong", { district: "" }, "address.district"],
+    ["kota kosong", { city: "" }, "address.city"],
+    ["provinsi tidak dikenal", { province: "Atlantis" }, "address.province"],
+    ["provinsi beda huruf besar kecil", { province: "riau" }, "address.province"],
+    ["kode pos 4 digit", { postalCode: "2811" }, "address.postalCode"],
+    ["kode pos 6 digit", { postalCode: "281111" }, "address.postalCode"],
+    ["kode pos bukan angka", { postalCode: "2811A" }, "address.postalCode"],
+    ["patokan terlalu panjang", { notes: "x".repeat(121) }, "address.notes"],
+  ])("422 menunjuk kolomnya: %s", async (_label, over, field) => {
+    const r = await place(full({ delivery: { method: "ship", address: { ...SHIP_ADDRESS, ...over } } }));
+    expect(r.status).toBe(422);
+    expect(r.json.error.details).toHaveProperty(field);
+    expect(r.json.error.details).toHaveProperty("delivery");
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it("beberapa kolom salah sekaligus dilaporkan dalam satu respons", async () => {
+    const r = await place(full({ delivery: { method: "ship", address: { ...SHIP_ADDRESS, street: "J", postalCode: "1" } } }));
+    expect(Object.keys(r.json.error.details)).toEqual(expect.arrayContaining(["address.street", "address.postalCode"]));
+  });
+
+  it("bentuk lama (ship dengan detail teks bebas) ditolak, bukan diam-diam diterima tanpa struktur", async () => {
+    const r = await place(full({ delivery: { method: "ship", detail: "Jl. Merdeka No. 12, Pekanbaru, Riau 28111" } }));
+    expect(r.status).toBe(422);
+    expect(r.json.error.details).toHaveProperty("delivery");
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it("pickup tidak butuh alamat terstruktur dan tidak menyimpannya", async () => {
+    await place(full({ delivery: { method: "pickup", detail: "Gerai Pekanbaru, Jl. Sudirman" } }));
+    expect((await rows())[0].delivery_address).toBeNull();
+  });
+
+  it("pickup dengan address diabaikan: kolom alamat tidak terisi untuk pickup", async () => {
+    await place(full({ delivery: { method: "pickup", detail: "Gerai Pekanbaru, Jl. Sudirman", address: SHIP_ADDRESS } }));
+    expect((await rows())[0].delivery_address).toBeNull();
+  });
+
+  it("database menolak alamat terstruktur pada order non-ship", async () => {
+    await place({ phone: "081234567890" });
+    await expect(db.query("UPDATE orders SET delivery_address = '{}'::jsonb")).rejects.toThrow();
+  });
+
+  it("order lama (tanpa delivery_address) tetap bisa dibaca dan diperbarui", async () => {
+    await place(full());
+    await db.query("UPDATE orders SET delivery_address = NULL");
+    const r = await adminCall("GET", `/admin/orders/${(await rows())[0].id}`, undefined, auth);
+    expect(r.json.data).toMatchObject({ deliveryDetail: SHIP_DETAIL, deliveryAddress: null });
+    await expect(db.query("UPDATE orders SET status = 'cancelled'")).resolves.toBeDefined();
+  });
+
+  it("GET /orders/:id publik tidak membuka alamat terstruktur", async () => {
+    const created = await place(full());
+    const r = await call("GET", `/orders/${created.json.data.orderId}`);
+    expect(JSON.stringify(r.json)).not.toContain("Sukajadi");
+    expect(JSON.stringify(r.json)).not.toContain("Merdeka");
+  });
+});
+
+describe("formatAddress dan daftar provinsi", () => {
+  it("merangkai penerima, alamat, dan patokan (patokan hanya bila ada)", () => {
+    expect(formatAddress(SHIP_ADDRESS as any)).toBe(SHIP_DETAIL);
+    expect(formatAddress({ ...SHIP_ADDRESS, notes: undefined } as any).split("\n")).toHaveLength(2);
+  });
+  it("38 provinsi, tanpa duplikat", () => {
+    expect(PROVINCES).toHaveLength(38);
+    expect(new Set(PROVINCES).size).toBe(38);
   });
 });

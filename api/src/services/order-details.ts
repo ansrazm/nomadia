@@ -39,7 +39,8 @@ export function departureDateError(value: string, now: Date = new Date()): strin
 export interface DetailsInput {
   phone?: string | undefined;
   departureDate?: string | undefined;
-  delivery?: { method: string; detail: string } | undefined;
+  /** Hanya dicek ada atau tidaknya; isinya sudah divalidasi skema route. */
+  delivery?: object | undefined;
 }
 
 /**
@@ -56,4 +57,37 @@ export function missingDetails(types: ReadonlySet<string>, d: DetailsInput): Rec
     if (!d.delivery) errors.delivery = ["Alamat pengiriman wajib diisi untuk SIM Card dan Portable WiFi."];
   }
   return errors;
+}
+
+/** 38 provinsi Indonesia. Dipakai server untuk memvalidasi dan web/lib/regions.ts untuk pilihan di form: jaga keduanya sama. */
+export const PROVINCES = [
+  "Aceh", "Sumatera Utara", "Sumatera Barat", "Riau", "Kepulauan Riau", "Jambi", "Sumatera Selatan", "Kepulauan Bangka Belitung", "Bengkulu", "Lampung",
+  "DKI Jakarta", "Jawa Barat", "Banten", "Jawa Tengah", "DI Yogyakarta", "Jawa Timur",
+  "Bali", "Nusa Tenggara Barat", "Nusa Tenggara Timur",
+  "Kalimantan Barat", "Kalimantan Tengah", "Kalimantan Selatan", "Kalimantan Timur", "Kalimantan Utara",
+  "Sulawesi Utara", "Gorontalo", "Sulawesi Tengah", "Sulawesi Barat", "Sulawesi Selatan", "Sulawesi Tenggara",
+  "Maluku", "Maluku Utara",
+  "Papua", "Papua Barat", "Papua Barat Daya", "Papua Selatan", "Papua Tengah", "Papua Pegunungan",
+] as const;
+
+export interface ShipAddress {
+  recipient: string;
+  street: string;
+  district: string;
+  city: string;
+  province: (typeof PROVINCES)[number];
+  /** 5 digit. */
+  postalCode: string;
+  /** Patokan atau catatan untuk kurir (opsional). */
+  notes?: string | undefined;
+}
+
+/**
+ * Alamat sebagai teks, untuk kolom delivery_detail, panel admin, dan event n8n. Satu sumber rangkaian:
+ * semua pembaca lama tetap mendapat string tanpa tahu bahwa alamatnya kini terstruktur.
+ */
+export function formatAddress(a: ShipAddress): string {
+  const lines = [`Penerima: ${a.recipient}`, `${a.street}, ${a.district}, ${a.city}, ${a.province} ${a.postalCode}`];
+  if (a.notes) lines.push(`Patokan: ${a.notes}`);
+  return lines.join("\n");
 }

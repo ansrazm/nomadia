@@ -15,7 +15,8 @@ import { ApiRequestError, createOrder, getCheckoutFlow, getPaymentMethods, quote
 import { typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 import { markPendingOrder } from "@/lib/pending-order";
-import { isValidPhone, MIN_ADDRESS_LENGTH, todayISO } from "@/lib/order-details";
+import { ADDRESS_KEYS, ADDRESS_MAX, EMPTY_ADDRESS, invalidAddressFields, isValidPhone, toShipAddress, todayISO, type AddressForm, type AddressKey } from "@/lib/order-details";
+import { PROVINCES } from "@/lib/regions";
 
 function SectionHead({ n, title, hint }: { n: number; title: string; hint?: string }) {
   return (
@@ -38,8 +39,10 @@ const ICON_SHIELD = "M12 3.5 5 6.2v5.3c0 4.2 2.8 7.4 7 9 4.2-1.6 7-4.8 7-9V6.2zM
 const ICON_REFRESH = "M20 11a8 8 0 0 0-14-4.5L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4.5L20 15M20 20v-5h-5";
 const ICON_TRASH = "M5 7h14M10 7V5h4v2M7.5 7l.8 12h7.4l.8-12";
 
-type FieldErrors = { name?: string; email?: string; phone?: string; departureDate?: string; address?: string };
-const FIELD_ORDER: (keyof FieldErrors)[] = ["name", "email", "phone", "departureDate", "address"];
+type FieldErrors = Partial<Record<"name" | "email" | "phone" | "departureDate" | `addr_${AddressKey}`, string>>;
+const FIELD_ORDER: (keyof FieldErrors)[] = ["name", "email", "phone", "departureDate", ...ADDRESS_KEYS.map((k) => `addr_${k}` as const)];
+/** Id elemen input untuk sebuah kunci galat (dipakai untuk memindahkan fokus ke kolom pertama yang salah). */
+const fieldId = (k: keyof FieldErrors) => (k === "departureDate" ? "departure" : k.replace("addr_", "addr-"));
 
 function CheckoutForm() {
   const { items, setQty, remove } = useCart();
@@ -116,7 +119,10 @@ function CheckoutForm() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [departureDate, setDepartureDate] = useState("");
-  const [address, setAddress] = useState("");
+  const [addr, setAddr] = useState<AddressForm>(EMPTY_ADDRESS);
+  // Penerima otomatis memakai nama pembeli sampai pembeli mengubahnya sendiri (paket sering dikirim ke diri sendiri).
+  const [recipientTouched, setRecipientTouched] = useState(false);
+  const effectiveAddr: AddressForm = { ...addr, recipient: recipientTouched ? addr.recipient : name };
   // SIM Card dan Portable WiFi dikirim fisik, jadi butuh tanggal berangkat dan alamat. eSIM cukup email.
   const needsDelivery = items.some((i) => i.type !== "esim");
   // null = belum diketahui atau gagal diambil: tampilkan teks netral, bukan menebak alurnya.
@@ -163,12 +169,12 @@ function CheckoutForm() {
     if (!isValidPhone(phone)) fe.phone = t("co.err.phone");
     if (needsDelivery) {
       if (!departureDate || departureDate < todayISO()) fe.departureDate = t("co.err.dep");
-      if (address.trim().length < MIN_ADDRESS_LENGTH) fe.address = t("co.err.addr");
+      for (const k of invalidAddressFields(effectiveAddr)) fe[`addr_${k}`] = t(`co.err.addr.${k}`);
     }
     setFieldErrors(fe);
     const firstBad = FIELD_ORDER.find((k) => fe[k]);
     if (firstBad) {
-      document.getElementById(firstBad === "departureDate" ? "departure" : firstBad)?.focus();
+      document.getElementById(fieldId(firstBad))?.focus();
       return;
     }
     if (!canPay) return setError(t("co.err.total"));
@@ -185,7 +191,7 @@ function CheckoutForm() {
       const r = await createOrder({
         name, email, phone: phone.trim(), items, voucher,
         ...(chosen ? { paymentMethod: chosen.id } : {}),
-        ...(needsDelivery ? { departureDate, delivery: { method: "ship" as const, detail: address.trim() } } : {}),
+        ...(needsDelivery ? { departureDate, delivery: { method: "ship" as const, address: toShipAddress(effectiveAddr) } } : {}),
       });
       if (r.qr || r.va) {
         // QRIS atau Virtual Account: QR / nomor VA tampil di halaman pesanan sendiri. Keranjang tetap ada sampai pesanan lunas.
@@ -206,7 +212,9 @@ function CheckoutForm() {
       const fe: FieldErrors = {};
       if (serverFields?.phone) fe.phone = t("co.err.phone");
       if (serverFields?.departureDate) fe.departureDate = t("co.err.dep");
-      if (serverFields?.delivery) fe.address = t("co.err.addr");
+      // Server menunjuk kolom alamat yang salah ("address.postalCode"); bila hanya "delivery", tandai kolom jalan dengan pesan umum.
+      for (const k of ADDRESS_KEYS) if (serverFields?.[`address.${k}`]) fe[`addr_${k}`] = t(`co.err.addr.${k}`);
+      if (serverFields?.delivery && !ADDRESS_KEYS.some((k) => fe[`addr_${k}`])) fe.addr_street = t("co.err.addr");
       if (serverFields?.name) fe.name = t("co.err.name");
       if (serverFields?.email) fe.email = t("co.err.email");
       if (serverFields?.paymentMethod) {
@@ -217,7 +225,7 @@ function CheckoutForm() {
         setFieldErrors(fe);
         setError(t("co.err.fixFields"));
         const firstBad = FIELD_ORDER.find((k) => fe[k]);
-        document.getElementById(firstBad === "departureDate" ? "departure" : firstBad ?? "name")?.focus();
+        document.getElementById(firstBad ? fieldId(firstBad) : "name")?.focus();
       } else {
         // Galat 4xx dari server membawa pesan yang jelas; selain itu anggap masalah koneksi.
         setError(apiErrorMessage(err, t, t("co.err.createFail")));
@@ -332,11 +340,49 @@ function CheckoutForm() {
               </div>
             )}
             {needsDelivery && (
-              <div className="sm:col-span-2">
-                <label htmlFor="address" className="text-sm font-semibold">{t("co.addr")}</label>
-                <textarea id="address" rows={3} maxLength={300} value={address} onChange={(e) => { setAddress(e.target.value); if (fieldErrors.address) setFieldErrors((f) => ({ ...f, address: undefined })); }} autoComplete="street-address" placeholder={t("co.addrPh")} aria-invalid={!!fieldErrors.address} aria-describedby={fieldErrors.address ? "address-err" : "address-hint"} className={`${inputCls(fieldErrors.address)} resize-y`} />
-                {fieldErrors.address ? <p id="address-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.address}</p> : <p id="address-hint" className="mt-1.5 text-xs text-ink/55">{t("co.addrHint")}</p>}
-              </div>
+              <fieldset className="sm:col-span-2">
+                <legend className="text-sm font-semibold">{t("co.addr")}</legend>
+                <p className="mt-0.5 text-xs text-ink/55">{t("co.addrHint")}</p>
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  {(
+                    [
+                      { k: "recipient", span: false, auto: "shipping name" },
+                      { k: "postalCode", span: false, auto: "shipping postal-code", mode: "numeric" as const },
+                      { k: "street", span: true, auto: "shipping street-address" },
+                      { k: "district", span: false, auto: "shipping address-level3" },
+                      { k: "city", span: false, auto: "shipping address-level2" },
+                    ] as { k: Exclude<AddressKey, "province" | "notes">; span: boolean; auto: string; mode?: "numeric" }[]
+                  ).map(({ k, span, auto, mode }) => {
+                    const err = fieldErrors[`addr_${k}`];
+                    return (
+                      <div key={k} className={span ? "sm:col-span-2" : undefined}>
+                        <label htmlFor={`addr-${k}`} className="text-sm font-medium">{t(`co.addr.${k}`)}</label>
+                        <input id={`addr-${k}`} type="text" inputMode={mode} maxLength={ADDRESS_MAX[k]} value={effectiveAddr[k]} autoComplete={auto} placeholder={t(`co.addr.${k}Ph`)}
+                          onChange={(e) => { if (k === "recipient") setRecipientTouched(true); setAddr((a) => ({ ...a, [k]: e.target.value })); if (err) setFieldErrors((f) => ({ ...f, [`addr_${k}`]: undefined })); }}
+                          aria-invalid={!!err} aria-describedby={err ? `addr-${k}-err` : undefined} className={inputCls(err)} />
+                        {err && <p id={`addr-${k}-err`} role="alert" className="mt-1.5 text-sm font-medium text-coral">{err}</p>}
+                      </div>
+                    );
+                  })}
+                  <div>
+                    <label htmlFor="addr-province" className="text-sm font-medium">{t("co.addr.province")}</label>
+                    <select id="addr-province" value={addr.province} autoComplete="shipping address-level1"
+                      onChange={(e) => { setAddr((a) => ({ ...a, province: e.target.value })); if (fieldErrors.addr_province) setFieldErrors((f) => ({ ...f, addr_province: undefined })); }}
+                      aria-invalid={!!fieldErrors.addr_province} aria-describedby={fieldErrors.addr_province ? "addr-province-err" : undefined} className={inputCls(fieldErrors.addr_province)}>
+                      <option value="">{t("co.addr.provincePh")}</option>
+                      {PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                    {fieldErrors.addr_province && <p id="addr-province-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.addr_province}</p>}
+                  </div>
+                  <div>
+                    <label htmlFor="addr-notes" className="text-sm font-medium">{t("co.addr.notes")}</label>
+                    <input id="addr-notes" type="text" maxLength={ADDRESS_MAX.notes} value={addr.notes} placeholder={t("co.addr.notesPh")}
+                      onChange={(e) => { setAddr((a) => ({ ...a, notes: e.target.value })); if (fieldErrors.addr_notes) setFieldErrors((f) => ({ ...f, addr_notes: undefined })); }}
+                      aria-invalid={!!fieldErrors.addr_notes} aria-describedby={fieldErrors.addr_notes ? "addr-notes-err" : undefined} className={inputCls(fieldErrors.addr_notes)} />
+                    {fieldErrors.addr_notes && <p id="addr-notes-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.addr_notes}</p>}
+                  </div>
+                </div>
+              </fieldset>
             )}
           </div>
         </section>
