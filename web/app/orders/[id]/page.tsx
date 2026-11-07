@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { CheckoutSteps } from "@/components/CheckoutSteps";
+import { PaymentLogo } from "@/components/PaymentLogo";
 import { useCart } from "@/components/CartProvider";
 import { useT } from "@/components/LanguageProvider";
 import { useCatalogText } from "@/components/useCatalogText";
@@ -107,7 +108,10 @@ function VaPanel({ va, orderTotal }: { va: OrderVa; orderTotal: number }) {
   const grouped = va.number.replace(/\D/g, "") === va.number ? va.number.replace(/(.{4})/g, "$1 ").trim() : va.number;
   return (
     <div className="mt-6 rounded-2xl bg-mist p-5 sm:p-6">
-      <p className="font-display text-lg font-bold">{t("va.title", { bank: va.bankName })}</p>
+      <div className="flex items-center gap-3">
+        <PaymentLogo id={`va_${va.bank}`} />
+        <p className="font-display text-lg font-bold">{t("va.title", { bank: va.bankName })}</p>
+      </div>
       <div className="mt-4 rounded-xl bg-white p-4">
         <p className="text-xs font-bold uppercase tracking-wider text-ink/55">{t("va.number")}</p>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">

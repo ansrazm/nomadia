@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { PaymentLogo } from "@/components/PaymentLogo";
 import { CheckoutSteps } from "@/components/CheckoutSteps";
 import { useCart } from "@/components/CartProvider";
 import { useT } from "@/components/LanguageProvider";
@@ -355,9 +356,10 @@ function CheckoutForm() {
                     <p className="mt-0.5 text-xs text-ink/55">{t(`co.pm.${g}.d`)}</p>
                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
                       {list.map((m) => (
-                        <label key={m.id} className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 transition-colors ${method === m.id ? "border-lagoon bg-mist" : "border-line hover:border-lagoon/50"}`}>
-                          <input type="radio" name="pay-method" className="h-4 w-4 accent-[#0C2B45]" checked={method === m.id} onChange={() => setMethod(m.id)} />
-                          <span className="text-sm font-semibold">{m.label}</span>
+                        <label key={m.id} className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2.5 transition-colors ${method === m.id ? "border-lagoon bg-mist ring-1 ring-lagoon/40" : "border-line hover:border-lagoon/50"}`}>
+                          <PaymentLogo id={m.id} />
+                          <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">{m.label}</span>
+                          <input type="radio" name="pay-method" className="h-4 w-4 shrink-0 accent-[#0C2B45]" checked={method === m.id} onChange={() => setMethod(m.id)} />
                         </label>
                       ))}
                     </div>
