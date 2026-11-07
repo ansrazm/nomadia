@@ -13,7 +13,7 @@ Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical
 | Kebutuhan test | Yang ada di proyek ini |
 |---|---|
 | Website | Storefront Next.js 14: pencarian destinasi, tab eSIM / SIM Card / WiFi, keranjang, voucher, checkout, halaman status pesanan yang memperbarui diri, bagian FAQ, footer lengkap, header yang menempel saat scroll, tombol WhatsApp dan pusat bantuan melayang |
-| CMS | Area `/admin`: dashboard, CRUD destinasi, produk, dan voucher, unggah gambar destinasi dan banner beranda, daftar pesanan dengan filter dan pencarian, batalkan pesanan `pending` |
+| CMS | Area `/admin`: dashboard, CRUD destinasi, produk, dan voucher, unggah gambar destinasi dan banner beranda (sampai 5, berputar otomatis), daftar pesanan dengan filter dan pencarian, batalkan pesanan `pending` |
 | API Connection | Web membaca katalog dan harga dari REST API (Hono + PostgreSQL); API memanggil iPaymu |
 | Payment Gateway | iPaymu sandbox: tagihan dibuat di server, callback diverifikasi ulang lewat Check Transaction |
 | Automation (n8n) | Event `order.paid` dikirim ke n8n lewat outbox (tanda tangan HMAC, retry dengan backoff) |
@@ -148,7 +148,7 @@ Aktif hanya bila `ADMIN_EMAIL`, `ADMIN_PASSWORD` (min 12 karakter), dan `AUTH_SE
 
 - **Dashboard**: omzet lunas, jumlah pesanan per status, jumlah katalog, 5 pesanan terbaru.
 - **Gambar destinasi**: di tabel Destinasi, tombol **Gambar** mengunggah thumbnail (kartu beranda dan daftar destinasi) dan banner (kepala halaman destinasi). PNG, JPEG, atau WebP, maksimal 2 MB; tanpa gambar toko memakai bendera negara.
-- **Banner beranda**: menu **Banner beranda** mengunggah latar hero halaman utama dan halaman daftar destinasi (PNG, JPEG, atau WebP, maksimal 2 MB; unggahan baru menggantikan yang lama, tombol Hapus mengembalikan ke latar bawaan). Saat pengunjung memilih destinasi di hero beranda, latar sementara berganti ke banner destinasi itu. Tanpa banner beranda, hero memakai banner destinasi pertama yang sudah diunggah, atau navy polos bila belum ada.
+- **Banner beranda**: menu **Banner beranda** mengelola latar hero halaman utama: tambah sampai 5 gambar (PNG, JPEG, atau WebP, maksimal 2 MB masing-masing), geser urutan dengan Naik/Turun, atau Hapus. Dengan lebih dari satu banner, hero memutarnya dengan crossfade sekitar 6 detik per gambar, lengkap dengan titik dan tombol panah; putaran berhenti saat kursor mouse di atas hero atau ada fokus keyboard di dalamnya, dan tidak berjalan sendiri bagi pengunjung yang mengaktifkan "kurangi gerakan". Satu banner tampil statis. Halaman daftar destinasi memakai banner pertama. Saat pengunjung memilih destinasi di hero, latar sementara berganti ke banner destinasi itu. Tanpa banner beranda, hero memakai banner destinasi pertama yang sudah diunggah, atau navy polos bila belum ada. Banner tunggal dari versi sebelumnya otomatis menjadi banner pertama.
 - **Destinasi / Produk / Voucher**: tambah, ubah, hapus, dan saklar Aktif. Harga yang diubah langsung tampil di toko. Item yang sudah terpakai di pesanan tidak bisa dihapus (nonaktifkan saja).
 - **Pesanan**: filter status, cari nomor/nama/email, detail dengan email utuh, batalkan pesanan `pending`.
 - **Pengaturan**: pilih alur pembayaran (halaman bayar iPaymu atau QRIS di halaman toko) tanpa restart. Aktif hanya bila iPaymu sudah dikonfigurasi.
@@ -347,7 +347,8 @@ Setelah mengubah `NEXT_PUBLIC_API_URL`, restart `npm run dev` web.
 | GET | `/destinations?region=&q=&type=` | Daftar destinasi + `startingPrice`; `type=esim\|sim\|wifi` hanya menampilkan destinasi yang punya paket jenis itu dan menghitung harga mulai dari jenis itu |
 | GET | `/destinations/:slug` | Destinasi + produk aktif (eSIM, SIM, WiFi) |
 | GET | `/vouchers/:code` | Cek voucher |
-| GET | `/home-banner` | Banner beranda dari admin `{bannerUrl}`; `null` bila belum diunggah |
+| GET | `/home-banners` | Banner beranda dari admin, berurutan: `{banners: ["/media/..."]}`; daftar kosong bila belum diunggah |
+| GET | `/home-banner` | Bentuk lama: banner pertama `{bannerUrl}`; `null` bila belum ada |
 | GET | `/media/:id` | Gambar unggahan admin (destinasi dan banner beranda; di-cache lama, id baru di setiap unggahan) |
 | POST | `/quote` | Harga keranjang `{items:[{productId, qty}], voucher?}` → baris, `subtotal`, `discount`, `total` |
 | POST | `/orders` | Buat order `{name, email, phone, items:[{productId, qty}], voucher?, departureDate?, delivery?}`. `phone` wajib (0812…, +62 812…). Keranjang berisi SIM Card atau Portable WiFi: `departureDate` (YYYY-MM-DD, tidak lewat, maks. 2 tahun) dan `delivery` juga wajib: `{method:"ship", address:{recipient, street, district, city, province, postalCode, notes?}}` (provinsi dari daftar 38 provinsi, kode pos 5 digit) atau `{method:"pickup", detail:<titik ambil>}`. 422 `VALIDATION_FAILED` memuat `details` per field; galat alamat juga ditunjuk per kolom (`address.postalCode`, …) |
@@ -383,7 +384,9 @@ Login menghasilkan token; kirim sebagai `Authorization: Bearer <token>`.
 | GET/POST | `/admin/destinations` | Daftar (dengan `productCount`) / tambah |
 | PATCH/DELETE | `/admin/destinations/:slug` | Ubah sebagian / hapus (gambarnya ikut terhapus) |
 | POST/DELETE | `/admin/destinations/:slug/image/:kind` | Unggah (multipart, field `file`) / hapus gambar; `kind` = `thumb` atau `banner` |
-| GET/POST/DELETE | `/admin/home-banner` | Baca / unggah (multipart, field `file`; menggantikan dan menghapus gambar lama) / hapus banner beranda |
+| GET/POST | `/admin/home-banners` | Baca daftar `{max, banners: [{id, url}]}` / tambah banner (multipart, field `file`; `409 BANNER_LIMIT` bila sudah 5) |
+| PUT | `/admin/home-banners/order` | Susun ulang: body `{ids: [...]}` harus berisi persis id yang ada; `409` bila daftar sudah berubah |
+| DELETE | `/admin/home-banners/:id` | Hapus satu banner beserta berkasnya (`404` bila bukan banner beranda) |
 | GET/POST | `/admin/products?dest=` | Daftar (termasuk nonaktif) / tambah |
 | PATCH/DELETE | `/admin/products/:id` | Ubah (harga, `active`, dll.) / hapus |
 | GET/PATCH | `/admin/settings` | Baca / ubah alur pembayaran `{checkoutFlow: "redirect"\|"qris"\|null}`; `null` kembali ke `IPAYMU_FLOW`. 409 bila iPaymu belum dikonfigurasi |

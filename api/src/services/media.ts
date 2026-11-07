@@ -70,54 +70,78 @@ export async function clearDestinationImage(db: Db, slug: string, kind: ImageKin
   }
 }
 
-// ---- Banner beranda: satu gambar, disimpan sebagai id media di tabel settings (kunci home_banner) ----
-const HOME_BANNER_KEY = "home_banner";
+// ---- Banner beranda: sampai MAX_HOME_BANNERS gambar, urutannya disimpan di tabel settings (kunci home_banners, JSON array id media) ----
+export const MAX_HOME_BANNERS = 5;
+const BANNERS_KEY = "home_banners";
+// Kunci lama (satu banner). Dibaca sebagai banner pertama, lalu dihapus saat daftar baru ditulis; berkasnya tidak disentuh.
+const LEGACY_KEY = "home_banner";
 
-/** Id media banner beranda, atau null bila admin belum mengunggah (hero memakai latar bawaan). */
-export async function getHomeBannerId(db: Pick<Db, "query">): Promise<string | null> {
-  const r = await db.query<{ value: string }>("SELECT value FROM settings WHERE key = $1", [HOME_BANNER_KEY]);
-  return r.rows[0]?.value ?? null;
+/** Id media banner beranda berurutan; kosong bila admin belum mengunggah (hero memakai latar bawaan). */
+export async function getHomeBannerIds(db: Pick<Db, "query">): Promise<string[]> {
+  const r = await db.query<{ key: string; value: string }>("SELECT key, value FROM settings WHERE key = ANY($1)", [[BANNERS_KEY, LEGACY_KEY]]);
+  const list = r.rows.find((x) => x.key === BANNERS_KEY);
+  if (list) {
+    try {
+      const v: unknown = JSON.parse(list.value);
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+  const legacy = r.rows.find((x) => x.key === LEGACY_KEY);
+  return legacy ? [legacy.value] : [];
 }
 
-/**
- * Ganti banner beranda dan hapus gambar lamanya, dalam satu transaksi. Kunci advisory menyerialkan unggahan
- * bersamaan; tanpa itu dua unggahan pertama sekaligus bisa meninggalkan gambar yatim di tabel media.
- */
-export async function setHomeBanner(db: Db, data: Buffer, type: ImageType): Promise<void> {
+type Client = { query: Db["query"] };
+
+/** Ubah daftar dalam satu transaksi. Kunci advisory menyerialkan perubahan bersamaan supaya tidak ada gambar yatim atau melebihi batas. */
+async function withBanners<T>(db: Db, fn: (client: Client, ids: string[]) => Promise<{ ids?: string[]; result: T }>): Promise<T> {
   const client = await db.connect();
   try {
     await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [HOME_BANNER_KEY]);
-    const cur = await client.query<{ value: string }>("SELECT value FROM settings WHERE key = $1", [HOME_BANNER_KEY]);
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [BANNERS_KEY]);
+    const cur = await getHomeBannerIds(client);
+    const out = await fn(client, cur);
+    if (out.ids) {
+      await client.query(
+        "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+        [BANNERS_KEY, JSON.stringify(out.ids)],
+      );
+      await client.query("DELETE FROM settings WHERE key = $1", [LEGACY_KEY]);
+    }
+    await client.query("COMMIT");
+    return out.result;
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/** Tambah banner di urutan terakhir. Mengembalikan false bila sudah mencapai MAX_HOME_BANNERS. */
+export function addHomeBanner(db: Db, data: Buffer, type: ImageType): Promise<boolean> {
+  return withBanners(db, async (client, ids) => {
+    if (ids.length >= MAX_HOME_BANNERS) return { result: false };
     const id = randomBytes(12).toString("hex");
     await client.query("INSERT INTO media (id, content_type, data, size) VALUES ($1, $2, $3, $4)", [id, type, data, data.length]);
-    await client.query(
-      "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
-      [HOME_BANNER_KEY, id],
-    );
-    if (cur.rows[0]) await client.query("DELETE FROM media WHERE id = $1", [cur.rows[0].value]);
-    await client.query("COMMIT");
-  } catch (e) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw e;
-  } finally {
-    client.release();
-  }
+    return { ids: [...ids, id], result: true };
+  });
 }
 
-/** Hapus banner beranda beserta berkasnya; hero kembali ke latar bawaan. Aman dipanggil saat belum ada banner. */
-export async function clearHomeBanner(db: Db): Promise<void> {
-  const client = await db.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [HOME_BANNER_KEY]);
-    const cur = await client.query<{ value: string }>("DELETE FROM settings WHERE key = $1 RETURNING value", [HOME_BANNER_KEY]);
-    if (cur.rows[0]) await client.query("DELETE FROM media WHERE id = $1", [cur.rows[0].value]);
-    await client.query("COMMIT");
-  } catch (e) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw e;
-  } finally {
-    client.release();
-  }
+/** Hapus satu banner beserta berkasnya. Mengembalikan false bila id itu bukan banner beranda. */
+export function removeHomeBanner(db: Db, id: string): Promise<boolean> {
+  return withBanners(db, async (client, ids) => {
+    if (!ids.includes(id)) return { result: false };
+    await client.query("DELETE FROM media WHERE id = $1", [id]);
+    return { ids: ids.filter((x) => x !== id), result: true };
+  });
+}
+
+/** Susun ulang. `order` harus berisi persis id yang ada sekarang (urutan bebas); selain itu false dan tidak ada yang berubah. */
+export function reorderHomeBanners(db: Db, order: string[]): Promise<boolean> {
+  return withBanners(db, async (_client, ids) => {
+    const same = order.length === ids.length && new Set(order).size === order.length && order.every((x) => ids.includes(x));
+    return same ? { ids: order, result: true } : { result: false };
+  });
 }

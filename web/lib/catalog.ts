@@ -30,12 +30,12 @@ export async function getDestinations(type?: ProductType | null): Promise<Destin
   return list.map((d) => localizeDestination(d, lang));
 }
 
-/** Banner beranda dari admin (alamat relatif /media/...), atau null. Gagal baca tidak boleh merusak beranda, jadi jatuh ke null. */
-export async function getHomeBanner(): Promise<string | null> {
+/** Banner beranda dari admin, berurutan (alamat relatif /media/...); daftar kosong bila belum ada. Gagal baca tidak boleh merusak beranda, jadi jatuh ke daftar kosong. */
+export async function getHomeBanners(): Promise<string[]> {
   try {
-    return (await getData<{ bannerUrl: string | null }>("/home-banner")).bannerUrl;
+    return (await getData<{ banners: string[] }>("/home-banners")).banners;
   } catch {
-    return null;
+    return [];
   }
 }
 

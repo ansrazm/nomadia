@@ -1,6 +1,6 @@
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { DestinationBrowser } from "@/components/DestinationBrowser";
-import { getDestinations, getHomeBanner } from "@/lib/catalog";
+import { getDestinations, getHomeBanners } from "@/lib/catalog";
 import { mediaUrl, parseProductType, typeInfo } from "@/lib/catalog-types";
 import { getT } from "@/lib/i18n/server";
 
@@ -13,10 +13,10 @@ export const dynamic = "force-dynamic";
 export default async function DestinationsPage({ searchParams }: { searchParams: { type?: string | string[] } }) {
   const { t } = getT();
   const type = parseProductType(searchParams.type);
-  const [destinations, homeBanner] = await Promise.all([getDestinations(type), getHomeBanner()]);
+  const [destinations, homeBanners] = await Promise.all([getDestinations(type), getHomeBanners()]);
   // Latar kepala halaman sama seperti beranda: banner beranda dari admin, lalu banner destinasi pertama
   // yang sudah diunggah; tanpa keduanya tetap navy polos.
-  const bg = homeBanner ?? destinations.find((d) => d.bannerUrl)?.bannerUrl ?? null;
+  const bg = homeBanners[0] ?? destinations.find((d) => d.bannerUrl)?.bannerUrl ?? null;
   return (
     <>
       <section className="relative overflow-hidden bg-ink pb-14 pt-32 text-white">

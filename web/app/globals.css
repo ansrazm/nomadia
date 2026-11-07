@@ -19,6 +19,9 @@ body { @apply bg-mist font-sans text-ink antialiased; }
   .container-wide { @apply mx-auto w-full max-w-7xl px-5 sm:px-8; }
 }
 
+/* isian batang indikator carousel hero: penuh dalam satu durasi slide */
+@keyframes slide-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
 /* signal bars: tinggi tiap batang naik bertahap saat level bertambah */
 .bar { transition: transform 450ms cubic-bezier(.2,.8,.2,1), background-color 300ms; transform-origin: bottom; }
 

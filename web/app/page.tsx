@@ -2,7 +2,7 @@ import Link from "next/link";
 import { FaqSection } from "@/components/FaqSection";
 import { Hero } from "@/components/Hero";
 import { Reveal } from "@/components/Reveal";
-import { getDestinations, getHomeBanner } from "@/lib/catalog";
+import { getDestinations, getHomeBanners } from "@/lib/catalog";
 import { flagUrl, mediaUrl, parseProductType, typeInfo, type ProductType } from "@/lib/catalog-types";
 import { TypeChips } from "@/components/TypeChips";
 import { TypeArt, typeArtBg } from "@/components/TypeArt";
@@ -55,12 +55,12 @@ export default async function Home({ searchParams }: { searchParams: { type?: st
   const { t } = getT();
   const type = parseProductType(searchParams.type);
   // Hero tetap memakai semua destinasi; hanya bagian "Tujuan yang sering dipilih" mengikuti filter jenis.
-  const [destinations, homeBanner, byType] = await Promise.all([getDestinations(), getHomeBanner(), type ? getDestinations(type) : null]);
+  const [destinations, homeBanners, byType] = await Promise.all([getDestinations(), getHomeBanners(), type ? getDestinations(type) : null]);
   const featured = (byType ?? destinations).slice(0, 8);
   const query = type ? `?type=${type}` : "";
   return (
     <>
-      <Hero destinations={destinations} homeBannerUrl={homeBanner} />
+      <Hero destinations={destinations} homeBannerUrls={homeBanners} />
 
       <section aria-label={t("home.trustAria")} className="relative z-10 -mt-10">
         <div className="container-x">

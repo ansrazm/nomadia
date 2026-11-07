@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Db } from "../db/pool.js";
 import { ApiError } from "../errors.js";
-import { getHomeBannerId, mediaPath } from "../services/media.js";
+import { getHomeBannerIds, mediaPath } from "../services/media.js";
 
 interface DestRow { slug: string; name: string; code: string; region: string; network: string; factor: string; thumb_media: string | null; banner_media: string | null }
 interface ProductRow { id: string; dest_slug: string; type: string; name: string; days: number; data: string; price: number; note: string; sold_out: boolean }
@@ -57,8 +57,10 @@ export function catalogRoutes(db: Db) {
     return c.json({ data: { ...destDto(dest), products: p.rows.map(productDto) } });
   });
 
-  // Banner beranda yang diatur admin; bannerUrl null berarti hero memakai latar bawaan.
-  app.get("/home-banner", async (c) => c.json({ data: { bannerUrl: mediaPath(await getHomeBannerId(db)) } }));
+  // Banner beranda yang diatur admin, berurutan; daftar kosong berarti hero memakai latar bawaan.
+  app.get("/home-banners", async (c) => c.json({ data: { banners: (await getHomeBannerIds(db)).map((id) => mediaPath(id)) } }));
+  // Bentuk lama (satu banner = yang pertama), dipertahankan untuk klien lama.
+  app.get("/home-banner", async (c) => c.json({ data: { bannerUrl: mediaPath((await getHomeBannerIds(db))[0]) } }));
 
   // Gambar destinasi unggahan admin. Id acak dan baru di setiap unggahan, jadi aman di-cache selamanya.
   app.get("/media/:id", async (c) => {

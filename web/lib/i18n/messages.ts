@@ -80,6 +80,10 @@ const idBase = {
   "hero.pickPrompt": "Pilih destinasi untuk melihat sinyal dan harga.",
   "hero.viewPlans": "Lihat paket",
   "hero.allDestinations": "Semua destinasi",
+  "hero.bannerNav": "Banner",
+  "hero.bannerPrev": "Banner sebelumnya",
+  "hero.bannerNext": "Banner berikutnya",
+  "hero.bannerGo": "Banner {n}",
   "hero.scan": "Pindai untuk aktifkan",
 
   // Beranda
@@ -213,6 +217,10 @@ const enBase: Record<keyof typeof idBase, string> = {
   "hero.pickPrompt": "Pick a destination to see signal and prices.",
   "hero.viewPlans": "View plans",
   "hero.allDestinations": "All destinations",
+  "hero.bannerNav": "Banners",
+  "hero.bannerPrev": "Previous banner",
+  "hero.bannerNext": "Next banner",
+  "hero.bannerGo": "Banner {n}",
   "hero.scan": "Scan to activate",
 
   "home.trustAria": "Highlights",

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { SignalBars } from "./SignalBars";
 import { HeroVisual } from "./HeroVisual";
 import { DestinationSummary, flagUrl, mediaUrl } from "@/lib/catalog-types";
@@ -11,7 +11,9 @@ import { useT } from "./LanguageProvider";
 
 const popular = ["jepang", "korea-selatan", "singapura", "thailand", "eropa"];
 
-export function Hero({ destinations, homeBannerUrl = null }: { destinations: DestinationSummary[]; homeBannerUrl?: string | null }) {
+const SLIDE_MS = 6000;
+
+export function Hero({ destinations, homeBannerUrls = [] }: { destinations: DestinationSummary[]; homeBannerUrls?: string[] }) {
   const t = useT();
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<DestinationSummary | null>(null);
@@ -28,6 +30,21 @@ export function Hero({ destinations, homeBannerUrl = null }: { destinations: Des
     return () => clearInterval(t);
   }, [picked]);
 
+  // Carousel banner beranda: hanya berputar bila ada lebih dari satu banner dan belum ada destinasi dipilih.
+  // Batang indikator terisi selama SLIDE_MS; begitu penuh (onAnimationEnd) slide pindah, jadi isian dan pergantian selalu sinkron.
+  // Isian berhenti saat kursor mouse di atas hero atau ada fokus di dalamnya, dan tidak berjalan bila pengunjung memilih "kurangi gerakan".
+  const reduceMotion = useReducedMotion();
+  const [slide, setSlide] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const count = homeBannerUrls.length;
+  const rotating = count > 1 && !picked;
+  const index = count ? slide % count : 0;
+  // Muat semua banner di muka supaya pergantian pertama tidak berkedip menunggu unduhan.
+  useEffect(() => {
+    if (count < 2) return;
+    homeBannerUrls.forEach((u) => { const img = new Image(); img.src = mediaUrl(u); });
+  }, [homeBannerUrls, count]);
+
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     return destinations.filter((d) => !q || d.name.toLowerCase().includes(q) || (d.nameId ?? "").toLowerCase().includes(q) || d.region.toLowerCase().includes(q)).slice(0, 6);
@@ -35,7 +52,7 @@ export function Hero({ destinations, homeBannerUrl = null }: { destinations: Des
 
   // Latar hero: banner destinasi yang dipilih; sebelum memilih, banner beranda dari admin, lalu banner destinasi
   // pertama yang sudah diunggah. Tanpa banner sama sekali, hero tampil seperti biasa (latar navy polos).
-  const bgUrl = picked?.bannerUrl ?? homeBannerUrl ?? destinations.find((d) => d.bannerUrl)?.bannerUrl ?? null;
+  const bgUrl = picked?.bannerUrl ?? homeBannerUrls[index] ?? destinations.find((d) => d.bannerUrl)?.bannerUrl ?? null;
 
   function choose(d: DestinationSummary) {
     setPicked(d);
@@ -51,7 +68,13 @@ export function Hero({ destinations, homeBannerUrl = null }: { destinations: Des
   }
 
   return (
-    <section className="relative overflow-hidden bg-ink pb-24 pt-32 text-white md:pb-32 md:pt-40">
+    <section
+      className="relative overflow-hidden bg-ink pb-24 pt-32 text-white md:pb-32 md:pt-40"
+      onPointerEnter={(e) => { if (e.pointerType === "mouse") setPaused(true); }}
+      onPointerLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
       {bgUrl && (
         <div aria-hidden className="absolute inset-0">
           <AnimatePresence initial={false}>
@@ -61,12 +84,38 @@ export function Hero({ destinations, homeBannerUrl = null }: { destinations: Des
               alt=""
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.6 }}
+              exit={{ opacity: 1, transition: { duration: 0.8 } }}
+              transition={{ duration: 0.8 }}
               className="absolute inset-0 h-full w-full object-cover"
             />
           </AnimatePresence>
           <div className="absolute inset-0 bg-gradient-to-r from-ink/95 via-ink/80 to-ink/50" />
+        </div>
+      )}
+      {rotating && (
+        <div className="absolute inset-x-0 bottom-14 z-10 flex justify-center">
+          <div role="group" aria-label={t("hero.bannerNav")} className="flex items-center gap-1">
+            <button type="button" aria-label={t("hero.bannerPrev")} onClick={() => setSlide((index + count - 1) % count)} className="grid h-9 w-9 place-items-center rounded-full border border-white/40 bg-ink/40 text-lg text-white backdrop-blur hover:bg-ink/60">‹</button>
+            <div className="mx-2 flex items-center">
+              {homeBannerUrls.map((u, i) => (
+                <button key={u} type="button" aria-label={t("hero.bannerGo", { n: i + 1 })} aria-current={i === index} onClick={() => setSlide(i)} className="grid h-8 w-12 place-items-center sm:w-14">
+                  <span className="relative block h-1 w-full overflow-hidden rounded-full bg-white/35">
+                    <span
+                      key={i === index ? "on" : i < index ? "done" : "todo"}
+                      className="absolute inset-0 origin-left rounded-full bg-signal"
+                      style={
+                        i === index && !reduceMotion
+                          ? { animationName: "slide-fill", animationDuration: `${SLIDE_MS}ms`, animationTimingFunction: "linear", animationFillMode: "forwards", animationPlayState: paused ? "paused" : "running" }
+                          : { transform: i <= index ? "scaleX(1)" : "scaleX(0)" }
+                      }
+                      onAnimationEnd={i === index && !reduceMotion ? () => setSlide((s) => (s + 1) % count) : undefined}
+                    />
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button type="button" aria-label={t("hero.bannerNext")} onClick={() => setSlide((index + 1) % count)} className="grid h-9 w-9 place-items-center rounded-full border border-white/40 bg-ink/40 text-lg text-white backdrop-blur hover:bg-ink/60">›</button>
+          </div>
         </div>
       )}
       <div aria-hidden className="pointer-events-none absolute -right-40 top-10 h-[34rem] w-[34rem] rounded-full border border-lagoon/25" />

@@ -6,7 +6,7 @@ import { ApiError } from "../errors.js";
 import { clientIp } from "../services/client-ip.js";
 import { LoginLimiter, safeEqual, signToken, verifyToken } from "../services/auth.js";
 import type { PaymentGateway } from "../payments/ipaymu.js";
-import { MAX_IMAGE_BYTES, clearDestinationImage, clearHomeBanner, getHomeBannerId, isImageKind, mediaPath, setDestinationImage, setHomeBanner, sniffImage, type ImageType } from "../services/media.js";
+import { MAX_HOME_BANNERS, MAX_IMAGE_BYTES, addHomeBanner, clearDestinationImage, getHomeBannerIds, isImageKind, mediaPath, removeHomeBanner, reorderHomeBanners, setDestinationImage, sniffImage, type ImageType } from "../services/media.js";
 import { CHECKOUT_FLOWS, getCheckoutFlow, getEnabledMethods, setCheckoutFlow, setEnabledMethods, type CheckoutFlow } from "../services/settings.js";
 import { PAYMENT_METHODS, PAYMENT_METHOD_IDS } from "../payments/methods.js";
 import { gatewaySupports } from "../services/payments.js";
@@ -261,20 +261,26 @@ export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext =
     return c.json({ data: destDto(r.rows[0]) });
   });
 
-  // ---- Banner beranda: latar hero di halaman utama. Unggahan baru menggantikan yang lama. ----
-  const homeBannerView = async () => ({ bannerUrl: mediaPath(await getHomeBannerId(db)) });
+  // ---- Banner beranda: latar hero di halaman utama, sampai MAX_HOME_BANNERS gambar yang berputar berurutan. ----
+  const homeBannersView = async () => ({ max: MAX_HOME_BANNERS, banners: (await getHomeBannerIds(db)).map((id) => ({ id, url: mediaPath(id) })) });
 
-  app.get("/admin/home-banner", async (c) => c.json({ data: await homeBannerView() }));
+  app.get("/admin/home-banners", async (c) => c.json({ data: await homeBannersView() }));
 
-  app.post("/admin/home-banner", imageBodyLimit, async (c) => {
+  app.post("/admin/home-banners", imageBodyLimit, async (c) => {
     const { data, type } = await readImageUpload(c);
-    await setHomeBanner(db, data, type);
-    return c.json({ data: await homeBannerView() });
+    if (!(await addHomeBanner(db, data, type))) throw new ApiError(409, "BANNER_LIMIT", `Maksimal ${MAX_HOME_BANNERS} banner. Hapus salah satu dulu.`);
+    return c.json({ data: await homeBannersView() });
   });
 
-  app.delete("/admin/home-banner", async (c) => {
-    await clearHomeBanner(db);
-    return c.json({ data: await homeBannerView() });
+  app.put("/admin/home-banners/order", async (c) => {
+    const { ids } = await body(c, z.object({ ids: z.array(z.string().max(64)).max(MAX_HOME_BANNERS) }));
+    if (!(await reorderHomeBanners(db, ids))) throw new ApiError(409, "BANNER_ORDER_STALE", "Daftar banner sudah berubah. Muat ulang halaman lalu coba lagi.");
+    return c.json({ data: await homeBannersView() });
+  });
+
+  app.delete("/admin/home-banners/:id", async (c) => {
+    if (!(await removeHomeBanner(db, c.req.param("id")))) throw new ApiError(404, "NOT_FOUND", "Banner tidak ditemukan.");
+    return c.json({ data: await homeBannersView() });
   });
 
   // ---- Produk ----
