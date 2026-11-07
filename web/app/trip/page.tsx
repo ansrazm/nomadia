@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { TripBanner } from "@/components/TripBanner";
 import { TripPlanner } from "@/components/TripPlanner";
 import { getDestination } from "@/lib/catalog";
 import { DestinationDetail, flagUrl, parseProductType } from "@/lib/catalog-types";
@@ -27,6 +28,7 @@ export default async function TripPage({ searchParams }: { searchParams: { d?: s
   return (
     <>
       <section className="relative overflow-hidden bg-ink pb-14 pt-32 text-white">
+        <TripBanner images={destinations.map((d) => d.bannerUrl)} />
         <div className="container-wide relative">
           <Breadcrumb items={[{ label: t("crumb.home"), href: "/" }, { label: t("nav.destinations"), href: "/destinations" }, { label: t("trip.crumb") }]} />
           <ul className="mt-8 flex flex-wrap items-center gap-3" aria-label={destinations.map((d) => d.name).join(", ")}>
