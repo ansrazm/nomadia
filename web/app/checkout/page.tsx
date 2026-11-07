@@ -124,6 +124,8 @@ function CheckoutForm() {
   const [addr, setAddr] = useState<AddressForm>(EMPTY_ADDRESS);
   // Penerima otomatis memakai nama pembeli sampai pembeli mengubahnya sendiri (paket sering dikirim ke diri sendiri).
   const [recipientTouched, setRecipientTouched] = useState(false);
+  // Di HP alamat dilipat jadi satu baris; terbuka saat diketuk atau saat ada galat di salah satu kolomnya.
+  const [addrOpen, setAddrOpen] = useState(false);
   const effectiveAddr: AddressForm = { ...addr, recipient: recipientTouched ? addr.recipient : name };
   // SIM Card dan Portable WiFi dikirim fisik, jadi butuh tanggal berangkat dan alamat. eSIM cukup email.
   const needsDelivery = items.some((i) => i.type !== "esim");
@@ -161,6 +163,12 @@ function CheckoutForm() {
     if (redirectUrl) window.location.assign(redirectUrl);
   }, [redirectUrl]);
 
+  // Kolom alamat tersembunyi selagi dilipat: buka dulu, fokuskan setelah tampil.
+  function focusField(k: keyof FieldErrors) {
+    if (k.startsWith("addr_")) setAddrOpen(true);
+    setTimeout(() => document.getElementById(fieldId(k))?.focus(), 0);
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -176,7 +184,7 @@ function CheckoutForm() {
     setFieldErrors(fe);
     const firstBad = FIELD_ORDER.find((k) => fe[k]);
     if (firstBad) {
-      document.getElementById(fieldId(firstBad))?.focus();
+      focusField(firstBad);
       return;
     }
     if (!canPay) return setError(t("co.err.total"));
@@ -227,7 +235,7 @@ function CheckoutForm() {
         setFieldErrors(fe);
         setError(t("co.err.fixFields"));
         const firstBad = FIELD_ORDER.find((k) => fe[k]);
-        document.getElementById(firstBad ? fieldId(firstBad) : "name")?.focus();
+        focusField(firstBad ?? "name");
       } else {
         // Galat 4xx dari server membawa pesan yang jelas; selain itu anggap masalah koneksi.
         setError(apiErrorMessage(err, t, t("co.err.createFail")));
@@ -274,6 +282,8 @@ function CheckoutForm() {
   // Teks langkah mengikuti metode tunggal yang ditawarkan; tanpa daftar metode, ikuti alur dasar dari /checkout-config.
   const stepFlow: "redirect" | "qris" | null = methods ? (methods[0]!.group === "qris" ? "qris" : "redirect") : flow;
   const totalQty = items.reduce((n, i) => n + i.qty, 0);
+  const addrDone = needsDelivery && invalidAddressFields(effectiveAddr).length === 0;
+  const addrHasError = ADDRESS_KEYS.some((k) => fieldErrors[`addr_${k}`]);
   const inputCls = (bad?: string) => `mt-2 w-full rounded-xl border bg-white px-4 py-3 outline-none transition-colors focus:border-lagoon focus:ring-2 focus:ring-lagoon/20 ${bad ? "border-coral" : "border-line"}`;
 
   return (
@@ -345,7 +355,25 @@ function CheckoutForm() {
               <fieldset className="sm:col-span-2">
                 <legend className="text-sm font-semibold">{t("co.addr")}</legend>
                 <p className="mt-0.5 text-xs text-ink/55">{t("co.addrHint")}</p>
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                {/* HP: alamat dilipat jadi satu baris (ringkasan setelah terisi). sm ke atas: kolom selalu terbuka. */}
+                <button type="button" aria-expanded={addrOpen} aria-controls="addr-fields" onClick={() => setAddrOpen((v) => !v)}
+                  className={`mt-3 flex w-full items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 text-left sm:hidden ${addrHasError ? "border-coral" : "border-line"}`}>
+                  <span className="min-w-0 text-sm">
+                    {addrDone && !addrOpen ? (
+                      <>
+                        <span className="block truncate font-semibold">{effectiveAddr.recipient.trim()}</span>
+                        <span className="block truncate text-ink/60">{[effectiveAddr.city.trim(), effectiveAddr.province, effectiveAddr.postalCode.trim()].join(" · ")}</span>
+                      </>
+                    ) : (
+                      <span className={addrHasError ? "font-medium text-coral" : "text-ink/60"}>{t("co.addr.fill")}</span>
+                    )}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-deep">
+                    {addrDone && !addrOpen ? t("co.addr.edit") : addrOpen ? t("co.addr.fold") : null}
+                    <svg aria-hidden viewBox="0 0 20 20" className={`h-4 w-4 transition-transform ${addrOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 7.5 5 5 5-5" /></svg>
+                  </span>
+                </button>
+                <div id="addr-fields" className={`mt-3 gap-4 sm:grid-cols-2 ${addrOpen ? "grid" : "hidden sm:grid"}`}>
                   {(
                     [
                       { k: "recipient", span: false, auto: "shipping name" },
