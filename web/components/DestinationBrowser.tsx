@@ -75,7 +75,10 @@ export function DestinationBrowser({ destinations, type = null, availability = n
 
       <TypeChips current={type} basePath="/destinations" className="mt-4" />
 
-      <p className="mt-6 text-sm text-ink/60" role="status" aria-live="polite">{type ? t("browser.countType", { count: filtered.length, type: typeInfo[type].label }) : t("browser.count", { count: filtered.length })}</p>
+      <div className="mt-6 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1">
+        <p className="text-sm text-ink/60" role="status" aria-live="polite">{type ? t("browser.countType", { count: filtered.length, type: typeInfo[type].label }) : t("browser.count", { count: filtered.length })}</p>
+        {availability && <p className="max-w-xl text-sm text-ink/60 sm:text-right">{t("trip.listHint", { max: MAX_STOPS })}</p>}
+      </div>
 
       {filtered.length === 0 ? (
         <div className="mt-6 rounded-3xl border border-line bg-white p-12 text-center">
