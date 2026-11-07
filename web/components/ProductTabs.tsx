@@ -62,31 +62,42 @@ export function ProductTabs({ products, network, destName }: { products: Product
       </div>
       <p className="mt-4 text-ink/70">{typeInfo[tab].short}. {typeInfo[tab].delivery}.</p>
 
-      <dl aria-label="Spesifikasi" className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {typeSpecs(tab, network).map((s) => (
-          <div key={s.label} className="rounded-2xl border border-line bg-white px-4 py-3">
+      {/* Ringkasan satu baris: empat fakta dalam satu kotak, bukan empat kartu terpisah. */}
+      <dl aria-label="Spesifikasi" className="mt-4 grid grid-cols-2 divide-line rounded-[4px] border border-line bg-white lg:grid-cols-4 lg:divide-x">
+        {typeSpecs(tab, network).map((s, i) => (
+          <div key={s.label} className={`px-4 py-3 ${i > 1 ? "border-t border-line lg:border-t-0" : ""} ${i % 2 === 1 ? "border-l border-line lg:border-l-0" : ""}`}>
             <dt className="text-xs font-bold uppercase tracking-wider text-ink/55">{s.label}</dt>
-            <dd className="mt-1 text-sm font-semibold leading-snug">{s.value}</dd>
+            <dd className="mt-0.5 text-sm font-semibold leading-snug">{s.value}</dd>
           </div>
         ))}
       </dl>
 
+      {/* Langkah dan hal yang perlu dicek dilipat, supaya pilihan paket langsung terlihat tanpa scroll jauh. */}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-        <ol aria-label="Cara kerja" className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-ink/75">
-          {typeContent[tab].steps.map((s, i) => (
-            <li key={s.title} className="flex items-center gap-2">
-              <span aria-hidden className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-ink text-xs font-bold text-signal">{i + 1}</span>
-              {s.title}
-            </li>
-          ))}
-        </ol>
+        <details className="group text-sm text-ink/75">
+          <summary className="cursor-pointer list-none font-semibold text-deep underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden">
+            Cara kerja dan hal yang perlu dicek <span aria-hidden className="inline-block transition-transform group-open:rotate-180">▾</span>
+          </summary>
+          <ol aria-label="Cara kerja" className="mt-3 grid gap-2">
+            {typeContent[tab].steps.map((s, i) => (
+              <li key={s.title} className="flex items-start gap-2">
+                <span aria-hidden className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-[3px] bg-ink text-xs font-bold text-signal">{i + 1}</span>
+                <span><span className="font-semibold text-ink">{s.title}.</span> {s.text}</span>
+              </li>
+            ))}
+          </ol>
+          <ul aria-label="Cek dulu" className="mt-3 list-disc space-y-1 pl-5 text-ink/65">
+            {typeContent[tab].checks.map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ul>
+        </details>
         {canCompare && (
           <button type="button" onClick={() => setCompareOpen(true)} className="text-sm font-semibold text-deep underline-offset-4 hover:underline">
             Bandingkan eSIM, SIM Card, WiFi
           </button>
         )}
       </div>
-      <p className="mt-2 text-sm text-ink/60">Cek dulu: {typeContent[tab].checks[0]}.</p>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
         <div role="radiogroup" aria-label="Pilih paket" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
