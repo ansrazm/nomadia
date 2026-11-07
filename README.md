@@ -176,7 +176,7 @@ npm test
 
 ## CMS admin
 
-Aktif hanya bila `ADMIN_EMAIL`, `ADMIN_PASSWORD` (min 12 karakter), dan `AUTH_SECRET` (min 32 karakter, `openssl rand -hex 32`) diisi; bila kosong, endpoint `/admin` tidak ada sama sekali. Buka `/admin`, login, lalu:
+Aktif hanya bila `ADMIN_EMAIL`, `ADMIN_PASSWORD` (min 12 karakter), dan `AUTH_SECRET` (min 32 karakter, `openssl rand -hex 32`) diisi; bila kosong, semua jalur `/admin` dijawab `503 ADMIN_DISABLED` beserta petunjuk variabel yang harus diisi (halaman login menampilkan pesan itu). Buka `/admin`, login, lalu:
 
 - **Dashboard**: omzet lunas, jumlah pesanan per status, jumlah katalog, 5 pesanan terbaru.
 - **Gambar destinasi**: di tabel Destinasi, tombol **Gambar** mengunggah thumbnail (kartu beranda dan daftar destinasi) dan banner (kepala halaman destinasi). PNG, JPEG, atau WebP, maksimal 2 MB; tanpa gambar toko memakai bendera negara.

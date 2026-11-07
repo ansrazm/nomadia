@@ -58,9 +58,10 @@ describe("auth admin", () => {
     const r = await call("POST", "/admin/login", { email: ADMIN.email, password: ADMIN.password }, h);
     expect(r.status).toBe(429);
   });
-  it("tanpa konfigurasi admin, /admin tidak ada", async () => {
+  it("tanpa konfigurasi admin, /admin tidak bisa dipakai dan penyebabnya dijelaskan (503 ADMIN_DISABLED)", async () => {
     const r = await appFor(db).call("POST", "/admin/login", { email: "a", phone: "081234567890", password: "b" });
-    expect(r.status).toBe(404);
+    expect(r.status).toBe(503);
+    expect(r.json.error.code).toBe("ADMIN_DISABLED");
   });
 });
 

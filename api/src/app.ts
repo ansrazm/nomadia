@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { catalogRoutes } from "./routes/catalog.js";
 import { quoteRoutes } from "./routes/quote.js";
@@ -48,6 +48,23 @@ export function createApp({ db, corsOrigins, gateway = null, outbox = null, publ
   app.route("/", orderRoutes(db, gateway, { publicApiUrl, webUrl }, async () => (await getEnabledMethods(db, checkoutFlow)).methods));
   app.route("/", webhookRoutes(db, gateway, outbox));
   if (admin) app.route("/", adminRoutes(db, admin, { gateway, defaultFlow: checkoutFlow }, { trustProxyHops: rl?.trustProxyHops ?? 0 }));
+  else {
+    // Tanpa kredensial admin, /admin/* memang tidak ada. Jelaskan penyebabnya, jangan 404 generik
+    // "Endpoint tidak ditemukan" yang membuat penilai mengira login-nya rusak.
+    const disabled = (c: Context) =>
+      c.json(
+        {
+          error: {
+            code: "ADMIN_DISABLED",
+            message:
+              "Panel admin belum diaktifkan di server ini. Isi ADMIN_EMAIL, ADMIN_PASSWORD (minimal 12 karakter), dan AUTH_SECRET (minimal 32 karakter) di .env, lalu jalankan ulang API.",
+          },
+        },
+        503,
+      );
+    app.all("/admin", disabled);
+    app.all("/admin/*", disabled);
+  }
 
   app.notFound((c) => c.json({ error: { code: "NOT_FOUND", message: "Endpoint tidak ditemukan." } }, 404));
 

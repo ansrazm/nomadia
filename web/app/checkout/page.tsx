@@ -60,7 +60,7 @@ function AddrField({ k, label, error, span, children }: { k: string; label: stri
 }
 
 function CheckoutForm() {
-  const { items, setQty, remove } = useCart();
+  const { items, setQty, remove, settle } = useCart();
   const t = useT();
   const ct = useCatalogText();
   const params = useSearchParams();
@@ -238,6 +238,10 @@ function CheckoutForm() {
         setRedirectUrl(r.paymentUrl);
         return;
       }
+      // Server tanpa iPaymu: pesanan tercatat tetapi tidak ada tautan bayar dan tidak ada halaman yang akan kembali ke sini,
+      // jadi baris yang sudah dipesan keluar dari keranjang sekarang (paket yang ditambah sesudahnya tidak ikut terhapus).
+      // Aman terhadap layar hasil di bawah: cabang `result` dirender sebelum cabang keranjang kosong.
+      settle(items.map((i) => ({ productId: i.id, qty: i.qty })));
       setResult(r);
     } catch (err) {
       // Server menjadi penentu terakhir: galat per field dipetakan ke kolomnya, bukan satu pesan umum.
