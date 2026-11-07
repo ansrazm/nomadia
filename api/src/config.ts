@@ -20,6 +20,10 @@ const schema = z.object({
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().min(12, "ADMIN_PASSWORD minimal 12 karakter").optional(),
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET minimal 32 karakter").optional(),
+  // Pembatasan laju per IP untuk jalur publik. off = mati.
+  RATE_LIMIT: z.enum(["on", "off"]).default("on"),
+  // Jumlah proxy tepercaya di depan API (Nginx, Caddy, Cloudflare...). 0 = baca IP dari koneksi TCP, abaikan X-Forwarded-For.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
 });
 
 export interface Config {
@@ -32,6 +36,7 @@ export interface Config {
   ipaymu: { va: string; apiKey: string; mode: "sandbox" | "live"; debug: boolean } | null;
   n8n: { url: string; secret: string } | null;
   admin: { email: string; password: string; secret: string } | null;
+  rateLimit: { trustProxyHops: number } | null;
 }
 
 const blank = (v: string | undefined) => (v && v.trim() ? v.trim() : undefined);
@@ -58,5 +63,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     ipaymu: d.IPAYMU_VA && d.IPAYMU_API_KEY ? { va: d.IPAYMU_VA, apiKey: d.IPAYMU_API_KEY, mode: d.IPAYMU_MODE, debug: d.IPAYMU_DEBUG === "true" || d.IPAYMU_DEBUG === "1" } : null,
     n8n: d.N8N_WEBHOOK_URL && d.N8N_WEBHOOK_SECRET ? { url: d.N8N_WEBHOOK_URL, secret: d.N8N_WEBHOOK_SECRET } : null,
     admin: d.ADMIN_EMAIL && d.ADMIN_PASSWORD && d.AUTH_SECRET ? { email: d.ADMIN_EMAIL, password: d.ADMIN_PASSWORD, secret: d.AUTH_SECRET } : null,
+    rateLimit: d.RATE_LIMIT === "off" ? null : { trustProxyHops: d.TRUST_PROXY_HOPS },
   };
 }

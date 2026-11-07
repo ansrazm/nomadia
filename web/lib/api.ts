@@ -66,6 +66,15 @@ export class ApiRequestError extends Error {
   }
 }
 
+/** Jeda sebelum mengulang setelah galat: untuk 429 mengikuti retryAfterSec dari server (maks 60 detik), selain itu `fallbackMs`. */
+export function retryDelayMs(err: unknown, fallbackMs: number): number {
+  if (err instanceof ApiRequestError && err.status === 429) {
+    const sec = Number((err.details as { retryAfterSec?: unknown } | undefined)?.retryAfterSec);
+    if (Number.isFinite(sec) && sec > 0) return Math.min(Math.max(fallbackMs, sec * 1000), 60_000);
+  }
+  return fallbackMs;
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ?? "";
 
 /**

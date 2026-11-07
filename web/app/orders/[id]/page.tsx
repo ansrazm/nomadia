@@ -10,7 +10,7 @@ import { useCart } from "@/components/CartProvider";
 import { useT } from "@/components/LanguageProvider";
 import { useCatalogText } from "@/components/useCatalogText";
 import type { TFn } from "@/lib/i18n/messages";
-import { getOrder, OrderQr, OrderVa, OrderView } from "@/lib/api";
+import { getOrder, retryDelayMs, OrderQr, OrderVa, OrderView } from "@/lib/api";
 import { idr } from "@/lib/format";
 import { consumePendingOrder } from "@/lib/pending-order";
 
@@ -184,10 +184,10 @@ function OrderStatus() {
         setFailed(false);
         // Terus cek selama menunggu pembayaran; berhenti setelah status akhir.
         if (o?.status === "pending") timer = setTimeout(load, POLL_MS);
-      } catch {
+      } catch (err) {
         if (stop) return;
         setFailed(true);
-        timer = setTimeout(load, POLL_MS * 2);
+        timer = setTimeout(load, retryDelayMs(err, POLL_MS * 2));
       }
     }
     load();

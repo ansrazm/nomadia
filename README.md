@@ -353,6 +353,23 @@ Setelah mengubah `NEXT_PUBLIC_API_URL`, restart `npm run dev` web.
 | GET | `/checkout-config` | Alur bayar yang aktif `{checkoutFlow: "redirect"\|"qris"}`, dipakai halaman checkout untuk teks langkah 3 |
 | POST | `/webhooks/ipaymu` | Callback iPaymu (form atau JSON) |
 
+### Pembatasan laju
+
+Jalur publik yang rawan disalahgunakan dibatasi per IP (jendela tetap, dalam memori). Lewat batas, API membalas `429` dengan header `Retry-After` dan `error.code = "RATE_LIMITED"`.
+
+| Jalur | Batas |
+|---|---|
+| `POST /orders` | 10 per 10 menit |
+| `POST /quote` | 60 per menit |
+| `GET /orders/:id` | 120 per menit (halaman status memeriksa tiap 4 detik, jadi aman) |
+| `POST /admin/login` | 5 login gagal per 15 menit (pembatas terpisah) |
+
+`/health` dan `/webhooks/ipaymu` tidak dibatasi. Katalog dan voucher (GET) juga tidak.
+
+- `RATE_LIMIT=off` mematikan pembatas.
+- `TRUST_PROXY_HOPS` adalah jumlah proxy tepercaya di depan API. Bila 0 (default), IP diambil dari koneksi TCP dan `X-Forwarded-For` **diabaikan**, sehingga tidak bisa dipalsukan. Bila ≥ 1, IP klien diambil dari kanan header (entri kiri buatan klien tidak dipercaya). **API di belakang Cloudflare Tunnel, Nginx, atau Caddy wajib mengisi `TRUST_PROXY_HOPS=1`**; kalau tidak, semua pengunjung tampak berasal dari satu IP dan berbagi jatah. Dengan Docker Compose bawaan dan browser memanggil API langsung, nilai 0 sudah benar.
+- Pembatas ada di memori satu proses: hilang saat API restart dan tidak dibagi antar-instance. Untuk beberapa instance, pindahkan ke Redis atau ke proxy (Cloudflare, Nginx `limit_req`).
+
 ### Endpoint admin
 
 Login menghasilkan token; kirim sebagai `Authorization: Bearer <token>`.
@@ -389,7 +406,7 @@ Format galat: `{ "error": { "code", "message", "details?" } }`.
 ## Batasan yang diketahui
 
 - Token login admin disimpan di `localStorage`, jadi rentan bila ada celah XSS. Dipilih demi kesederhanaan untuk technical test; produksi sebaiknya memakai cookie `HttpOnly`.
-- Pembatas login ada di memori dan membaca IP dari `x-forwarded-for`: cukup untuk satu instance, bukan proteksi penuh di balik proxy.
+- Pembatas laju (termasuk pembatas login) ada di memori dan per IP: cukup untuk satu instance, bukan proteksi penuh terhadap serangan terdistribusi. Lihat [Pembatasan laju](#pembatasan-laju) untuk `TRUST_PROXY_HOPS` di belakang proxy.
 - Membatalkan order dari admin hanya mengubah status di database, bukan membatalkan sesi bayar di iPaymu. Bila pelanggan terlanjur bayar sesudahnya, webhook mencatatnya ke log untuk ditinjau manual dan tidak mengembalikan status ke lunas.
 - Beberapa pesan validasi dari zod masih berbahasa Inggris.
 - Gambar destinasi disimpan di PostgreSQL (tabel `media`) supaya demo tidak butuh storage terpisah, dan tidak diubah ukurannya otomatis: unggah gambar yang sudah dioptimalkan (thumbnail ±800×600, banner ±1600×600). Untuk trafik nyata, pindahkan ke object storage dengan CDN. Jenis berkas diperiksa dari isinya (PNG, JPEG, WebP); SVG sengaja ditolak karena bisa memuat skrip.

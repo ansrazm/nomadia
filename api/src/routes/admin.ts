@@ -3,6 +3,7 @@ import { bodyLimit } from "hono/body-limit";
 import { z, type ZodTypeAny } from "zod";
 import type { Db } from "../db/pool.js";
 import { ApiError } from "../errors.js";
+import { clientIp } from "../services/client-ip.js";
 import { LoginLimiter, safeEqual, signToken, verifyToken } from "../services/auth.js";
 import type { PaymentGateway } from "../payments/ipaymu.js";
 import { MAX_IMAGE_BYTES, clearDestinationImage, clearHomeBanner, getHomeBannerId, isImageKind, mediaPath, setDestinationImage, setHomeBanner, sniffImage, type ImageType } from "../services/media.js";
@@ -100,12 +101,12 @@ const productDto = (r: any) => ({ id: r.id, destSlug: r.dest_slug, type: r.type,
 const voucherDto = (r: any) => ({ code: r.code, percent: r.percent, active: r.active, ...(r.used !== undefined ? { used: r.used } : {}) });
 const orderDto = (r: any) => ({ id: r.id, status: r.status, customerName: r.customer_name, customerEmail: r.customer_email, customerPhone: r.customer_phone, departureDate: r.departure_date, deliveryMethod: r.delivery_method, deliveryDetail: r.delivery_detail, deliveryAddress: r.delivery_address ?? null, subtotal: r.subtotal, discount: r.discount, total: r.total, voucher: r.voucher_code, createdAt: r.created_at, paidAt: r.paid_at });
 
-export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext = { gateway: null, defaultFlow: "redirect" }) {
+export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext = { gateway: null, defaultFlow: "redirect" }, opts: { trustProxyHops?: number } = {}) {
   const app = new Hono();
   const limiter = new LoginLimiter();
 
   app.post("/admin/login", async (c) => {
-    const key = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+    const key = clientIp(c, opts.trustProxyHops ?? 0);
     if (limiter.blocked(key)) throw new ApiError(429, "TOO_MANY_ATTEMPTS", "Terlalu banyak percobaan login. Coba lagi beberapa menit lagi.");
     const { email, password } = await body(c, z.object({ email: z.string().max(200), password: z.string().max(200) }));
     // Dua perbandingan selalu dijalankan agar waktu respons tidak membocorkan mana yang salah.

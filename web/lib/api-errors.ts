@@ -8,6 +8,7 @@ const codeKey: Record<string, MessageKey> = {
   QTY_LIMIT: "apierr.qty",
   ORDER_NOT_FOUND: "apierr.orderNotFound",
   NO_API: "apierr.noApi",
+  RATE_LIMITED: "apierr.rateLimited",
 };
 
 /**

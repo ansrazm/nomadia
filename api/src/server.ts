@@ -15,9 +15,9 @@ const gateway = config.ipaymu ? new IpaymuClient(config.ipaymu) : null;
 const outbox = config.n8n ? new OutboxDispatcher({ db, url: config.n8n.url, secret: config.n8n.secret }) : null;
 outbox?.start();
 const startFlow = await getCheckoutFlow(db, config.checkoutFlow);
-console.log(`iPaymu: ${config.ipaymu ? `${config.ipaymu.mode}, alur ${startFlow.flow} (${startFlow.source === "database" ? "dari admin" : "dari env"})` : "nonaktif (order dibuat tanpa paymentUrl)"} | n8n: ${config.n8n ? "aktif" : "nonaktif"} | CMS admin: ${config.admin ? "aktif" : "nonaktif"}`);
+console.log(`iPaymu: ${config.ipaymu ? `${config.ipaymu.mode}, alur ${startFlow.flow} (${startFlow.source === "database" ? "dari admin" : "dari env"})` : "nonaktif (order dibuat tanpa paymentUrl)"} | n8n: ${config.n8n ? "aktif" : "nonaktif"} | CMS admin: ${config.admin ? "aktif" : "nonaktif"} | rate limit: ${config.rateLimit ? `aktif (proxy tepercaya: ${config.rateLimit.trustProxyHops})` : "nonaktif"}`);
 
-const app = createApp({ db, corsOrigins: config.corsOrigins, gateway, outbox, publicApiUrl: config.publicApiUrl, checkoutFlow: config.checkoutFlow, webUrl: config.webUrl, admin: config.admin });
+const app = createApp({ db, corsOrigins: config.corsOrigins, gateway, outbox, publicApiUrl: config.publicApiUrl, checkoutFlow: config.checkoutFlow, webUrl: config.webUrl, admin: config.admin, rateLimit: config.rateLimit });
 const server = serve({ fetch: app.fetch, port: config.port }, (i) => console.log(`Nomadia API di http://localhost:${i.port}`));
 
 const stop = () => {

@@ -35,7 +35,15 @@ export function verifyToken(secret: string, token: string, now = Date.now()): { 
 /** Pembatas percobaan login gagal per kunci (IP), dalam memori. Cukup untuk satu instance API. */
 export class LoginLimiter {
   private fails = new Map<string, { n: number; resetAt: number }>();
+  private lastSweep = 0;
   constructor(private max = 5, private windowMs = 15 * 60 * 1000) {}
+
+  /** Buang entri kedaluwarsa (paling sering sekali per menit) agar peta tidak menumpuk. */
+  private sweep(now: number) {
+    if (now - this.lastSweep < 60_000) return;
+    this.lastSweep = now;
+    for (const [k, v] of this.fails) if (v.resetAt <= now) this.fails.delete(k);
+  }
 
   blocked(key: string, now = Date.now()): boolean {
     const f = this.fails.get(key);
@@ -44,9 +52,11 @@ export class LoginLimiter {
     return f.n >= this.max;
   }
   fail(key: string, now = Date.now()) {
+    this.sweep(now);
     const f = this.fails.get(key);
     if (!f || f.resetAt <= now) this.fails.set(key, { n: 1, resetAt: now + this.windowMs });
     else f.n += 1;
   }
   reset(key: string) { this.fails.delete(key); }
+  get size() { return this.fails.size; }
 }
