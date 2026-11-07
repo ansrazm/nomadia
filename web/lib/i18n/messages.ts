@@ -1,3 +1,5 @@
+import { enShop, idShop } from "./messages-shop";
+
 /** Kamus bahasa toko. Indonesia (id) adalah sumber; en wajib punya semua kunci yang sama (dicek TypeScript). */
 export type Lang = "id" | "en";
 export const LANGS: Lang[] = ["id", "en"];
@@ -6,7 +8,7 @@ export const LANG_COOKIE = "nomadia-lang";
 
 export const parseLang = (v: string | null | undefined): Lang => (v === "en" ? "en" : "id");
 
-const id = {
+const idBase = {
   // Meta
   "meta.title": "Nomadia — eSIM, SIM Card & WiFi untuk perjalanan",
   "meta.description": "Internet untuk perjalanan ke luar negeri. Pilih destinasi, bandingkan paket, bayar dalam hitungan menit.",
@@ -127,9 +129,11 @@ const id = {
   "toast.view": "Lihat",
 } as const;
 
+const id = { ...idBase, ...idShop } as const;
+
 export type MessageKey = keyof typeof id;
 
-const en: Record<MessageKey, string> = {
+const enBase: Record<keyof typeof idBase, string> = {
   "meta.title": "Nomadia — eSIM, SIM Card & WiFi for travel",
   "meta.description": "Internet for trips abroad. Pick a destination, compare plans, and pay in minutes.",
 
@@ -238,6 +242,8 @@ const en: Record<MessageKey, string> = {
   "toast.added": "Added to cart · {count} plans",
   "toast.view": "View",
 };
+
+const en: Record<MessageKey, string> = { ...enBase, ...enShop };
 
 export const messages: Record<Lang, Record<MessageKey, string>> = { id, en };
 

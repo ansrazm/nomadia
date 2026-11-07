@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { useCart } from "@/components/CartProvider";
+import { useT } from "@/components/LanguageProvider";
 import { TypeArt, typeArtBg } from "@/components/TypeArt";
 import { ApiRequestError, quoteCart, type Quote } from "@/lib/api";
 import { typeInfo } from "@/lib/catalog-types";
@@ -26,6 +27,7 @@ const ICON_CART = "M3.5 4.5h2.2l2 11h9.6l2-8H7M10 20h.01M17 20h.01";
 
 export default function CartPage() {
   const { items, setQty, remove } = useCart();
+  const t = useT();
   const router = useRouter();
   const [code, setCode] = useState("");
   const [applied, setApplied] = useState<string | null>(null);
@@ -101,7 +103,7 @@ export default function CartPage() {
       return q.voucher?.code ?? null;
     } catch (err) {
       setApplied(null);
-      setVoucherError(err instanceof ApiRequestError && err.status < 500 ? err.message : "Voucher belum bisa dicek. Periksa koneksi lalu coba lagi.");
+      setVoucherError(err instanceof ApiRequestError && err.status < 500 ? err.message : t("cart.voucherCheckFail"));
       return null;
     } finally {
       setQuoting(false);
@@ -125,20 +127,20 @@ export default function CartPage() {
     <>
       <section className="bg-ink pb-9 pt-28 text-white">
         <div className="container-x">
-          <Breadcrumb items={[{ label: "Beranda", href: "/" }, { label: "Keranjang" }]} />
-          <h1 className="mt-5 font-display text-4xl font-extrabold tracking-tight sm:text-5xl">Keranjang</h1>
-          <p className="mt-2 max-w-xl text-white/75">Periksa paket dan jumlahnya. Data pemesan dan pembayaran ada di langkah berikutnya.</p>
+          <Breadcrumb items={[{ label: t("crumb.home"), href: "/" }, { label: t("cart.title") }]} />
+          <h1 className="mt-5 font-display text-4xl font-extrabold tracking-tight sm:text-5xl">{t("cart.title")}</h1>
+          <p className="mt-2 max-w-xl text-white/75">{t("cart.intro")}</p>
         </div>
       </section>
       <div className="container-x py-8 sm:py-10">
         {items.length === 0 ? (
           <div className="mx-auto max-w-xl rounded-3xl border border-line bg-white px-6 py-14 text-center sm:px-10">
             <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-mist text-deep"><Icon d={ICON_CART} className="h-8 w-8" /></span>
-            <p className="mt-5 font-display text-2xl font-bold">Keranjangmu masih kosong</p>
-            <p className="mx-auto mt-2 max-w-sm text-ink/65">Pilih destinasi dulu, lalu tambahkan eSIM, SIM Card, atau Portable WiFi yang kamu butuhkan.</p>
+            <p className="mt-5 font-display text-2xl font-bold">{t("cart.emptyTitle")}</p>
+            <p className="mx-auto mt-2 max-w-sm text-ink/65">{t("cart.emptyBody")}</p>
             <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-              <Link href="/destinations" className="btn-signal">Pilih destinasi</Link>
-              <Link href="/#cara-kerja" className="btn-ghost">Lihat cara kerja</Link>
+              <Link href="/destinations" className="btn-signal">{t("cart.pickDest")}</Link>
+              <Link href="/#cara-kerja" className="btn-ghost">{t("cart.seeHow")}</Link>
             </div>
           </div>
         ) : (
@@ -147,20 +149,20 @@ export default function CartPage() {
               {unavailable.length > 0 && (
                 <p role="alert" className="flex items-start gap-3 rounded-2xl border border-coral/40 bg-white p-4 text-sm font-medium text-coral">
                   <Icon d={ICON_INFO} className="mt-0.5 h-5 w-5 shrink-0" />
-                  Ada paket yang sudah tidak tersedia. Hapus paket bertanda merah untuk melanjutkan.
+                  {t("cart.unavailableAlert")}
                 </p>
               )}
               {priceChanged && (
                 <p role="status" className="flex items-start gap-3 rounded-2xl border border-lagoon/40 bg-lagoon/10 p-4 text-sm text-ink/85">
                   <Icon d={ICON_INFO} className="mt-0.5 h-5 w-5 shrink-0 text-deep" />
-                  Harga beberapa paket diperbarui sesuai harga terbaru. Total di ringkasan sudah memakai harga terbaru.
+                  {t("cart.priceChanged")}
                 </p>
               )}
 
               <section className="rounded-3xl border border-line bg-white p-5 sm:p-7" aria-labelledby="cart-items">
                 <div className="flex items-baseline justify-between gap-3">
-                  <h2 id="cart-items" className="font-display text-xl font-bold">Paket di keranjang</h2>
-                  <span className="text-sm text-ink/55">{totalQty} paket</span>
+                  <h2 id="cart-items" className="font-display text-xl font-bold">{t("cart.items")}</h2>
+                  <span className="text-sm text-ink/55">{t("cart.packages", { count: totalQty })}</span>
                 </div>
                 <ul className="mt-5 divide-y divide-line">
                   {items.map((i) => {
@@ -173,26 +175,26 @@ export default function CartPage() {
                         <div className="min-w-0 flex-1 basis-52">
                           <p className={`font-semibold leading-snug ${gone ? "text-coral" : ""}`}>{i.name}</p>
                           <p className="mt-0.5 text-sm text-ink/60">
-                            {typeInfo[i.type].label} · {idr(unit)} per paket
-                            {gone && <span className="font-medium text-coral"> · tidak tersedia</span>}
+                            {typeInfo[i.type].label} · {t("cart.perPackage", { price: idr(unit) })}
+                            {gone && <span className="font-medium text-coral">{t("cart.gone")}</span>}
                           </p>
-                          <p className="mt-0.5 text-xs text-ink/50">{typeInfo[i.type].delivery}</p>
+                          <p className="mt-0.5 text-xs text-ink/50">{t(`type.${i.type}.delivery`)}</p>
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="inline-flex items-center rounded-full border border-line">
-                            <button aria-label={`Kurangi ${i.name}`} className="h-9 w-9 text-lg" onClick={() => setQty(i.id, i.qty - 1)}>−</button>
+                            <button aria-label={t("cart.dec", { name: i.name })} className="h-9 w-9 text-lg" onClick={() => setQty(i.id, i.qty - 1)}>−</button>
                             <span className="w-6 text-center font-semibold" aria-live="polite">{i.qty}</span>
-                            <button aria-label={`Tambah ${i.name}`} className="h-9 w-9 text-lg" onClick={() => setQty(i.id, i.qty + 1)}>+</button>
+                            <button aria-label={t("cart.inc", { name: i.name })} className="h-9 w-9 text-lg" onClick={() => setQty(i.id, i.qty + 1)}>+</button>
                           </div>
                           <p className="w-28 text-right font-display text-lg font-bold">{idr(unit * i.qty)}</p>
-                          <button aria-label={`Hapus ${i.name}`} className="rounded-full p-2 text-ink/40 hover:bg-coral/10 hover:text-coral" onClick={() => remove(i.id)}><Icon d={ICON_TRASH} className="h-5 w-5" /></button>
+                          <button aria-label={t("cart.remove", { name: i.name })} className="rounded-full p-2 text-ink/40 hover:bg-coral/10 hover:text-coral" onClick={() => remove(i.id)}><Icon d={ICON_TRASH} className="h-5 w-5" /></button>
                         </div>
                       </li>
                     );
                   })}
                 </ul>
                 <Link href="/destinations" className="mt-5 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-lagoon/60 py-3.5 text-sm font-semibold text-deep transition-colors hover:bg-lagoon/10">
-                  <Icon d={ICON_PLUS} /> Tambah paket lain
+                  <Icon d={ICON_PLUS} /> {t("cart.addMore")}
                 </Link>
               </section>
             </div>
@@ -201,15 +203,15 @@ export default function CartPage() {
               <div className="relative overflow-hidden bg-ink px-6 py-5 text-white">
                 <div aria-hidden className="absolute -right-8 -top-10 h-32 w-32 rounded-full border-[14px] border-white/5" />
                 <div aria-hidden className="absolute -right-2 -top-4 h-20 w-20 rounded-full border-[10px] border-white/5" />
-                <p className="relative text-xs font-semibold uppercase tracking-[0.2em] text-signal">Ringkasan</p>
-                <p className="relative mt-1 font-display text-lg font-bold">{totalQty} paket</p>
+                <p className="relative text-xs font-semibold uppercase tracking-[0.2em] text-signal">{t("cart.summary")}</p>
+                <p className="relative mt-1 font-display text-lg font-bold">{t("cart.packages", { count: totalQty })}</p>
               </div>
               <div className="p-6">
-                <label htmlFor="voucher" className="text-sm font-semibold">Kode voucher</label>
+                <label htmlFor="voucher" className="text-sm font-semibold">{t("cart.voucher")}</label>
                 {quote?.voucher ? (
                   <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-lagoon/40 bg-lagoon/10 px-4 py-2.5 text-sm">
-                    <span><span className="font-semibold">{quote.voucher.code}</span> · potongan {quote.voucher.percent}%</span>
-                    <button className="font-semibold text-deep underline" onClick={() => { setApplied(null); setVoucherError(""); }}>Lepas</button>
+                    <span><span className="font-semibold">{quote.voucher.code}</span>{t("cart.voucherApplied", { percent: quote.voucher.percent })}</span>
+                    <button className="font-semibold text-deep underline" onClick={() => { setApplied(null); setVoucherError(""); }}>{t("cart.release")}</button>
                   </div>
                 ) : (
                   <div className="mt-2 flex gap-2">
@@ -218,41 +220,41 @@ export default function CartPage() {
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") apply(); }}
-                      placeholder="Contoh: NOMAD10"
+                      placeholder={t("cart.voucherPlaceholder")}
                       autoComplete="off"
                       className="min-w-0 flex-1 rounded-xl border border-line bg-white px-4 py-2.5 outline-none focus:border-lagoon focus:ring-2 focus:ring-lagoon/20"
                     />
-                    <button className="btn-ghost !px-4 !py-2.5 disabled:opacity-60" onClick={apply} disabled={quoting || !code.trim()}>Pakai</button>
+                    <button className="btn-ghost !px-4 !py-2.5 disabled:opacity-60" onClick={apply} disabled={quoting || !code.trim()}>{t("cart.apply")}</button>
                   </div>
                 )}
                 {voucherError && <p role="alert" className="mt-2 text-sm text-coral">{voucherError}</p>}
 
                 {quoteFailed ? (
                   <div role="alert" className="mt-6 text-sm text-coral">
-                    <p>Harga belum bisa dihitung. Periksa koneksi lalu coba lagi.</p>
-                    <button className="mt-2 font-semibold underline" onClick={() => setRetry((n) => n + 1)}>Coba lagi</button>
+                    <p>{t("cart.priceFail")}</p>
+                    <button className="mt-2 font-semibold underline" onClick={() => setRetry((n) => n + 1)}>{t("cart.retry")}</button>
                   </div>
                 ) : quote ? (
                   <dl className={`mt-6 space-y-2 text-sm transition-opacity ${quoting ? "opacity-60" : ""}`}>
-                    <div className="flex justify-between"><dt className="text-ink/70">Subtotal ({totalQty} paket)</dt><dd>{idr(quote.subtotal)}</dd></div>
-                    {quote.discount > 0 && <div className="flex justify-between text-deep"><dt>Potongan voucher</dt><dd>−{idr(quote.discount)}</dd></div>}
-                    <div className="flex items-end justify-between border-t border-line pt-4"><dt className="font-semibold">Total</dt><dd className="font-display text-3xl font-extrabold leading-none">{idr(quote.total)}</dd></div>
+                    <div className="flex justify-between"><dt className="text-ink/70">{t("cart.subtotal", { count: totalQty })}</dt><dd>{idr(quote.subtotal)}</dd></div>
+                    {quote.discount > 0 && <div className="flex justify-between text-deep"><dt>{t("cart.discount")}</dt><dd>−{idr(quote.discount)}</dd></div>}
+                    <div className="flex items-end justify-between border-t border-line pt-4"><dt className="font-semibold">{t("cart.total")}</dt><dd className="font-display text-3xl font-extrabold leading-none">{idr(quote.total)}</dd></div>
                   </dl>
                 ) : (
-                  <p className="mt-6 text-sm text-ink/60" role="status">{unavailable.length > 0 ? "Total dihitung setelah paket yang tidak tersedia dihapus." : "Menghitung total…"}</p>
+                  <p className="mt-6 text-sm text-ink/60" role="status">{unavailable.length > 0 ? t("cart.waitGone") : t("cart.calculating")}</p>
                 )}
 
                 {blocked ? (
-                  <button className="btn-signal mt-6 w-full !py-3.5 text-base opacity-60" disabled>Lanjut ke pembayaran</button>
+                  <button className="btn-signal mt-6 w-full !py-3.5 text-base opacity-60" disabled>{t("cart.checkout")}</button>
                 ) : (
                   <Link href={checkoutHref(applied)} onClick={goCheckout} className="btn-signal mt-6 w-full !py-3.5 text-base">
-                    Lanjut ke pembayaran <Icon d={ICON_ARROW} className="h-5 w-5" />
+                    {t("cart.checkout")} <Icon d={ICON_ARROW} className="h-5 w-5" />
                   </Link>
                 )}
                 <ul className="mt-5 space-y-2 text-xs text-ink/60">
-                  <li className="flex items-center gap-2"><Icon d={ICON_LOCK} className="h-4 w-4 shrink-0 text-deep" /> Pembayaran diproses lewat iPaymu (sandbox)</li>
-                  <li className="flex items-center gap-2"><Icon d={ICON_SHIELD} className="h-4 w-4 shrink-0 text-deep" /> Harga dihitung server, bukan di browser</li>
-                  <li className="flex items-center gap-2"><Icon d={ICON_MAIL} className="h-4 w-4 shrink-0 text-deep" /> QR eSIM dan bukti bayar dikirim ke email</li>
+                  <li className="flex items-center gap-2"><Icon d={ICON_LOCK} className="h-4 w-4 shrink-0 text-deep" /> {t("cart.secure1")}</li>
+                  <li className="flex items-center gap-2"><Icon d={ICON_SHIELD} className="h-4 w-4 shrink-0 text-deep" /> {t("cart.secure2")}</li>
+                  <li className="flex items-center gap-2"><Icon d={ICON_MAIL} className="h-4 w-4 shrink-0 text-deep" /> {t("cart.secure3")}</li>
                 </ul>
               </div>
             </aside>

@@ -5,17 +5,20 @@ import { useMemo, useState } from "react";
 import { DestinationSummary, ProductType, flagUrl, mediaUrl, typeInfo } from "@/lib/catalog-types";
 import { TypeChips } from "./TypeChips";
 import { idr } from "@/lib/format";
+import { useT } from "./LanguageProvider";
 
 /** Daftar destinasi dengan pencarian dan filter kawasan. Data datang dari server component. */
 export function DestinationBrowser({ destinations, type = null }: { destinations: DestinationSummary[]; type?: ProductType | null }) {
+  const t = useT();
   const [query, setQuery] = useState("");
-  const [region, setRegion] = useState<string>("Semua");
+  // null = semua kawasan (nilai "Semua" tidak dipakai sebagai kunci supaya tidak bergantung pada bahasa).
+  const [region, setRegion] = useState<string | null>(null);
   const regions = useMemo(() => Array.from(new Set(destinations.map((d) => d.region))), [destinations]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return destinations.filter(
-      (d) => (region === "Semua" || d.region === region) && (!q || d.name.toLowerCase().includes(q) || d.network.toLowerCase().includes(q) || d.region.toLowerCase().includes(q)),
+      (d) => (region === null || d.region === region) && (!q || d.name.toLowerCase().includes(q) || d.network.toLowerCase().includes(q) || d.region.toLowerCase().includes(q)),
     );
   }, [destinations, query, region]);
   const shownRegions = regions.filter((r) => filtered.some((d) => d.region === r));
@@ -24,28 +27,28 @@ export function DestinationBrowser({ destinations, type = null }: { destinations
     <div className="container-wide py-12">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-full lg:max-w-sm">
-          <label htmlFor="dest-filter" className="sr-only">Cari destinasi</label>
+          <label htmlFor="dest-filter" className="sr-only">{t("browser.searchLabel")}</label>
           <svg aria-hidden viewBox="0 0 24 24" className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink/45" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></svg>
           <input
             id="dest-filter"
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari negara atau operator"
+            placeholder={t("browser.searchPlaceholder")}
             autoComplete="off"
             className="w-full rounded-full border border-line bg-white py-3 pl-12 pr-4 outline-none placeholder:text-ink/40 focus:border-lagoon"
           />
         </div>
-        <div role="group" aria-label="Filter kawasan" className="flex flex-wrap gap-2">
-          {["Semua", ...regions].map((r) => (
+        <div role="group" aria-label={t("browser.regionFilter")} className="flex flex-wrap gap-2">
+          {[null, ...regions].map((r) => (
             <button
-              key={r}
+              key={r ?? "all"}
               type="button"
               aria-pressed={region === r}
               onClick={() => setRegion(r)}
               className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${region === r ? "border-ink bg-ink text-white" : "border-line bg-white hover:border-lagoon"}`}
             >
-              {r}
+              {r ?? t("browser.regionAll")}
             </button>
           ))}
         </div>
@@ -53,13 +56,13 @@ export function DestinationBrowser({ destinations, type = null }: { destinations
 
       <TypeChips current={type} basePath="/destinations" className="mt-4" />
 
-      <p className="mt-6 text-sm text-ink/60" role="status" aria-live="polite">{filtered.length} destinasi{type ? ` dengan paket ${typeInfo[type].label}` : ""}</p>
+      <p className="mt-6 text-sm text-ink/60" role="status" aria-live="polite">{type ? t("browser.countType", { count: filtered.length, type: typeInfo[type].label }) : t("browser.count", { count: filtered.length })}</p>
 
       {filtered.length === 0 ? (
         <div className="mt-6 rounded-3xl border border-line bg-white p-12 text-center">
-          <p className="font-display text-2xl font-bold">Destinasi tidak ditemukan</p>
-          <p className="mt-2 text-ink/65">Coba kata kunci lain atau tampilkan semua kawasan.</p>
-          <button type="button" className="btn-signal mt-6" onClick={() => { setQuery(""); setRegion("Semua"); }}>Reset pencarian</button>
+          <p className="font-display text-2xl font-bold">{t("browser.notFoundTitle")}</p>
+          <p className="mt-2 text-ink/65">{t("browser.notFoundBody")}</p>
+          <button type="button" className="btn-signal mt-6" onClick={() => { setQuery(""); setRegion(null); }}>{t("browser.reset")}</button>
         </div>
       ) : (
         <div className="mt-6 space-y-12">
@@ -78,7 +81,7 @@ export function DestinationBrowser({ destinations, type = null }: { destinations
                       </span>
                       {d.startingPrice != null && (
                         <span className="text-right text-sm">
-                          <span className="block text-xs text-ink/50">mulai</span>
+                          <span className="block text-xs text-ink/50">{t("browser.from")}</span>
                           <span className="font-semibold">{idr(d.startingPrice)}</span>
                         </span>
                       )}

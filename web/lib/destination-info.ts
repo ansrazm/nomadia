@@ -1,95 +1,87 @@
 import { Product, ProductType, typeInfo } from "./catalog-types";
 import { idr } from "./format";
 import type { Faq } from "./faq";
+import type { Lang, TFn } from "./i18n/messages";
 
 /** Urutan tampil jenis koneksi di seluruh halaman destinasi. */
 export const typeOrder: ProductType[] = ["esim", "sim", "wifi"];
 
-export type SectionId = "detail" | "aktivasi" | "kompatibilitas" | "bandingkan";
-
-export const sections: { id: SectionId; label: string }[] = [
-  { id: "detail", label: "Detail" },
-  { id: "aktivasi", label: "Cara aktivasi" },
-  { id: "kompatibilitas", label: "Kompatibilitas" },
-  { id: "bandingkan", label: "Bandingkan" },
-];
-
 interface TypeContent {
-  features: { title: string; text: string }[];
   steps: { title: string; text: string }[];
-  fits: string[]; // syarat yang harus terpenuhi
   checks: string[]; // hal yang perlu dicek dulu
 }
 
-/** Langkah cara kerja dan catatan kompatibilitas per jenis koneksi (features dan fits kini tidak dipakai di UI). */
-export const typeContent: Record<ProductType, TypeContent> = {
-  esim: {
-    features: [
-      { title: "Tanpa kartu fisik", text: "Profil eSIM dipasang lewat QR, jadi tidak ada yang perlu dikirim atau diambil." },
-      { title: "QR dikirim ke email", text: "Begitu pembayaran diterima, QR aktivasi masuk ke email yang kamu isi saat checkout." },
-      { title: "Bisa dipasang sebelum berangkat", text: "Masa aktif baru dihitung saat pertama kali tersambung ke jaringan di tujuan." },
-      { title: "Nomor utama tetap ada", text: "eSIM berjalan sebagai jalur tambahan, jadi kartu SIM utamamu tidak perlu dicabut." },
-    ],
+/** Langkah cara kerja dan catatan kompatibilitas per jenis koneksi, per bahasa. Urutan langkah harus sama di kedua bahasa. */
+const typeContentByLang: Record<Lang, Record<ProductType, TypeContent>> = {
+  id: {
+    esim: {
     steps: [
       { title: "Bayar dan cek email", text: "Selesaikan pembayaran. QR aktivasi dikirim ke email checkout, dan statusnya juga bisa dilihat di halaman pesanan." },
       { title: "Scan QR di pengaturan seluler", text: "Buka pengaturan seluler atau SIM, pilih tambah eSIM, lalu scan QR. Nama menunya bisa berbeda di tiap merek ponsel." },
       { title: "Pasang sebelum berangkat", text: "Pasang selagi ada WiFi. Paket belum terpakai sampai ponselmu tersambung ke jaringan di tujuan." },
       { title: "Nyalakan di tujuan", text: "Setibanya di sana, jadikan eSIM sebagai jalur data seluler dan aktifkan data roaming untuk eSIM itu." },
     ],
-    fits: ["Ponsel mendukung eSIM", "Ponsel tidak terkunci ke satu operator", "Ada WiFi atau internet untuk memasang QR"],
     checks: ["Cari opsi tambah eSIM di pengaturan seluler ponselmu", "Beberapa iPhone versi China daratan tidak punya eSIM", "Pakai SIM Card kalau ponselmu belum mendukung eSIM"],
-  },
-  sim: {
-    features: [
-      { title: "Kartu fisik", text: "Kartu dikirim ke alamat yang kamu isi saat checkout, tinggal dipasang di ponsel." },
-      { title: "Untuk ponsel tanpa eSIM", text: "Pilihan aman kalau ponselmu belum mendukung eSIM." },
-      { title: "Pasang dengan mencabut SIM asli", text: "Simpan SIM utamamu di tempat aman, lalu pasang kembali setelah pulang." },
-      { title: "Dikirim ke alamatmu", text: "Pastikan alamat dan nomor telepon benar supaya kartu sampai sebelum kamu berangkat." },
-    ],
+    },
+    sim: {
     steps: [
       { title: "Bayar dan isi alamat", text: "Selesaikan pembayaran dan pastikan alamat pengiriman lengkap." },
       { title: "Terima kartunya", text: "Kartu dikirim ke alamatmu. Beri waktu cukup sebelum hari keberangkatan." },
       { title: "Ganti kartu di ponsel", text: "Matikan ponsel, keluarkan SIM utama dan simpan baik-baik, lalu pasang kartu travel." },
       { title: "Nyalakan di tujuan", text: "Nyalakan ponsel dan ikuti petunjuk yang menyertai kartu, termasuk soal data roaming." },
     ],
-    fits: ["Ponsel punya slot SIM fisik", "Ponsel tidak terkunci ke satu operator", "Alamat pengiriman bisa dijangkau kurir"],
     checks: ["Cek ukuran kartu yang dipakai ponselmu (umumnya nano-SIM)", "Selama dipakai, SIM utamamu tidak aktif kecuali ponsel dual SIM", "Beri waktu pengiriman sebelum berangkat"],
-  },
-  wifi: {
-    features: [
-      { title: "Satu alat, hingga 5 perangkat", text: "Satu koneksi dibagi ke ponsel, laptop, dan tablet sekaligus." },
-      { title: "Cocok untuk keluarga atau rombongan", text: "Tidak perlu beli paket per orang, cukup satu alat untuk satu kelompok." },
-      { title: "Tidak bergantung pada tipe ponsel", text: "Perangkat apa pun yang punya WiFi bisa tersambung, termasuk yang tidak mendukung eSIM." },
-      { title: "Ambil atau kirim sebelum berangkat", text: "Alat disiapkan sebelum keberangkatan, lengkap dengan petunjuk pemakaian." },
-    ],
+    },
+    wifi: {
     steps: [
       { title: "Bayar dan pilih cara terima", text: "Selesaikan pembayaran, lalu pastikan alat bisa kamu terima sebelum berangkat." },
       { title: "Terima alat dan isi daya", text: "Isi daya penuh sebelum perjalanan. Bawa juga kabel dan pengisi dayanya." },
       { title: "Nyalakan di tujuan", text: "Nyalakan alat, lalu sambungkan perangkatmu ke nama WiFi dan kata sandi yang tertera di alat." },
       { title: "Kembalikan sesuai petunjuk", text: "Ikuti petunjuk pengembalian yang menyertai alat setelah perjalanan selesai." },
     ],
-    fits: ["Perangkat punya WiFi", "Jumlah perangkat tidak lebih dari 5", "Bisa menerima alat sebelum berangkat"],
     checks: ["Alat perlu diisi daya, jadi bawa power bank kalau seharian di luar", "Alat sebaiknya dibawa bersama rombongan, bukan terpisah", "Kembalikan sesuai petunjuk yang menyertai alat"],
+    },
+  },
+  en: {
+    esim: {
+      steps: [
+        { title: "Pay and check your email", text: "Complete the payment. The activation QR is sent to your checkout email, and you can also see the status on the order page." },
+        { title: "Scan the QR in cellular settings", text: "Open your cellular or SIM settings, choose add eSIM, then scan the QR. The menu name can differ between phone brands." },
+        { title: "Install before you leave", text: "Install it while you have WiFi. The plan isn't used until your phone connects to a network at your destination." },
+        { title: "Turn it on at your destination", text: "Once you arrive, set the eSIM as your mobile data line and enable data roaming for that eSIM." },
+      ],
+      checks: ["Look for the add-eSIM option in your phone's cellular settings", "Some mainland China iPhone models don't have eSIM", "Choose a SIM Card if your phone doesn't support eSIM yet"],
+    },
+    sim: {
+      steps: [
+        { title: "Pay and enter your address", text: "Complete the payment and make sure the shipping address is complete." },
+        { title: "Receive the card", text: "The card is shipped to your address. Allow enough time before your departure day." },
+        { title: "Swap the card in your phone", text: "Turn your phone off, take out your main SIM and keep it safe, then insert the travel card." },
+        { title: "Turn it on at your destination", text: "Turn your phone on and follow the instructions that come with the card, including data roaming." },
+      ],
+      checks: ["Check the card size your phone uses (usually nano-SIM)", "While in use, your main SIM is inactive unless your phone is dual SIM", "Allow shipping time before you leave"],
+    },
+    wifi: {
+      steps: [
+        { title: "Pay and choose how to receive it", text: "Complete the payment, then make sure you can receive the device before you leave." },
+        { title: "Receive the device and charge it", text: "Charge it fully before the trip. Bring the cable and charger too." },
+        { title: "Turn it on at your destination", text: "Turn the device on, then connect your gadgets to the WiFi name and password shown on it." },
+        { title: "Return it as instructed", text: "Follow the return instructions that come with the device after your trip." },
+      ],
+      checks: ["The device needs charging, so bring a power bank if you'll be out all day", "Keep the device with your group rather than apart", "Return it following the instructions that come with it"],
+    },
   },
 };
 
+export const getTypeContent = (lang: Lang) => typeContentByLang[lang];
+
 /** Empat poin ringkas di atas pemilih paket. Isinya diturunkan dari konten tab di bawah, tanpa klaim baru. */
-export function typeSpecs(type: ProductType, network: string): { label: string; value: string }[] {
-  const activation: Record<ProductType, string> = {
-    esim: "Scan QR, masa aktif mulai saat tersambung",
-    sim: "Pasang kartu di ponsel saat tiba",
-    wifi: "Nyalakan alat, sambungkan perangkat",
-  };
-  const compat: Record<ProductType, string> = {
-    esim: "Ponsel eSIM, tidak terkunci operator",
-    sim: "Slot SIM fisik, tidak terkunci operator",
-    wifi: "Perangkat apa pun yang punya WiFi, hingga 5",
-  };
+export function typeSpecs(type: ProductType, network: string, t: TFn): { label: string; value: string }[] {
   return [
-    { label: "Jaringan", value: network },
-    { label: "Aktivasi", value: activation[type] },
-    { label: "Pengiriman", value: typeInfo[type].delivery },
-    { label: "Kompatibilitas", value: compat[type] },
+    { label: t("spec.network"), value: network },
+    { label: t("spec.activation"), value: t(`spec.activation.${type}`) },
+    { label: t("spec.delivery"), value: t(`type.${type}.delivery`) },
+    { label: t("spec.compat"), value: t(`spec.compat.${type}`) },
   ];
 }
 
@@ -105,66 +97,49 @@ export function typeStats(products: Product[]): Partial<Record<ProductType, Type
     if (!s.days.includes(p.days)) s.days.push(p.days);
     out[p.type] = s;
   }
-  for (const t of typeOrder) out[t]?.days.sort((a, b) => a - b);
+  for (const ty of typeOrder) out[ty]?.days.sort((a, b) => a - b);
   return out;
 }
 
-export const daysLabel = (days: number[]) => `${days.join(", ")} hari`;
+export const daysLabel = (days: number[], t: TFn) => `${days.join(", ")} ${t("unit.days")}`;
 
-const joinList = (items: string[]) =>
-  items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} dan ${items[items.length - 1]}`;
+const joinList = (items: string[], t: TFn) =>
+  items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} ${t("list.and")} ${items[items.length - 1]}`;
 
 /** Baris tabel perbandingan yang isinya tetap. Baris harga dan durasi dihitung dari data destinasi. */
-export const compareRows: { label: string; values: Record<ProductType, string> }[] = [
-  { label: "Cara menerima", values: { esim: typeInfo.esim.delivery, sim: typeInfo.sim.delivery, wifi: typeInfo.wifi.delivery } },
-  { label: "Jumlah perangkat", values: { esim: "1 ponsel", sim: "1 ponsel", wifi: "Hingga 5 perangkat" } },
-  { label: "Syarat perangkat", values: { esim: "Ponsel mendukung eSIM dan tidak terkunci operator", sim: "Ponsel punya slot SIM dan tidak terkunci operator", wifi: "Perangkat apa pun yang punya WiFi" } },
-  { label: "Cocok untuk", values: { esim: "Pelancong solo yang ingin praktis", sim: "Ponsel yang belum mendukung eSIM", wifi: "Keluarga atau rombongan" } },
-  { label: "Daya tambahan", values: { esim: "Tidak perlu", sim: "Tidak perlu", wifi: "Alat perlu diisi daya" } },
+export const getCompareRows = (t: TFn): { label: string; values: Record<ProductType, string> }[] => [
+  { label: t("cmp.receive"), values: { esim: t("type.esim.delivery"), sim: t("type.sim.delivery"), wifi: t("type.wifi.delivery") } },
+  { label: t("cmp.devices"), values: { esim: t("cmp.devices.phone"), sim: t("cmp.devices.phone"), wifi: t("cmp.devices.wifi") } },
+  { label: t("cmp.requirements"), values: { esim: t("cmp.req.esim"), sim: t("cmp.req.sim"), wifi: t("cmp.req.wifi") } },
+  { label: t("cmp.fits"), values: { esim: t("cmp.fit.esim"), sim: t("cmp.fit.sim"), wifi: t("cmp.fit.wifi") } },
+  { label: t("cmp.power"), values: { esim: t("cmp.power.none"), sim: t("cmp.power.none"), wifi: t("cmp.power.wifi") } },
 ];
 
 /** FAQ khusus satu destinasi. Semua angka dan nama jaringan berasal dari data destinasi yang sedang dibuka. */
-export function destinationFaqs(d: { name: string; network: string }, products: Product[]): Faq[] {
+export function destinationFaqs(d: { name: string; network: string }, products: Product[], t: TFn): Faq[] {
   const stats = typeStats(products);
-  const present = typeOrder.filter((t) => stats[t]);
+  const present = typeOrder.filter((ty) => stats[ty]);
   const cheapest = products.reduce((a, b) => (b.price < a.price ? b : a));
+  const v = { name: d.name };
   const list: Faq[] = [
+    { q: t("dfaq.q.network", v), a: t("dfaq.a.network", { name: d.name, network: d.network }) },
     {
-      q: `Jaringan apa yang dipakai di ${d.name}?`,
-      a: `Paket untuk ${d.name} memakai jaringan ${d.network}. Kekuatan sinyal tetap bergantung pada lokasi, jadi di dalam gedung atau daerah terpencil bisa lebih lemah.`,
+      q: t("dfaq.q.plans", v),
+      a: t("dfaq.a.plans", {
+        types: joinList(present.map((ty) => typeInfo[ty].label), t),
+        detail: present.map((ty) => `${typeInfo[ty].label}: ${daysLabel(stats[ty]!.days, t)}`).join(". "),
+      }),
     },
-    {
-      q: `Paket apa saja yang tersedia untuk ${d.name}?`,
-      a: `Saat ini tersedia ${joinList(present.map((t) => typeInfo[t].label))}. ${present
-        .map((t) => `${typeInfo[t].label}: ${daysLabel(stats[t]!.days)}`)
-        .join(". ")}.`,
-    },
-    {
-      q: `Berapa harga paket ke ${d.name}?`,
-      a: `Harga mulai dari ${idr(cheapest.price)} untuk paket ${cheapest.name}. Harga tiap paket tampil di kartu pilihan, dan total dihitung otomatis sesuai jumlah yang kamu pilih.`,
-    },
+    { q: t("dfaq.q.price", v), a: t("dfaq.a.price", { price: idr(cheapest.price), plan: cheapest.name }) },
   ];
-  if (stats.esim) {
-    list.push({
-      q: `Apakah ponsel saya bisa memakai eSIM untuk ${d.name}?`,
-      a: `Ponselmu harus mendukung eSIM dan tidak terkunci ke satu operator. Cek opsi tambah eSIM di pengaturan seluler, atau lihat baris Kompatibilitas di atas pilihan paket.`,
-    });
-  }
-  if (stats.wifi) {
-    list.push({
-      q: `Berapa perangkat yang bisa tersambung ke Portable WiFi?`,
-      a: `Satu alat bisa dipakai hingga 5 perangkat sekaligus, jadi cocok untuk keluarga atau rombongan yang ke ${d.name}.`,
-    });
-  }
+  if (stats.esim) list.push({ q: t("dfaq.q.esim", v), a: t("dfaq.a.esim") });
+  if (stats.wifi) list.push({ q: t("dfaq.q.wifi"), a: t("dfaq.a.wifi", v) });
   if (present.length > 1) {
     const tips: string[] = [];
-    if (stats.esim) tips.push("Kalau bepergian sendiri dan ponselmu mendukung eSIM, eSIM paling praktis.");
-    if (stats.sim) tips.push("Kalau ponselmu belum mendukung eSIM, pilih SIM Card.");
-    if (stats.wifi) tips.push("Kalau berangkat bersama keluarga atau teman, Portable WiFi menghemat karena dipakai bersama.");
-    list.push({
-      q: `Mana yang sebaiknya saya pilih untuk ke ${d.name}?`,
-      a: `${tips.join(" ")} Tombol Bandingkan di atas pilihan paket merangkum perbedaannya.`,
-    });
+    if (stats.esim) tips.push(t("dfaq.tip.esim"));
+    if (stats.sim) tips.push(t("dfaq.tip.sim"));
+    if (stats.wifi) tips.push(t("dfaq.tip.wifi"));
+    list.push({ q: t("dfaq.q.choose", v), a: t("dfaq.a.choose", { tips: tips.join(" ") }) });
   }
   return list;
 }

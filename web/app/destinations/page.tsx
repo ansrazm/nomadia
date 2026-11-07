@@ -2,12 +2,16 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 import { DestinationBrowser } from "@/components/DestinationBrowser";
 import { getDestinations, getHomeBanner } from "@/lib/catalog";
 import { mediaUrl, parseProductType, typeInfo } from "@/lib/catalog-types";
+import { getT } from "@/lib/i18n/server";
 
-export const metadata = { title: "Semua destinasi — Nomadia" };
+export function generateMetadata() {
+  return { title: getT().t("dest.metaTitle") };
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function DestinationsPage({ searchParams }: { searchParams: { type?: string | string[] } }) {
+  const { t } = getT();
   const type = parseProductType(searchParams.type);
   const [destinations, homeBanner] = await Promise.all([getDestinations(type), getHomeBanner()]);
   // Latar kepala halaman sama seperti beranda: banner beranda dari admin, lalu banner destinasi pertama
@@ -24,13 +28,11 @@ export default async function DestinationsPage({ searchParams }: { searchParams:
           </>
         )}
         <div className="container-wide relative">
-          <Breadcrumb items={[{ label: "Beranda", href: "/" }, { label: "Destinasi" }]} />
-          <p className="mt-8 text-sm font-semibold uppercase tracking-[0.2em] text-signal">{destinations.length} destinasi</p>
-          <h1 className="mt-3 font-display text-5xl font-extrabold tracking-tight">Semua destinasi</h1>
+          <Breadcrumb items={[{ label: t("crumb.home"), href: "/" }, { label: t("nav.destinations") }]} />
+          <p className="mt-8 text-sm font-semibold uppercase tracking-[0.2em] text-signal">{t("dest.count", { count: destinations.length })}</p>
+          <h1 className="mt-3 font-display text-5xl font-extrabold tracking-tight">{t("dest.title")}</h1>
           <p className="mt-3 max-w-xl text-white/75">
-            {type
-              ? `Menampilkan destinasi yang punya paket ${typeInfo[type].label}. Harga mulai dari dihitung dari paket ${typeInfo[type].label} saja.`
-              : "Pilih negara tujuan untuk melihat paket eSIM, SIM Card, dan Portable WiFi."}
+            {type ? t("dest.introType", { type: typeInfo[type].label }) : t("dest.intro")}
           </p>
         </div>
       </section>

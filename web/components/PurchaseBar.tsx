@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { idr } from "@/lib/format";
+import { useT } from "./LanguageProvider";
 
 interface Props {
   name: string;
@@ -21,6 +22,7 @@ interface Props {
  * Disembunyikan selagi ringkasan pesanan terlihat (desktop) dan saat footer masuk layar, supaya tidak menutupi apa pun.
  */
 export function PurchaseBar({ name, detail, qty, total, added, summaryRef, onQty, onAdd, onBuy }: Props) {
+  const t = useT();
   const [summaryOn, setSummaryOn] = useState(false);
   const [footerOn, setFooterOn] = useState(false);
 
@@ -52,18 +54,18 @@ export function PurchaseBar({ name, detail, qty, total, added, summaryRef, onQty
           <p className="font-display text-xl font-extrabold sm:hidden">{idr(total)}</p>
         </div>
         <div className="hidden items-center rounded-[3px] border border-line sm:inline-flex">
-          <button type="button" aria-label="Kurangi jumlah" disabled={qty <= 1} onClick={() => onQty(qty - 1)} className="h-10 w-10 rounded-[3px] text-lg disabled:opacity-35">−</button>
+          <button type="button" aria-label={t("tabs.qtyDec")} disabled={qty <= 1} onClick={() => onQty(qty - 1)} className="h-10 w-10 rounded-[3px] text-lg disabled:opacity-35">−</button>
           <span className="w-7 text-center font-semibold" aria-live="polite">{qty}</span>
-          <button type="button" aria-label="Tambah jumlah" disabled={qty >= 9} onClick={() => onQty(qty + 1)} className="h-10 w-10 rounded-[3px] text-lg disabled:opacity-35">+</button>
+          <button type="button" aria-label={t("tabs.qtyInc")} disabled={qty >= 9} onClick={() => onQty(qty + 1)} className="h-10 w-10 rounded-[3px] text-lg disabled:opacity-35">+</button>
         </div>
         <p className="hidden shrink-0 text-right sm:block">
-          <span className="block text-[0.65rem] font-bold uppercase tracking-wider text-ink/55">Total</span>
+          <span className="block text-[0.65rem] font-bold uppercase tracking-wider text-ink/55">{t("tabs.total")}</span>
           <span className="font-display text-xl font-extrabold">{idr(total)}</span>
         </p>
         <button type="button" onClick={onAdd} aria-live="polite" className={added ? "btn !rounded-[3px] bg-lagoon px-4 py-2.5 text-sm text-ink" : "btn-ghost !rounded-[3px] px-4 py-2.5 text-sm"}>
-          {added ? "Masuk" : "Keranjang"}
+          {added ? t("bar.added") : t("bar.cart")}
         </button>
-        <button type="button" onClick={onBuy} className="btn-signal !rounded-[3px] px-5 py-2.5 text-sm">Beli</button>
+        <button type="button" onClick={onBuy} className="btn-signal !rounded-[3px] px-5 py-2.5 text-sm">{t("bar.buy")}</button>
       </div>
     </div>
   );

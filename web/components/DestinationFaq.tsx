@@ -1,10 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import { Reveal } from "./Reveal";
 import { WA_HREF } from "@/lib/contact";
 import type { Faq } from "@/lib/faq";
+import { useT } from "./LanguageProvider";
 
 /** FAQ per destinasi. Native <details> seperti FAQ beranda, plus JSON-LD FAQPage untuk mesin pencari. */
 export function DestinationFaq({ destName, faqs }: { destName: string; faqs: Faq[] }) {
+  const t = useT();
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -15,15 +19,15 @@ export function DestinationFaq({ destName, faqs }: { destName: string; faqs: Faq
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <div className="container-wide grid gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <Reveal>
-          <h2 id="dest-faq-heading" className="font-display text-3xl font-extrabold tracking-tight sm:text-4xl">Tanya jawab {destName}</h2>
-          <p className="mt-3 max-w-md text-ink/70">Hal yang biasa ditanyakan sebelum memesan untuk {destName}.</p>
+          <h2 id="dest-faq-heading" className="font-display text-3xl font-extrabold tracking-tight sm:text-4xl">{t("dfaq.title", { name: destName })}</h2>
+          <p className="mt-3 max-w-md text-ink/70">{t("dfaq.body", { name: destName })}</p>
           <div className="mt-6 flex flex-wrap gap-3">
             {WA_HREF && (
               <a href={WA_HREF} target="_blank" rel="noopener noreferrer" className="btn bg-[#25D366] text-ink hover:bg-[#3ddc7a]">
-                Tanya lewat WhatsApp
+                {t("faq.askWhatsapp")}
               </a>
             )}
-            <Link href="/#faq" className="btn-ghost">Pertanyaan umum</Link>
+            <Link href="/#faq" className="btn-ghost">{t("footer.faq")}</Link>
           </div>
         </Reveal>
         <Reveal delay={0.1}>
