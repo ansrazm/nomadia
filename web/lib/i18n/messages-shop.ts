@@ -200,7 +200,10 @@ export const idShop = {
   "trip.summary": "Ringkasan rute",
   "trip.summaryEmpty": "Belum ada paket dipilih. Klik paket di kartu tujuan untuk menambahkannya.",
   "trip.addAll": "Masukkan {count} paket ke keranjang",
-  "trip.note": "Jumlah tiap paket bisa diubah di keranjang. Harga akhir dihitung server saat pembayaran.",
+  "trip.note": "Atur jumlah tiap paket di ringkasan ini (maksimal {max} per paket). Harga akhir dihitung server saat pembayaran.",
+  "trip.qtyAria": "Jumlah {label} untuk {name}",
+  "trip.qtyDec": "Kurangi jumlah {label} untuk {name}",
+  "trip.qtyInc": "Tambah jumlah {label} untuk {name}",
   "trip.addShort": "Ke keranjang",
 } as const;
 
@@ -398,6 +401,9 @@ export const enShop: Record<keyof typeof idShop, string> = {
   "trip.summary": "Route summary",
   "trip.summaryEmpty": "No plans selected yet. Click a plan on a destination card to add it.",
   "trip.addAll": "Add {count} plans to cart",
-  "trip.note": "You can change each plan's quantity in the cart. The final price is calculated by the server at checkout.",
+  "trip.note": "Set each plan's quantity in this summary (up to {max} per plan). The final price is calculated by the server at checkout.",
+  "trip.qtyAria": "Quantity of {label} for {name}",
+  "trip.qtyDec": "Decrease quantity of {label} for {name}",
+  "trip.qtyInc": "Increase quantity of {label} for {name}",
   "trip.addShort": "To cart",
 };

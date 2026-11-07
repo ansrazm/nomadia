@@ -15,11 +15,15 @@ const perDay = (p: Product) => Math.round(p.price / p.days);
 
 const hasStock = (d: DestinationDetail, ty: ProductType) => d.products.some((p) => p.type === ty && !p.soldOut);
 const selKey = (slug: string, ty: ProductType) => `${slug}:${ty}`;
+/** Sama dengan batas per paket di keranjang, halaman destinasi, dan API. */
+const MAX_QTY = 9;
 
 /**
  * Pemilih paket untuk rute multi-destinasi. Tab di atas hanya memilih jenis koneksi yang sedang dilihat; yang dibeli
  * ditentukan oleh centang. Satu tujuan boleh punya satu paket per jenis (misalnya eSIM dan Portable WiFi sekaligus),
  * klik paket yang sama sekali lagi untuk membatalkan, dan tujuan tanpa centang tidak ikut ke keranjang.
+ * Jumlah tiap paket diatur di ringkasan (misalnya 3 SIM Card untuk keluarga); jumlahnya melekat pada jenis di tujuan itu,
+ * jadi mengganti paket sejenis tidak mereset jumlah, dan membatalkan paket menghapusnya.
  * Data produk datang dari server; di sini hanya pilihan dan tampilan. Harga di keranjang tetap dihitung ulang server saat checkout.
  */
 export function TripPlanner({ destinations, initialType }: { destinations: DestinationDetail[]; initialType: ProductType }) {
@@ -38,6 +42,8 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
     }
     return init;
   });
+  // Jumlah per "slug:jenis"; tidak ada kunci = 1.
+  const [qty, setQtyMap] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const summaryRef = useRef<HTMLElement>(null);
   const summaryOn = useOnScreen(summaryRef);
@@ -50,13 +56,14 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
     const picked = productTypes.flatMap((ty) => {
       const id = sel[selKey(d.slug, ty)];
       const p = id ? d.products.find((x) => x.id === id && !x.soldOut) : undefined;
-      return p ? [p] : [];
+      return p ? [{ p, q: qty[selKey(d.slug, ty)] ?? 1 }] : [];
     });
     return { d, list, picked };
   });
   const chosen = rows.flatMap((r) => r.picked);
-  const total = chosen.reduce((n, p) => n + p.price, 0);
-  const countOf = (ty: ProductType) => chosen.filter((p) => p.type === ty).length;
+  const total = chosen.reduce((n, c) => n + c.p.price * c.q, 0);
+  const units = chosen.reduce((n, c) => n + c.q, 0);
+  const countOf = (ty: ProductType) => chosen.filter((c) => c.p.type === ty).reduce((n, c) => n + c.q, 0);
 
   const syncUrl = (nextStops: string[], nextType: ProductType) => {
     // Samakan URL dengan tab sekarang supaya tautan yang disalin membuka rute yang sama (tanpa menambah riwayat browser).
@@ -66,14 +73,21 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
     window.history.replaceState(window.history.state, "", url);
   };
   const changeTab = (ty: ProductType) => { setTab(ty); syncUrl(stops, ty); };
-  const toggle = (slug: string, p: Product) =>
+  const toggle = (slug: string, p: Product) => {
+    const k = selKey(slug, p.type);
+    // Mengganti ke paket lain di jenis yang sama mempertahankan jumlah; membatalkan menghapusnya.
+    if (sel[k] === p.id) setQtyMap((q) => { const next = { ...q }; delete next[k]; return next; });
     setSel((s) => {
-      const k = selKey(slug, p.type);
       const next = { ...s };
       if (next[k] === p.id) delete next[k];
       else next[k] = p.id;
       return next;
     });
+  };
+  const setQty = (slug: string, p: Product, n: number) => {
+    const next = Math.min(MAX_QTY, Math.max(1, n));
+    setQtyMap((q) => ({ ...q, [selKey(slug, p.type)]: next }));
+  };
   const removeStop = (slug: string) => {
     const next = stops.filter((s) => s !== slug);
     if (!next.length) { router.push("/destinations"); return; }
@@ -83,14 +97,14 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
   const addAll = () => {
     if (busy || !chosen.length) return;
     setBusy(true);
-    chosen.forEach((p) => add(p));
+    chosen.forEach(({ p, q }) => { for (let i = 0; i < q; i++) add(p); });
     router.push("/cart");
   };
   const lineLabel = (p: Product) => `${typeInfo[p.type].label} · ${p.days} ${t("unit.days")}`;
 
   const cta = (cls: string) => (
     <button type="button" onClick={addAll} disabled={!chosen.length || busy} className={`${cls} disabled:cursor-not-allowed disabled:opacity-40`}>
-      {t("trip.addAll", { count: chosen.length })}
+      {t("trip.addAll", { count: units })}
     </button>
   );
 
@@ -122,7 +136,7 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
         <ol className="space-y-6">
           {rows.map(({ d, list, picked }) => {
-            const others = picked.filter((p) => p.type !== tab);
+            const others = picked.filter((c) => c.p.type !== tab);
             return (
               <li key={d.slug} className="rounded-[4px] border border-line bg-white p-5 sm:p-6">
                 <div className="flex items-center gap-4">
@@ -140,9 +154,9 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
                 {others.length > 0 && (
                   <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
                     <span className="text-ink/60">{t("trip.alsoChosen")}</span>
-                    {others.map((p) => (
+                    {others.map(({ p, q }) => (
                       <span key={p.id} className="inline-flex items-center gap-1 rounded-[3px] bg-mist py-0.5 pl-2.5 pr-0.5 font-semibold">
-                        {lineLabel(p)}
+                        {lineLabel(p)}{q > 1 && ` × ${q}`}
                         <button type="button" onClick={() => toggle(d.slug, p)} aria-label={t("trip.removeLine", { label: lineLabel(p), name: d.name })} className="grid h-6 w-6 place-items-center rounded-[3px] text-base leading-none text-ink/55 hover:bg-white hover:text-ink">×</button>
                       </span>
                     ))}
@@ -199,13 +213,23 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
               <li key={d.slug} className="py-3 first:pt-0">
                 <span className="block font-semibold">{d.name}</span>
                 {picked.length ? (
-                  picked.map((p) => (
-                    <div key={p.id} className="mt-1.5 flex items-start justify-between gap-3">
-                      <span className="min-w-0 text-sm text-ink/60">{lineLabel(p)} · {ct.data(p.data)}</span>
-                      <span className="flex shrink-0 items-center gap-1">
-                        <span className="font-semibold">{idr(p.price)}</span>
-                        <button type="button" onClick={() => toggle(d.slug, p)} aria-label={t("trip.removeLine", { label: lineLabel(p), name: d.name })} className="grid h-6 w-6 place-items-center rounded-[3px] text-base leading-none text-ink/55 hover:bg-mist hover:text-ink">×</button>
-                      </span>
+                  picked.map(({ p, q }) => (
+                    <div key={p.id} className="mt-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="min-w-0 text-sm text-ink/60">{lineLabel(p)} · {ct.data(p.data)}</span>
+                        <span className="flex shrink-0 items-center gap-1">
+                          <span className="font-semibold">{idr(p.price * q)}</span>
+                          <button type="button" onClick={() => toggle(d.slug, p)} aria-label={t("trip.removeLine", { label: lineLabel(p), name: d.name })} className="grid h-6 w-6 place-items-center rounded-[3px] text-base leading-none text-ink/55 hover:bg-mist hover:text-ink">×</button>
+                        </span>
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-between gap-3">
+                        <span className="text-xs text-ink/55">{q > 1 ? `${idr(p.price)} × ${q}` : t("tabs.qty")}</span>
+                        <div className="inline-flex items-center rounded-[4px] border border-line" role="group" aria-label={t("trip.qtyAria", { label: lineLabel(p), name: d.name })}>
+                          <button type="button" aria-label={t("trip.qtyDec", { label: lineLabel(p), name: d.name })} disabled={q <= 1} onClick={() => setQty(d.slug, p, q - 1)} className="h-8 w-8 rounded-[3px] text-lg leading-none disabled:opacity-35">−</button>
+                          <span className="w-7 text-center text-sm font-semibold" aria-live="polite">{q}</span>
+                          <button type="button" aria-label={t("trip.qtyInc", { label: lineLabel(p), name: d.name })} disabled={q >= MAX_QTY} onClick={() => setQty(d.slug, p, q + 1)} className="h-8 w-8 rounded-[3px] text-lg leading-none disabled:opacity-35">+</button>
+                        </div>
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -220,7 +244,7 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
             <span className="font-display text-3xl font-extrabold">{idr(total)}</span>
           </div>
           {cta("btn-signal mt-5 w-full")}
-          <p className="mt-3 text-xs text-ink/60">{t("trip.note")}</p>
+          <p className="mt-3 text-xs text-ink/60">{t("trip.note", { max: MAX_QTY })}</p>
         </aside>
       </div>
 
@@ -228,7 +252,7 @@ export function TripPlanner({ destinations, initialType }: { destinations: Desti
       <div aria-hidden={summaryOn || footerOn} className={`pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-3 transition-all duration-300 ease-out lg:hidden ${summaryOn || footerOn || !chosen.length ? "invisible translate-y-6 opacity-0" : "translate-y-0 opacity-100"}`}>
         <div className="pointer-events-auto flex w-full max-w-xl items-center gap-3 rounded-[4px] border border-line border-t-[3px] border-t-signal bg-white/95 py-2.5 pl-4 pr-20 shadow-lift backdrop-blur-md">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs text-ink/60">{t("trip.mobileCount", { count: chosen.length })}</p>
+            <p className="truncate text-xs text-ink/60">{t("trip.mobileCount", { count: units })}</p>
             <p className="font-display text-xl font-extrabold">{idr(total)}</p>
           </div>
           <button type="button" onClick={addAll} disabled={busy} className="btn-signal !rounded-[3px] px-4 py-2.5 text-sm disabled:opacity-40">{t("trip.addShort")}</button>
