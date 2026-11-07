@@ -28,9 +28,9 @@ Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical
 
 ## Tampilan
 
-| Beranda | Katalog (filter, footer di dasar layar) |
+| Beranda | Halaman destinasi (pilih paket, ringkasan pesanan) |
 |---|---|
-| ![Beranda](docs/img/01-home.png) | ![Katalog](docs/img/02-destinations.png) |
+| ![Beranda](docs/img/01-home.png) | ![Halaman destinasi](docs/img/05-destination.png) |
 
 | FAQ (mobile) | CMS admin |
 |---|---|
