@@ -18,6 +18,7 @@ import { idr } from "@/lib/format";
 import { markPendingOrder } from "@/lib/pending-order";
 import { ADDRESS_KEYS, ADDRESS_MAX, EMPTY_ADDRESS, invalidAddressFields, isValidPhone, toShipAddress, todayISO, type AddressForm, type AddressKey } from "@/lib/order-details";
 import { PROVINCES } from "@/lib/regions";
+import { loadRegions, type RegionMap } from "@/lib/wilayah";
 
 function SectionHead({ n, title, hint }: { n: number; title: string; hint?: string }) {
   return (
@@ -41,9 +42,22 @@ const ICON_REFRESH = "M20 11a8 8 0 0 0-14-4.5L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4.5L
 const ICON_TRASH = "M5 7h14M10 7V5h4v2M7.5 7l.8 12h7.4l.8-12";
 
 type FieldErrors = Partial<Record<"name" | "email" | "phone" | "departureDate" | `addr_${AddressKey}`, string>>;
-const FIELD_ORDER: (keyof FieldErrors)[] = ["name", "email", "phone", "departureDate", ...ADDRESS_KEYS.map((k) => `addr_${k}` as const)];
+// Urutan tampil di form: provinsi sebelum kota sebelum kecamatan, karena pilihan berikutnya bergantung pada sebelumnya.
+const ADDRESS_ORDER: AddressKey[] = ["recipient", "province", "city", "district", "postalCode", "street", "notes"];
+const FIELD_ORDER: (keyof FieldErrors)[] = ["name", "email", "phone", "departureDate", ...ADDRESS_ORDER.map((k) => `addr_${k}` as const)];
 /** Id elemen input untuk sebuah kunci galat (dipakai untuk memindahkan fokus ke kolom pertama yang salah). */
 const fieldId = (k: keyof FieldErrors) => (k === "departureDate" ? "departure" : k.replace("addr_", "addr-"));
+
+/** Satu kolom alamat: label, isian (children), dan pesan galat; id kolom `addr-<k>` dipakai untuk memindahkan fokus. */
+function AddrField({ k, label, error, span, children }: { k: string; label: string; error?: string; span?: boolean; children: React.ReactNode }) {
+  return (
+    <div className={span ? "sm:col-span-2" : undefined}>
+      <label htmlFor={`addr-${k}`} className="text-sm font-medium">{label}</label>
+      {children}
+      {error && <p id={`addr-${k}-err`} role="alert" className="mt-1.5 text-sm font-medium text-coral">{error}</p>}
+    </div>
+  );
+}
 
 function CheckoutForm() {
   const { items, setQty, remove } = useCart();
@@ -124,8 +138,17 @@ function CheckoutForm() {
   const [addr, setAddr] = useState<AddressForm>(EMPTY_ADDRESS);
   // Penerima otomatis memakai nama pembeli sampai pembeli mengubahnya sendiri (paket sering dikirim ke diri sendiri).
   const [recipientTouched, setRecipientTouched] = useState(false);
-  // Di HP alamat dilipat jadi satu baris; terbuka saat diketuk atau saat ada galat di salah satu kolomnya.
+  // Alamat dilipat jadi satu baris di semua ukuran layar; terbuka saat diketuk atau saat ada galat di salah satu kolomnya.
   const [addrOpen, setAddrOpen] = useState(false);
+  // Daftar kab/kota dan kecamatan untuk provinsi terpilih. Data milik provinsi lain dianggap belum siap (tanda "memuat").
+  const [regions, setRegions] = useState<{ province: string; data: RegionMap | null; failed: boolean }>({ province: "", data: null, failed: false });
+  useEffect(() => {
+    const province = addr.province;
+    if (!province) return;
+    let live = true;
+    loadRegions(province).then((data) => { if (live) setRegions({ province, data, failed: false }); }).catch(() => { if (live) setRegions({ province, data: null, failed: true }); });
+    return () => { live = false; };
+  }, [addr.province]);
   const effectiveAddr: AddressForm = { ...addr, recipient: recipientTouched ? addr.recipient : name };
   // SIM Card dan Portable WiFi dikirim fisik, jadi butuh tanggal berangkat dan alamat. eSIM cukup email.
   const needsDelivery = items.some((i) => i.type !== "esim");
@@ -355,9 +378,9 @@ function CheckoutForm() {
               <fieldset className="sm:col-span-2">
                 <legend className="text-sm font-semibold">{t("co.addr")}</legend>
                 <p className="mt-0.5 text-xs text-ink/55">{t("co.addrHint")}</p>
-                {/* HP: alamat dilipat jadi satu baris (ringkasan setelah terisi). sm ke atas: kolom selalu terbuka. */}
+                {/* Alamat dilipat jadi satu baris di semua ukuran layar (ringkasan setelah terisi). */}
                 <button type="button" aria-expanded={addrOpen} aria-controls="addr-fields" onClick={() => setAddrOpen((v) => !v)}
-                  className={`mt-3 flex w-full items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 text-left sm:hidden ${addrHasError ? "border-coral" : "border-line"}`}>
+                  className={`mt-3 flex w-full items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 text-left ${addrHasError ? "border-coral" : "border-line"}`}>
                   <span className="min-w-0 text-sm">
                     {addrDone && !addrOpen ? (
                       <>
@@ -373,44 +396,78 @@ function CheckoutForm() {
                     <svg aria-hidden viewBox="0 0 20 20" className={`h-4 w-4 transition-transform ${addrOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 7.5 5 5 5-5" /></svg>
                   </span>
                 </button>
-                <div id="addr-fields" className={`mt-3 gap-4 sm:grid-cols-2 ${addrOpen ? "grid" : "hidden sm:grid"}`}>
-                  {(
-                    [
-                      { k: "recipient", span: false, auto: "shipping name" },
-                      { k: "postalCode", span: false, auto: "shipping postal-code", mode: "numeric" as const },
-                      { k: "street", span: true, auto: "shipping street-address" },
-                      { k: "district", span: false, auto: "shipping address-level3" },
-                      { k: "city", span: false, auto: "shipping address-level2" },
-                    ] as { k: Exclude<AddressKey, "province" | "notes">; span: boolean; auto: string; mode?: "numeric" }[]
-                  ).map(({ k, span, auto, mode }) => {
-                    const err = fieldErrors[`addr_${k}`];
+                <div id="addr-fields" className={`mt-3 gap-4 sm:grid-cols-2 ${addrOpen ? "grid" : "hidden"}`}>
+                  {(() => {
+                    const clear = (...ks: AddressKey[]) => setFieldErrors((f) => { const n = { ...f }; for (const k of ks) delete n[`addr_${k}`]; return n; });
+                    const textProps = (k: Exclude<AddressKey, "province">, auto: string, mode?: "numeric") => ({
+                      id: `addr-${k}`, type: "text" as const, inputMode: mode, maxLength: ADDRESS_MAX[k], autoComplete: auto, placeholder: t(`co.addr.${k}Ph`),
+                      "aria-invalid": !!fieldErrors[`addr_${k}`], "aria-describedby": fieldErrors[`addr_${k}`] ? `addr-${k}-err` : undefined, className: inputCls(fieldErrors[`addr_${k}`]),
+                    });
+                    const ready = !!addr.province && regions.province === addr.province && !!regions.data;
+                    const failed = !!addr.province && regions.province === addr.province && regions.failed;
+                    const cities = ready ? Object.keys(regions.data!) : [];
+                    const districts = ready && addr.city ? regions.data![addr.city] ?? [] : [];
+                    // Placeholder kolom yang masih terkunci: bilang apa yang harus dilakukan dulu.
+                    const lockedCity = !addr.province ? t("co.addr.needProvince") : ready ? t("co.addr.cityPick") : t("co.addr.loadingRegions");
+                    const lockedDistrict = !addr.province ? t("co.addr.needProvince") : !ready ? t("co.addr.loadingRegions") : !addr.city ? t("co.addr.needCity") : t("co.addr.districtPick");
                     return (
-                      <div key={k} className={span ? "sm:col-span-2" : undefined}>
-                        <label htmlFor={`addr-${k}`} className="text-sm font-medium">{t(`co.addr.${k}`)}</label>
-                        <input id={`addr-${k}`} type="text" inputMode={mode} maxLength={ADDRESS_MAX[k]} value={effectiveAddr[k]} autoComplete={auto} placeholder={t(`co.addr.${k}Ph`)}
-                          onChange={(e) => { if (k === "recipient") setRecipientTouched(true); setAddr((a) => ({ ...a, [k]: e.target.value })); if (err) setFieldErrors((f) => ({ ...f, [`addr_${k}`]: undefined })); }}
-                          aria-invalid={!!err} aria-describedby={err ? `addr-${k}-err` : undefined} className={inputCls(err)} />
-                        {err && <p id={`addr-${k}-err`} role="alert" className="mt-1.5 text-sm font-medium text-coral">{err}</p>}
-                      </div>
+                      <>
+                        <AddrField k="recipient" label={t("co.addr.recipient")} error={fieldErrors.addr_recipient} span>
+                          <input {...textProps("recipient", "shipping name")} value={effectiveAddr.recipient}
+                            onChange={(e) => { setRecipientTouched(true); setAddr((a) => ({ ...a, recipient: e.target.value })); clear("recipient"); }} />
+                        </AddrField>
+                        <AddrField k="province" label={t("co.addr.province")} error={fieldErrors.addr_province}>
+                          <select id="addr-province" value={addr.province} autoComplete="shipping address-level1" className={inputCls(fieldErrors.addr_province)}
+                            onChange={(e) => { const province = e.target.value; setAddr((a) => ({ ...a, province, city: "", district: "" })); clear("province", "city", "district"); }}
+                            aria-invalid={!!fieldErrors.addr_province} aria-describedby={fieldErrors.addr_province ? "addr-province-err" : undefined}>
+                            <option value="">{t("co.addr.provincePh")}</option>
+                            {PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
+                          </select>
+                        </AddrField>
+                        <AddrField k="city" label={t("co.addr.city")} error={fieldErrors.addr_city}>
+                          {failed ? (
+                            <>
+                              <input {...textProps("city", "shipping address-level2")} value={addr.city}
+                                onChange={(e) => { setAddr((a) => ({ ...a, city: e.target.value })); clear("city"); }} />
+                              <p className="mt-1.5 text-xs text-ink/55">{t("co.addr.regionsFailed")}</p>
+                            </>
+                          ) : (
+                            <select id="addr-city" value={addr.city} disabled={!ready} autoComplete="shipping address-level2" className={`${inputCls(fieldErrors.addr_city)} disabled:cursor-not-allowed disabled:bg-mist disabled:text-ink/50`}
+                              onChange={(e) => { setAddr((a) => ({ ...a, city: e.target.value, district: "" })); clear("city", "district"); }}
+                              aria-invalid={!!fieldErrors.addr_city} aria-describedby={fieldErrors.addr_city ? "addr-city-err" : undefined}>
+                              <option value="">{lockedCity}</option>
+                              {cities.map((c) => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          )}
+                        </AddrField>
+                        <AddrField k="district" label={t("co.addr.district")} error={fieldErrors.addr_district}>
+                          {failed ? (
+                            <input {...textProps("district", "shipping address-level3")} value={addr.district}
+                              onChange={(e) => { setAddr((a) => ({ ...a, district: e.target.value })); clear("district"); }} />
+                          ) : (
+                            <select id="addr-district" value={addr.district} disabled={!ready || !addr.city} autoComplete="shipping address-level3" className={`${inputCls(fieldErrors.addr_district)} disabled:cursor-not-allowed disabled:bg-mist disabled:text-ink/50`}
+                              onChange={(e) => { setAddr((a) => ({ ...a, district: e.target.value })); clear("district"); }}
+                              aria-invalid={!!fieldErrors.addr_district} aria-describedby={fieldErrors.addr_district ? "addr-district-err" : undefined}>
+                              <option value="">{lockedDistrict}</option>
+                              {districts.map((d) => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                          )}
+                        </AddrField>
+                        <AddrField k="postalCode" label={t("co.addr.postalCode")} error={fieldErrors.addr_postalCode}>
+                          <input {...textProps("postalCode", "shipping postal-code", "numeric")} value={addr.postalCode}
+                            onChange={(e) => { setAddr((a) => ({ ...a, postalCode: e.target.value })); clear("postalCode"); }} />
+                        </AddrField>
+                        <AddrField k="street" label={t("co.addr.street")} error={fieldErrors.addr_street} span>
+                          <input {...textProps("street", "shipping street-address")} value={addr.street}
+                            onChange={(e) => { setAddr((a) => ({ ...a, street: e.target.value })); clear("street"); }} />
+                        </AddrField>
+                        <AddrField k="notes" label={t("co.addr.notes")} error={fieldErrors.addr_notes} span>
+                          <input {...textProps("notes", "off")} value={addr.notes}
+                            onChange={(e) => { setAddr((a) => ({ ...a, notes: e.target.value })); clear("notes"); }} />
+                        </AddrField>
+                      </>
                     );
-                  })}
-                  <div>
-                    <label htmlFor="addr-province" className="text-sm font-medium">{t("co.addr.province")}</label>
-                    <select id="addr-province" value={addr.province} autoComplete="shipping address-level1"
-                      onChange={(e) => { setAddr((a) => ({ ...a, province: e.target.value })); if (fieldErrors.addr_province) setFieldErrors((f) => ({ ...f, addr_province: undefined })); }}
-                      aria-invalid={!!fieldErrors.addr_province} aria-describedby={fieldErrors.addr_province ? "addr-province-err" : undefined} className={inputCls(fieldErrors.addr_province)}>
-                      <option value="">{t("co.addr.provincePh")}</option>
-                      {PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                    {fieldErrors.addr_province && <p id="addr-province-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.addr_province}</p>}
-                  </div>
-                  <div>
-                    <label htmlFor="addr-notes" className="text-sm font-medium">{t("co.addr.notes")}</label>
-                    <input id="addr-notes" type="text" maxLength={ADDRESS_MAX.notes} value={addr.notes} placeholder={t("co.addr.notesPh")}
-                      onChange={(e) => { setAddr((a) => ({ ...a, notes: e.target.value })); if (fieldErrors.addr_notes) setFieldErrors((f) => ({ ...f, addr_notes: undefined })); }}
-                      aria-invalid={!!fieldErrors.addr_notes} aria-describedby={fieldErrors.addr_notes ? "addr-notes-err" : undefined} className={inputCls(fieldErrors.addr_notes)} />
-                    {fieldErrors.addr_notes && <p id="addr-notes-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.addr_notes}</p>}
-                  </div>
+                  })()}
                 </div>
               </fieldset>
             )}

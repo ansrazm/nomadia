@@ -403,6 +403,13 @@ Format galat: `{ "error": { "code", "message", "details?" } }`.
 - **Konten bantuan satu sumber.** FAQ dan nomor WhatsApp hanya didefinisikan di `lib/faq.ts` dan `lib/contact.ts`; beranda, panel bantuan, dan footer membacanya dari sana sehingga tidak bisa saling berbeda. Saat ini statis; memindahkannya ke database dan CMS adalah langkah lanjutan.
 - **Admin bisa dimatikan** lewat env kosong, sehingga deployment tanpa CMS tidak punya permukaan serangan `/admin`.
 
+## Data wilayah (alamat pengiriman)
+
+Dropdown provinsi, kota/kabupaten, dan kecamatan di checkout memakai data statis di `web/public/wilayah/<provinsi>.json` (38 provinsi, 514 kab/kota, 7.285 kecamatan, sekitar 190 KB). Berkas diambil per provinsi saat dipilih, jadi bundel halaman tidak membengkak, dan bila gagal dimuat kolom kota dan kecamatan berubah jadi isian teks biasa sehingga checkout tidak tertahan. Server hanya memvalidasi provinsi (daftar tetap) dan panjang teks kota/kecamatan.
+
+- Sumber: [idn-area-data](https://github.com/fityannugroho/idn-area-data) v4.0.1, yang berasal dari sumber resmi Kemendagri. Kode paketnya berlisensi MIT, **tetapi datanya berlisensi ODbL 1.0**, jadi berkas JSON hasilnya ikut ODbL (atribusi ada di `web/public/wilayah/README.txt`). Kode aplikasi ini tidak terkena.
+- Membuat ulang: `node web/scripts/gen-wilayah.mjs <folder data idn-area-data>` (nama provinsi disamakan dengan `web/lib/regions.ts`).
+
 ## Batasan yang diketahui
 
 - Token login admin disimpan di `localStorage`, jadi rentan bila ada celah XSS. Dipilih demi kesederhanaan untuk technical test; produksi sebaiknya memakai cookie `HttpOnly`.
