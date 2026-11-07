@@ -3,10 +3,48 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Breadcrumb } from "@/components/Breadcrumb";
 import { useCart } from "@/components/CartProvider";
 import { ApiRequestError, createOrder, quoteCart, type CheckoutResult, type Quote } from "@/lib/api";
 import { idr } from "@/lib/format";
 import { markPendingOrder } from "@/lib/pending-order";
+
+const STEPS = ["Detail pesanan", "Pembayaran", "Selesai"];
+
+/** Penunjuk langkah di kepala halaman; halaman ini selalu langkah 1 (pembayaran terjadi di iPaymu, selesai di /orders). */
+function Steps({ current }: { current: 1 | 2 | 3 }) {
+  return (
+    <ol aria-label="Langkah pembelian" className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+      {STEPS.map((label, i) => {
+        const n = i + 1;
+        const state = n < current ? "done" : n === current ? "current" : "todo";
+        return (
+          <li key={label} className="flex items-center gap-3" aria-current={state === "current" ? "step" : undefined}>
+            <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${state === "todo" ? "bg-white/15 text-white/70" : "bg-signal text-ink"}`}>
+              {state === "done" ? (
+                <svg aria-hidden viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m4.5 10.5 3.5 3.5 7.5-8" /></svg>
+              ) : n}
+            </span>
+            <span className={state === "current" ? "font-semibold text-white" : "text-white/70"}>{label}</span>
+            {n < STEPS.length && <span aria-hidden className="h-px w-8 bg-white/25" />}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function SectionHead({ n, title, hint }: { n: number; title: string; hint?: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span aria-hidden className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-bold text-signal">{n}</span>
+      <div>
+        <h2 className="font-display text-2xl font-bold leading-tight">{title}</h2>
+        {hint && <p className="mt-1 text-sm text-ink/65">{hint}</p>}
+      </div>
+    </div>
+  );
+}
 
 function CheckoutForm() {
   const { items } = useCart();
@@ -112,11 +150,16 @@ function CheckoutForm() {
   }
 
   if (result) {
+    // Tanpa kunci iPaymu di server, pesanan tetap dibuat (pending) tetapi tidak ada tautan bayar.
     return (
       <div className="rounded-3xl border border-line bg-white p-10 text-center">
         <p className="font-display text-3xl font-extrabold">Pesanan tercatat</p>
-        <p className="mt-3 text-ink/70">Nomor pesanan <span className="font-semibold text-ink">{result.orderId}</span>. Instruksi pembayaran dikirim ke {email}.</p>
-        <Link href="/" className="btn-signal mt-6">Kembali ke beranda</Link>
+        <p className="mt-3 text-ink/70">Nomor pesanan <span className="font-semibold text-ink">{result.orderId}</span>.</p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-ink/60">Tautan pembayaran belum tersedia di server ini. QR eSIM dan bukti pembayaran dikirim ke {email} setelah pembayaran diterima.</p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <Link href={`/orders/${result.orderId}`} className="btn-signal">Lihat status pesanan</Link>
+          <Link href="/" className="btn-ghost">Kembali ke beranda</Link>
+        </div>
       </div>
     );
   }
@@ -132,30 +175,39 @@ function CheckoutForm() {
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
-      <form onSubmit={submit} className="space-y-5 rounded-3xl border border-line bg-white p-6 sm:p-8" noValidate>
-        <h2 className="font-display text-2xl font-bold">Data pemesan</h2>
-        <div>
-          <label htmlFor="name" className="text-sm font-semibold">Nama lengkap</label>
-          <input id="name" value={name} onChange={(e) => { setName(e.target.value); if (fieldErrors.name) setFieldErrors((f) => ({ ...f, name: undefined })); }} autoComplete="name" aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? "name-err" : undefined} className={`mt-2 w-full rounded-xl border bg-mist px-4 py-3 outline-none focus:border-lagoon ${fieldErrors.name ? "border-coral" : "border-line"}`} />
-          {fieldErrors.name && <p id="name-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.name}</p>}
+      <form onSubmit={submit} className="space-y-6" noValidate>
+        <div className="space-y-5 rounded-3xl border border-line bg-white p-6 sm:p-8">
+          <SectionHead n={1} title="Data pemesan" hint="Isi sesuai identitas. Pesanan dan bukti bayar dikaitkan ke email ini." />
+          <div>
+            <label htmlFor="name" className="text-sm font-semibold">Nama lengkap</label>
+            <input id="name" value={name} onChange={(e) => { setName(e.target.value); if (fieldErrors.name) setFieldErrors((f) => ({ ...f, name: undefined })); }} autoComplete="name" aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? "name-err" : undefined} className={`mt-2 w-full rounded-xl border bg-mist px-4 py-3 outline-none focus:border-lagoon ${fieldErrors.name ? "border-coral" : "border-line"}`} />
+            {fieldErrors.name && <p id="name-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.name}</p>}
+          </div>
+          <div>
+            <label htmlFor="email" className="text-sm font-semibold">Email</label>
+            <input id="email" type="email" inputMode="email" value={email} onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined })); }} autoComplete="email" aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? "email-err" : "email-hint"} className={`mt-2 w-full rounded-xl border bg-mist px-4 py-3 outline-none focus:border-lagoon ${fieldErrors.email ? "border-coral" : "border-line"}`} />
+            {fieldErrors.email ? <p id="email-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.email}</p> : <p id="email-hint" className="mt-1 text-sm text-ink/60">QR eSIM dan bukti pembayaran dikirim ke email ini.</p>}
+          </div>
         </div>
-        <div>
-          <label htmlFor="email" className="text-sm font-semibold">Email</label>
-          <input id="email" type="email" inputMode="email" value={email} onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined })); }} autoComplete="email" aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? "email-err" : "email-hint"} className={`mt-2 w-full rounded-xl border bg-mist px-4 py-3 outline-none focus:border-lagoon ${fieldErrors.email ? "border-coral" : "border-line"}`} />
-          {fieldErrors.email ? <p id="email-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.email}</p> : <p id="email-hint" className="mt-1 text-sm text-ink/60">QR eSIM dan bukti pembayaran dikirim ke email ini.</p>}
+        <div className="space-y-5 rounded-3xl border border-line bg-white p-6 sm:p-8">
+          <SectionHead n={2} title="Pembayaran" hint="Setelah menekan tombol bayar, kamu memilih metode pembayaran lewat iPaymu (sandbox)." />
+          {error && <p role="alert" className="text-sm font-medium text-coral">{error}</p>}
+          <button className="btn-signal w-full disabled:opacity-60" disabled={busy || !canPay}>
+            {busy ? "Membuat pesanan…" : quote ? `Bayar ${idr(quote.total)}` : "Menghitung total…"}
+          </button>
+          <p className="flex items-center justify-center gap-2 text-center text-xs text-ink/55">
+            <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2" /><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg>
+            Pembayaran diproses aman lewat iPaymu
+          </p>
         </div>
-        {error && <p role="alert" className="text-sm font-medium text-coral">{error}</p>}
-        <button className="btn-signal w-full disabled:opacity-60" disabled={busy || !canPay}>
-          {busy ? "Membuat pesanan…" : quote ? `Bayar ${idr(quote.total)}` : "Menghitung total…"}
-        </button>
-        <p className="flex items-center justify-center gap-2 text-center text-xs text-ink/55">
-          <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2" /><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg>
-          Pembayaran diproses aman lewat iPaymu
-        </p>
       </form>
-      <aside className="h-fit rounded-3xl border border-line bg-white p-6">
-        <h2 className="font-display text-xl font-bold">Pesananmu</h2>
-        <ul className="mt-4 space-y-3 text-sm">
+      <aside className="h-fit overflow-hidden rounded-3xl border border-line bg-white lg:sticky lg:top-28">
+        <div className="bg-ink px-6 py-4 text-white">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-signal">Ringkasan pesanan</p>
+          <p className="font-display text-lg font-bold">{items.reduce((n, i) => n + i.qty, 0)} paket</p>
+        </div>
+        <div className="p-6">
+        <ul className="space-y-3 text-sm">
           {items.map((i) => (
             <li key={i.id} className="flex justify-between gap-3"><span>{i.qty} × {i.name}</span><span className="font-semibold">{idr((lineById.get(i.id)?.unitPrice ?? i.price) * i.qty)}</span></li>
           ))}
@@ -179,6 +231,8 @@ function CheckoutForm() {
         ) : unavailable.length === 0 ? (
           <p className="mt-4 text-sm text-ink/60" role="status">Menghitung total…</p>
         ) : null}
+        <p className="mt-4 text-xs text-ink/55">Harga final dihitung server saat pesanan dibuat.</p>
+        </div>
       </aside>
     </div>
   );
@@ -188,7 +242,12 @@ export default function CheckoutPage() {
   return (
     <>
       <section className="bg-ink pb-12 pt-32 text-white">
-        <div className="container-x"><h1 className="font-display text-5xl font-extrabold tracking-tight">Pembayaran</h1></div>
+        <div className="container-x">
+          <Breadcrumb items={[{ label: "Beranda", href: "/" }, { label: "Keranjang", href: "/cart" }, { label: "Pembayaran" }]} />
+          <h1 className="mt-6 font-display text-5xl font-extrabold tracking-tight">Pembayaran</h1>
+          <p className="mt-3 max-w-xl text-white/75">Isi data pemesan, lalu lanjut membayar. Pesananmu tercatat setelah tombol bayar ditekan.</p>
+          <div className="mt-8"><Steps current={1} /></div>
+        </div>
       </section>
       <div className="container-x py-12">
         <Suspense fallback={<p>Memuat…</p>}>
