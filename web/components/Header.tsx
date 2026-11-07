@@ -8,6 +8,7 @@ import { SignalBars } from "./SignalBars";
 import { TypeArt, typeArtBg } from "./TypeArt";
 import { useCart } from "./CartProvider";
 import { useT } from "./LanguageProvider";
+import { DestinationSearch, OPEN_SEARCH_EVENT } from "./DestinationSearch";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 
 const before = [{ href: "/destinations", key: "nav.destinations" as const }];
@@ -105,6 +106,7 @@ export function Header() {
             ))}
           </nav>
           <div className="flex items-center gap-3">
+            <DestinationSearch />
             <LanguageSwitcher />
             <Link href="/cart" className="relative rounded-[3px] bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20">
               {t("nav.cart")}
@@ -171,6 +173,11 @@ export function Header() {
             className="pointer-events-auto mx-auto mt-2 max-w-6xl md:hidden"
           >
             <div className="rounded-[4px] border-t-[3px] border-t-signal bg-white p-3 text-ink shadow-lift">
+              {/* Di HP ikon cari tidak muat di bar header, jadi pencarian dibuka dari baris pertama menu ini. */}
+              <button type="button" onClick={() => { setOpen(false); window.dispatchEvent(new Event(OPEN_SEARCH_EVENT)); }} className="flex w-full items-center gap-3 rounded-[3px] px-4 py-3 text-left font-medium hover:bg-mist">
+                <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 text-ink/60" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
+                {t("search.open")}
+              </button>
               {before.map((l) => (
                 <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className="block rounded-[3px] px-4 py-3 font-medium hover:bg-mist">
                   {t(l.key)}

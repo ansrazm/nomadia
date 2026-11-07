@@ -1,4 +1,5 @@
 import type { CartItem } from "@/components/CartProvider";
+import type { DestinationSummary } from "./catalog-types";
 
 /** Alamat kirim terstruktur; bentuknya sama dengan skema server (api/src/routes/orders.ts). */
 export interface ShipAddress {
@@ -202,6 +203,19 @@ export async function getPaymentMethods(signal?: AbortSignal): Promise<PaymentMe
     if (!Array.isArray(list)) return null;
     const ok = list.filter((m): m is PaymentMethodView => typeof m?.id === "string" && typeof m?.label === "string" && ["qris", "va", "other"].includes(m?.group));
     return ok.length ? ok : null;
+  } catch {
+    return null;
+  }
+}
+
+/** GET {API_URL}/destinations dari browser (pencarian di header). null bila gagal diambil. */
+export async function getDestinationsClient(signal?: AbortSignal): Promise<DestinationSummary[] | null> {
+  if (!API_URL) return null;
+  try {
+    const res = await fetch(`${API_URL}/destinations`, { cache: "no-store", ...(signal ? { signal } : {}) });
+    if (!res.ok) return null;
+    const data = (await res.json())?.data;
+    return Array.isArray(data) ? (data as DestinationSummary[]) : null;
   } catch {
     return null;
   }
