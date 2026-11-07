@@ -2,40 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { adminFetch, errMsg, fieldErrors, type AdminDestination } from "@/lib/admin-api";
-import { mediaUrl } from "@/lib/catalog-types";
 import { Card, ConfirmModal, Field, Modal, Notice, PageHead, inputCls } from "@/components/admin/ui";
+import { mediaUrl } from "@/lib/catalog-types";
+import { ImageSlot, imageProblem } from "@/components/admin/ImageSlot";
 
 type Form = { slug: string; name: string; code: string; region: string; network: string; factor: string; position: string };
 const empty: Form = { slug: "", name: "", code: "", region: "", network: "", factor: "1", position: "" };
 
-const IMG_MAX = 2 * 1024 * 1024;
-const IMG_TYPES = ["image/png", "image/jpeg", "image/webp"];
 type ImgKind = "thumb" | "banner";
-
-/** Satu slot gambar: pratinjau, pilih/ganti berkas, dan hapus. Unggah langsung berjalan begitu berkas dipilih. */
-function ImageSlot({ label, hint, url, busy, onPick, onRemove }: { label: string; hint: string; url: string | null; busy: boolean; onPick: (f: File) => void; onRemove: () => void }) {
-  return (
-    <div className="rounded-[4px] border border-line p-4">
-      <div className="flex items-start gap-4">
-        <div className="flex h-24 w-36 shrink-0 items-center justify-center overflow-hidden rounded bg-mist text-xs text-ink/40">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {url ? <img src={mediaUrl(url)} alt={`Pratinjau ${label}`} className="h-full w-full object-cover" /> : "Belum ada"}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold">{label}</p>
-          <p className="mt-0.5 text-xs text-ink/60">{hint}</p>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <label className={`btn-ghost cursor-pointer !py-1.5 text-sm focus-within:outline focus-within:outline-2 ${busy ? "pointer-events-none opacity-60" : ""}`}>
-              {busy ? "Mengunggah…" : url ? "Ganti gambar" : "Pilih gambar"}
-              <input type="file" accept={IMG_TYPES.join(",")} className="sr-only" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onPick(f); }} />
-            </label>
-            {url && <button type="button" className="text-sm font-semibold text-coral hover:underline disabled:opacity-60" disabled={busy} onClick={onRemove}>Hapus</button>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function DestinationsPage() {
   const [rows, setRows] = useState<AdminDestination[] | null>(null);
@@ -76,8 +50,8 @@ export default function DestinationsPage() {
 
   async function uploadImage(slug: string, kind: ImgKind, file: File) {
     setImgError("");
-    if (!IMG_TYPES.includes(file.type)) { setImgError("Format gambar harus PNG, JPEG, atau WebP."); return; }
-    if (file.size > IMG_MAX) { setImgError("Gambar terlalu besar (maksimal 2 MB)."); return; }
+    const problem = imageProblem(file);
+    if (problem) { setImgError(problem); return; }
     setImgBusy(`${slug}:${kind}`);
     try {
       const fd = new FormData();

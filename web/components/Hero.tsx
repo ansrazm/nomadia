@@ -10,7 +10,7 @@ import { idr } from "@/lib/format";
 
 const popular = ["jepang", "korea-selatan", "singapura", "thailand", "eropa"];
 
-export function Hero({ destinations }: { destinations: DestinationSummary[] }) {
+export function Hero({ destinations, homeBannerUrl = null }: { destinations: DestinationSummary[]; homeBannerUrl?: string | null }) {
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<DestinationSummary | null>(null);
   const [open, setOpen] = useState(false);
@@ -31,9 +31,9 @@ export function Hero({ destinations }: { destinations: DestinationSummary[] }) {
     return destinations.filter((d) => !q || d.name.toLowerCase().includes(q) || d.region.toLowerCase().includes(q)).slice(0, 6);
   }, [query, destinations]);
 
-  // Latar hero: banner destinasi yang dipilih; sebelum memilih, banner pertama yang sudah diunggah dari CMS.
-  // Tanpa banner sama sekali, hero tampil seperti biasa (latar navy polos).
-  const bgUrl = picked?.bannerUrl ?? destinations.find((d) => d.bannerUrl)?.bannerUrl ?? null;
+  // Latar hero: banner destinasi yang dipilih; sebelum memilih, banner beranda dari admin, lalu banner destinasi
+  // pertama yang sudah diunggah. Tanpa banner sama sekali, hero tampil seperti biasa (latar navy polos).
+  const bgUrl = picked?.bannerUrl ?? homeBannerUrl ?? destinations.find((d) => d.bannerUrl)?.bannerUrl ?? null;
 
   function choose(d: DestinationSummary) {
     setPicked(d);

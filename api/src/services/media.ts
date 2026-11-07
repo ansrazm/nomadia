@@ -69,3 +69,55 @@ export async function clearDestinationImage(db: Db, slug: string, kind: ImageKin
     client.release();
   }
 }
+
+// ---- Banner beranda: satu gambar, disimpan sebagai id media di tabel settings (kunci home_banner) ----
+const HOME_BANNER_KEY = "home_banner";
+
+/** Id media banner beranda, atau null bila admin belum mengunggah (hero memakai latar bawaan). */
+export async function getHomeBannerId(db: Pick<Db, "query">): Promise<string | null> {
+  const r = await db.query<{ value: string }>("SELECT value FROM settings WHERE key = $1", [HOME_BANNER_KEY]);
+  return r.rows[0]?.value ?? null;
+}
+
+/**
+ * Ganti banner beranda dan hapus gambar lamanya, dalam satu transaksi. Kunci advisory menyerialkan unggahan
+ * bersamaan; tanpa itu dua unggahan pertama sekaligus bisa meninggalkan gambar yatim di tabel media.
+ */
+export async function setHomeBanner(db: Db, data: Buffer, type: ImageType): Promise<void> {
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [HOME_BANNER_KEY]);
+    const cur = await client.query<{ value: string }>("SELECT value FROM settings WHERE key = $1", [HOME_BANNER_KEY]);
+    const id = randomBytes(12).toString("hex");
+    await client.query("INSERT INTO media (id, content_type, data, size) VALUES ($1, $2, $3, $4)", [id, type, data, data.length]);
+    await client.query(
+      "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+      [HOME_BANNER_KEY, id],
+    );
+    if (cur.rows[0]) await client.query("DELETE FROM media WHERE id = $1", [cur.rows[0].value]);
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/** Hapus banner beranda beserta berkasnya; hero kembali ke latar bawaan. Aman dipanggil saat belum ada banner. */
+export async function clearHomeBanner(db: Db): Promise<void> {
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [HOME_BANNER_KEY]);
+    const cur = await client.query<{ value: string }>("DELETE FROM settings WHERE key = $1 RETURNING value", [HOME_BANNER_KEY]);
+    if (cur.rows[0]) await client.query("DELETE FROM media WHERE id = $1", [cur.rows[0].value]);
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}

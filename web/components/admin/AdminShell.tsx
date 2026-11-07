@@ -11,6 +11,7 @@ const nav = [
   { href: "/admin/orders", label: "Pesanan" },
   { href: "/admin/products", label: "Produk" },
   { href: "/admin/destinations", label: "Destinasi" },
+  { href: "/admin/banner", label: "Banner beranda" },
   { href: "/admin/vouchers", label: "Voucher" },
   { href: "/admin/settings", label: "Pengaturan" },
 ];

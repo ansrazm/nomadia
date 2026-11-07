@@ -2,7 +2,7 @@ import Link from "next/link";
 import { FaqSection } from "@/components/FaqSection";
 import { Hero } from "@/components/Hero";
 import { Reveal } from "@/components/Reveal";
-import { getDestinations } from "@/lib/catalog";
+import { getDestinations, getHomeBanner } from "@/lib/catalog";
 import { flagUrl, mediaUrl, typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
 
@@ -42,11 +42,11 @@ const steps = [
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const destinations = await getDestinations();
+  const [destinations, homeBanner] = await Promise.all([getDestinations(), getHomeBanner()]);
   const featured = destinations.slice(0, 8);
   return (
     <>
-      <Hero destinations={destinations} />
+      <Hero destinations={destinations} homeBannerUrl={homeBanner} />
 
       <section aria-label="Keunggulan" className="relative z-10 -mt-10">
         <div className="container-x">

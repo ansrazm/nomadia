@@ -5,8 +5,27 @@ import type { Db } from "../db/pool.js";
 import { ApiError } from "../errors.js";
 import { LoginLimiter, safeEqual, signToken, verifyToken } from "../services/auth.js";
 import type { PaymentGateway } from "../payments/ipaymu.js";
-import { MAX_IMAGE_BYTES, clearDestinationImage, isImageKind, mediaPath, setDestinationImage, sniffImage } from "../services/media.js";
+import { MAX_IMAGE_BYTES, clearDestinationImage, clearHomeBanner, getHomeBannerId, isImageKind, mediaPath, setDestinationImage, setHomeBanner, sniffImage, type ImageType } from "../services/media.js";
 import { CHECKOUT_FLOWS, getCheckoutFlow, setCheckoutFlow, type CheckoutFlow } from "../services/settings.js";
+
+/** Baca dan validasi satu berkas gambar dari multipart/form-data (field "file"); jenisnya dari magic bytes. */
+async function readImageUpload(c: Context): Promise<{ data: Buffer; type: ImageType }> {
+  const form = await c.req.parseBody().catch(() => {
+    throw new ApiError(400, "INVALID_FORM", "Kirim berkas sebagai multipart/form-data dengan field \"file\".");
+  });
+  const file = form["file"];
+  if (!(file instanceof File)) throw new ApiError(422, "VALIDATION_FAILED", "Pilih berkas gambar.", { file: ["Pilih berkas gambar."] });
+  if (file.size > MAX_IMAGE_BYTES) throw new ApiError(422, "IMAGE_TOO_LARGE", `Gambar terlalu besar (maksimal ${MAX_IMAGE_BYTES / 1024 / 1024} MB).`);
+  const data = Buffer.from(await file.arrayBuffer());
+  const type = sniffImage(data);
+  if (!type) throw new ApiError(422, "INVALID_IMAGE", "Format gambar harus PNG, JPEG, atau WebP.");
+  return { data, type };
+}
+
+const imageBodyLimit = bodyLimit({
+  maxSize: MAX_IMAGE_BYTES + 64 * 1024,
+  onError: (c) => c.json({ error: { code: "IMAGE_TOO_LARGE", message: `Gambar terlalu besar (maksimal ${MAX_IMAGE_BYTES / 1024 / 1024} MB).` } }, 413),
+});
 
 export interface AdminConfig { email: string; password: string; secret: string }
 
@@ -196,22 +215,11 @@ export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext =
   // Gambar destinasi: kind = thumb (kartu) atau banner (kepala halaman destinasi). Unggahan baru menggantikan yang lama.
   app.post(
     "/admin/destinations/:slug/image/:kind",
-    bodyLimit({
-      maxSize: MAX_IMAGE_BYTES + 64 * 1024,
-      onError: (c) => c.json({ error: { code: "IMAGE_TOO_LARGE", message: `Gambar terlalu besar (maksimal ${MAX_IMAGE_BYTES / 1024 / 1024} MB).` } }, 413),
-    }),
+    imageBodyLimit,
     async (c) => {
       const kind = c.req.param("kind");
       if (!isImageKind(kind)) throw new ApiError(404, "NOT_FOUND", "Jenis gambar harus thumb atau banner.");
-      const form = await c.req.parseBody().catch(() => {
-        throw new ApiError(400, "INVALID_FORM", "Kirim berkas sebagai multipart/form-data dengan field \"file\".");
-      });
-      const file = form["file"];
-      if (!(file instanceof File)) throw new ApiError(422, "VALIDATION_FAILED", "Pilih berkas gambar.", { file: ["Pilih berkas gambar."] });
-      if (file.size > MAX_IMAGE_BYTES) throw new ApiError(422, "IMAGE_TOO_LARGE", `Gambar terlalu besar (maksimal ${MAX_IMAGE_BYTES / 1024 / 1024} MB).`);
-      const data = Buffer.from(await file.arrayBuffer());
-      const type = sniffImage(data);
-      if (!type) throw new ApiError(422, "INVALID_IMAGE", "Format gambar harus PNG, JPEG, atau WebP.");
+      const { data, type } = await readImageUpload(c);
       const slug = c.req.param("slug");
       if (!(await setDestinationImage(db, slug, kind, data, type))) throw new ApiError(404, "DESTINATION_NOT_FOUND", "Destinasi tidak ditemukan.");
       const r = await db.query("SELECT * FROM destinations WHERE slug = $1", [slug]);
@@ -226,6 +234,22 @@ export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext =
     if (!(await clearDestinationImage(db, slug, kind))) throw new ApiError(404, "DESTINATION_NOT_FOUND", "Destinasi tidak ditemukan.");
     const r = await db.query("SELECT * FROM destinations WHERE slug = $1", [slug]);
     return c.json({ data: destDto(r.rows[0]) });
+  });
+
+  // ---- Banner beranda: latar hero di halaman utama. Unggahan baru menggantikan yang lama. ----
+  const homeBannerView = async () => ({ bannerUrl: mediaPath(await getHomeBannerId(db)) });
+
+  app.get("/admin/home-banner", async (c) => c.json({ data: await homeBannerView() }));
+
+  app.post("/admin/home-banner", imageBodyLimit, async (c) => {
+    const { data, type } = await readImageUpload(c);
+    await setHomeBanner(db, data, type);
+    return c.json({ data: await homeBannerView() });
+  });
+
+  app.delete("/admin/home-banner", async (c) => {
+    await clearHomeBanner(db);
+    return c.json({ data: await homeBannerView() });
   });
 
   // ---- Produk ----

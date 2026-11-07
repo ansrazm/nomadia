@@ -26,6 +26,15 @@ export function getDestinations(): Promise<DestinationSummary[]> {
   return getData<DestinationSummary[]>("/destinations");
 }
 
+/** Banner beranda dari admin (alamat relatif /media/...), atau null. Gagal baca tidak boleh merusak beranda, jadi jatuh ke null. */
+export async function getHomeBanner(): Promise<string | null> {
+  try {
+    return (await getData<{ bannerUrl: string | null }>("/home-banner")).bannerUrl;
+  } catch {
+    return null;
+  }
+}
+
 /** Satu destinasi beserta produk aktifnya, atau null bila slug tidak ada. Galat lain dilempar ke error.tsx. */
 export async function getDestination(slug: string): Promise<DestinationDetail | null> {
   try {
