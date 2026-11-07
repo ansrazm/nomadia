@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { DestinationSummary, ProductType, flagUrl, mediaUrl, typeInfo } from "@/lib/catalog-types";
 import { TypeChips } from "./TypeChips";
 import { TripBar } from "./TripBar";
 import { TripDialog } from "./TripDialog";
 import { idr } from "@/lib/format";
-import { MAX_STOPS, type Availability, type TripStop } from "@/lib/trip";
+import { MAX_STOPS, coverage, tripHref, type Availability, type TripStop } from "@/lib/trip";
 import { useT } from "./LanguageProvider";
 
 interface Props {
@@ -29,6 +30,14 @@ export function DestinationBrowser({ destinations, type = null, availability = n
   const tripFull = trip.length >= MAX_STOPS;
   const toggleStop = (slug: string) => setTrip((cur) => (cur.includes(slug) ? cur.filter((s) => s !== slug) : cur.length >= MAX_STOPS ? cur : [...cur, slug]));
   const stops = useMemo(() => trip.flatMap((slug) => pool.find((p) => p.slug === slug) ?? []), [trip, pool]);
+  const router = useRouter();
+  // Filter jenis yang sedang aktif dan dijual di SEMUA tujuan terpilih: langsung ke halaman rute, tanpa bertanya jenis lagi.
+  // Kalau jenis itu tidak menutup semua tujuan (atau filter "Semua jenis"), dialog tampil untuk menjelaskan cakupannya.
+  const chooseType = () => {
+    const slugs = stops.map((s) => s.slug);
+    if (type && availability && coverage(slugs, availability, type).have.length === slugs.length) router.push(tripHref(slugs, type));
+    else setTripOpen(true);
+  };
   const [query, setQuery] = useState("");
   // null = semua kawasan (nilai "Semua" tidak dipakai sebagai kunci supaya tidak bergantung pada bahasa).
   const [region, setRegion] = useState<string | null>(null);
@@ -133,7 +142,7 @@ export function DestinationBrowser({ destinations, type = null, availability = n
       )}
 
       {availability && (
-        <TripBar stops={stops} onRemove={toggleStop} onClear={() => { setTrip([]); setTripOpen(false); }} onChoose={() => setTripOpen(true)} />
+        <TripBar stops={stops} onRemove={toggleStop} onClear={() => { setTrip([]); setTripOpen(false); }} onChoose={chooseType} />
       )}
       {availability && tripOpen && stops.length > 1 && <TripDialog stops={stops} availability={availability} onClose={() => setTripOpen(false)} />}
     </div>
