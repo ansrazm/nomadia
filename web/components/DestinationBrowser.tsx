@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { DestinationSummary, ProductType, flagUrl, mediaUrl, productTypes, typeInfo } from "@/lib/catalog-types";
+import { DestinationSummary, ProductType, flagUrl, mediaUrl, typeInfo } from "@/lib/catalog-types";
+import { TypeChips } from "./TypeChips";
 import { idr } from "@/lib/format";
 
 /** Daftar destinasi dengan pencarian dan filter kawasan. Data datang dari server component. */
@@ -50,22 +51,7 @@ export function DestinationBrowser({ destinations, type = null }: { destinations
         </div>
       </div>
 
-      {/* Filter jenis koneksi memakai tautan biasa (?type=): URL bisa dibagikan, dan harga mulai dari ikut dihitung ulang oleh server. */}
-      <nav aria-label="Filter jenis koneksi" className="mt-4 flex flex-wrap items-center gap-2">
-        <span className="mr-1 text-sm font-semibold text-ink/60">Jenis koneksi</span>
-        {([null, ...productTypes] as (ProductType | null)[]).map((t) => (
-          <Link
-            key={t ?? "semua"}
-            href={t ? `/destinations?type=${t}` : "/destinations"}
-            replace
-            scroll={false}
-            aria-current={type === t ? "true" : undefined}
-            className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${type === t ? "border-signal bg-signal text-ink" : "border-line bg-white hover:border-lagoon"}`}
-          >
-            {t ? typeInfo[t].label : "Semua jenis"}
-          </Link>
-        ))}
-      </nav>
+      <TypeChips current={type} basePath="/destinations" className="mt-4" />
 
       <p className="mt-6 text-sm text-ink/60" role="status" aria-live="polite">{filtered.length} destinasi{type ? ` dengan paket ${typeInfo[type].label}` : ""}</p>
 

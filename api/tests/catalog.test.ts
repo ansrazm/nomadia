@@ -25,7 +25,7 @@ describe("migrasi & seed", () => {
     const r = await seed(db);
     expect(r.products).toBe(0);
     const { rows } = await db.query("SELECT count(*)::int AS n FROM products");
-    expect(rows[0].n).toBe(webDestinations.length * 10);
+    expect(rows[0].n).toBe(webDestinations.flatMap((d) => webProductsFor(d)).length);
     const p = await db.query("SELECT price FROM products WHERE id = 'jepang-esim-1'");
     expect(p.rows[0].price).toBe(12345);
     await db.query("UPDATE products SET price = 28000 WHERE id = 'jepang-esim-1'");
@@ -125,26 +125,35 @@ describe("GET /destinations?type=", () => {
   const minPrice = (d: (typeof webDestinations)[number], type: string) =>
     Math.min(...webProductsFor(d).filter((p) => p.type === type).map((p) => p.price));
 
-  it("harga mulai dari dihitung dari jenis yang dipilih saja", async () => {
+  const sellers = (type: string) => webDestinations.filter((d) => webProductsFor(d).some((p) => p.type === type));
+
+  it("data awal bervariasi: setiap destinasi punya produk, tetapi tidak semua punya ketiga jenis", () => {
+    for (const d of webDestinations) expect(webProductsFor(d).length, d.slug).toBeGreaterThan(0);
+    expect(sellers("sim").length).toBeLessThan(webDestinations.length);
+    expect(sellers("wifi").length).toBeLessThan(webDestinations.length);
+    expect(webProductsFor(webDestinations.find((d) => d.slug === "turki")!).every((p) => p.type === "esim")).toBe(true);
+  });
+
+  it("hanya destinasi yang menjual jenis itu yang tampil, dengan harga mulai dari jenis itu", async () => {
     for (const type of ["esim", "sim", "wifi"]) {
       const r = await call("GET", `/destinations?type=${type}`);
       expect(r.status).toBe(200);
-      expect(r.json.data.length).toBe(webDestinations.length);
-      for (const d of webDestinations) {
+      expect(r.json.data.map((d: any) => d.slug), type).toEqual(sellers(type).map((d) => d.slug));
+      for (const d of sellers(type)) {
         const row = r.json.data.find((x: any) => x.slug === d.slug);
         expect(row.startingPrice, `${d.slug} ${type}`).toBe(minPrice(d, type));
       }
     }
   });
 
-  it("destinasi tanpa paket aktif jenis itu tidak tampil, jenis lain tetap", async () => {
-    await db.query("UPDATE products SET active = false WHERE dest_slug = 'turki' AND type = 'wifi'");
+  it("menonaktifkan semua paket satu jenis di satu destinasi mengeluarkannya dari filter jenis itu saja", async () => {
+    await db.query("UPDATE products SET active = false WHERE dest_slug = 'jepang' AND type = 'wifi'");
     const wifi = await call("GET", "/destinations?type=wifi");
-    expect(wifi.json.data.some((d: any) => d.slug === "turki")).toBe(false);
-    expect(wifi.json.data.length).toBe(webDestinations.length - 1);
+    expect(wifi.json.data.some((d: any) => d.slug === "jepang")).toBe(false);
+    expect(wifi.json.data.length).toBe(sellers("wifi").length - 1);
     const esim = await call("GET", "/destinations?type=esim");
-    expect(esim.json.data.some((d: any) => d.slug === "turki")).toBe(true);
-    await db.query("UPDATE products SET active = true WHERE dest_slug = 'turki' AND type = 'wifi'");
+    expect(esim.json.data.some((d: any) => d.slug === "jepang")).toBe(true);
+    await db.query("UPDATE products SET active = true WHERE dest_slug = 'jepang' AND type = 'wifi'");
   });
 
   it("bisa digabung dengan region dan pencarian", async () => {

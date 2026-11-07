@@ -3,7 +3,8 @@ import { FaqSection } from "@/components/FaqSection";
 import { Hero } from "@/components/Hero";
 import { Reveal } from "@/components/Reveal";
 import { getDestinations, getHomeBanner } from "@/lib/catalog";
-import { flagUrl, mediaUrl, typeInfo, type ProductType } from "@/lib/catalog-types";
+import { flagUrl, mediaUrl, parseProductType, typeInfo, type ProductType } from "@/lib/catalog-types";
+import { TypeChips } from "@/components/TypeChips";
 import { TypeArt, typeArtBg } from "@/components/TypeArt";
 import { idr } from "@/lib/format";
 
@@ -46,9 +47,12 @@ const steps = [
 // Katalog dibaca dari API saat request, jadi halaman tidak boleh di-prerender saat build (API belum jalan).
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
-  const [destinations, homeBanner] = await Promise.all([getDestinations(), getHomeBanner()]);
-  const featured = destinations.slice(0, 8);
+export default async function Home({ searchParams }: { searchParams: { type?: string | string[] } }) {
+  const type = parseProductType(searchParams.type);
+  // Hero tetap memakai semua destinasi; hanya bagian "Tujuan yang sering dipilih" mengikuti filter jenis.
+  const [destinations, homeBanner, byType] = await Promise.all([getDestinations(), getHomeBanner(), type ? getDestinations(type) : null]);
+  const featured = (byType ?? destinations).slice(0, 8);
+  const query = type ? `?type=${type}` : "";
   return (
     <>
       <Hero destinations={destinations} homeBannerUrl={homeBanner} />
@@ -103,17 +107,18 @@ export default async function Home() {
         </Reveal>
       </section>
 
-      <section className="bg-white py-20">
+      <section id="tujuan" className="scroll-mt-20 bg-white py-20">
         <div className="container-x">
           <Reveal className="flex items-end justify-between gap-6">
             <h2 className="font-display text-4xl font-extrabold tracking-tight">Tujuan yang sering dipilih</h2>
-            <Link href="/destinations" className="btn-ghost hidden sm:inline-flex">Lihat semua</Link>
+            <Link href={`/destinations${query}`} className="btn-ghost hidden sm:inline-flex">Lihat semua</Link>
           </Reveal>
-          <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <TypeChips current={type} basePath="/" className="mt-6" />
+          <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {featured.map((d, i) => (
               <li key={d.slug}>
                 <Reveal delay={(i % 4) * 0.07} className="h-full">
-                  <Link href={`/destinations/${d.slug}`} className={`group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl bg-mist p-5 transition-all duration-300 hover:-translate-y-1 hover:bg-[#e3f3f8] hover:shadow-lift ${d.thumbUrl ? "min-h-[11rem]" : ""}`}>
+                  <Link href={`/destinations/${d.slug}${query}`} className={`group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl bg-mist p-5 transition-all duration-300 hover:-translate-y-1 hover:bg-[#e3f3f8] hover:shadow-lift ${d.thumbUrl ? "min-h-[11rem]" : ""}`}>
                     {d.thumbUrl && (
                       <>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -128,7 +133,7 @@ export default async function Home() {
                     </div>
                     <div className="relative mt-8">
                       <h3 className={`font-display text-xl font-bold ${d.thumbUrl ? "text-white" : ""}`}>{d.name}</h3>
-                      {d.startingPrice != null && <p className={`text-sm ${d.thumbUrl ? "text-white/80" : "text-ink/65"}`}>Mulai {idr(d.startingPrice)}</p>}
+                      {d.startingPrice != null && <p className={`text-sm ${d.thumbUrl ? "text-white/80" : "text-ink/65"}`}>{type ? `${typeInfo[type].label} mulai` : "Mulai"} {idr(d.startingPrice)}</p>}
                     </div>
                   </Link>
                 </Reveal>
