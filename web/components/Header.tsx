@@ -10,6 +10,7 @@ import { useCart } from "./CartProvider";
 import { useT } from "./LanguageProvider";
 import { DestinationSearch, OPEN_SEARCH_EVENT } from "./DestinationSearch";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { clearCustomerSession, useCustomerSession, useLoginEnabled } from "@/lib/customer-session";
 
 const before = [{ href: "/destinations", key: "nav.destinations" as const }];
 const after = [
@@ -21,6 +22,10 @@ const connTypes: ProductType[] = ["esim", "sim", "wifi"];
 export function Header() {
   const { count } = useCart();
   const t = useT();
+  const customer = useCustomerSession();
+  const loginOn = useLoginEnabled();
+  // Tombol akun hanya tampil bila server mengaktifkan login, atau pelanggan sudah punya sesi.
+  const showAccount = loginOn === true || !!customer;
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [connOpen, setConnOpen] = useState(false);
@@ -107,7 +112,24 @@ export function Header() {
           </nav>
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <DestinationSearch />
-            <LanguageSwitcher />
+            {/* Di HP (di bawah sm) pemilih bahasa pindah ke menu supaya ikon akun muat di bar. */}
+            <LanguageSwitcher className="hidden sm:inline-flex" />
+            {showAccount && (
+              <Link
+                href={customer ? "/akun" : "/login"}
+                aria-label={customer ? t("nav.myOrders") : t("nav.login")}
+                className="flex h-9 w-9 items-center justify-center rounded-[3px] bg-white/10 text-sm font-semibold hover:bg-white/20 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-2"
+              >
+                {/* Di HP, pelanggan yang sudah masuk melihat inisialnya; tamu melihat ikon orang. */}
+                {customer && (
+                  <span aria-hidden className="flex h-6 w-6 items-center justify-center rounded-full bg-signal text-xs font-bold text-ink sm:hidden">
+                    {(customer.name?.trim() || customer.email).charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <svg aria-hidden viewBox="0 0 24 24" className={`h-5 w-5 ${customer ? "hidden sm:block" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.5" /><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></svg>
+                <span className="hidden lg:inline">{customer ? t("nav.account") : t("nav.login")}</span>
+              </Link>
+            )}
             <Link href="/cart" aria-label={t("nav.cart")} className="relative flex items-center rounded-[3px] bg-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/20 sm:px-4">
               {/* Di HP (di bawah sm) tombol keranjang cukup ikon + jumlah supaya header tidak melebar keluar layar. */}
               <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 sm:hidden" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 7h12l-1 13H7L6 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /></svg>
@@ -180,6 +202,10 @@ export function Header() {
                 <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 text-ink/60" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
                 {t("search.open")}
               </button>
+              <div className="flex items-center justify-between rounded-[3px] px-4 py-2 sm:hidden">
+                <span className="font-medium">{t("lang.label")}</span>
+                <LanguageSwitcher className="!bg-mist hover:!bg-line" />
+              </div>
               {before.map((l) => (
                 <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className="block rounded-[3px] px-4 py-3 font-medium hover:bg-mist">
                   {t(l.key)}
@@ -202,6 +228,18 @@ export function Header() {
                   {t(l.key)}
                 </Link>
               ))}
+              {showAccount && (
+                <div className="mt-1 border-t border-line pt-1">
+                  {customer ? (
+                    <>
+                      <Link href="/akun" onClick={() => setOpen(false)} className="block rounded-[3px] px-4 py-3 font-medium hover:bg-mist">{t("nav.myOrders")}</Link>
+                      <button type="button" onClick={() => { setOpen(false); clearCustomerSession(); }} className="block w-full rounded-[3px] px-4 py-3 text-left font-medium text-ink/70 hover:bg-mist">{t("nav.logout")}</button>
+                    </>
+                  ) : (
+                    <Link href="/login" onClick={() => setOpen(false)} className="block rounded-[3px] px-4 py-3 font-medium hover:bg-mist">{t("nav.login")}</Link>
+                  )}
+                </div>
+              )}
             </div>
           </motion.nav>
         )}

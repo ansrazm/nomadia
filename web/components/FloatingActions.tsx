@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { WA_HREF } from "@/lib/contact";
 import { getQuickFaqs } from "@/lib/faq";
+import { ChatPanel, useChatSession } from "./ChatPanel";
 import { useLang } from "./LanguageProvider";
 
 function ChatIcon({ className = "h-6 w-6" }: { className?: string }) {
@@ -33,8 +34,15 @@ export function FloatingActions() {
   const { lang, t } = useLang();
   const quickFaqs = getQuickFaqs(lang);
   const [open, setOpen] = useState(false);
+  const chat = useChatSession();
+  const { ensureStatus } = chat;
+  const chatOn = chat.status === true;
   const rootRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (open) ensureStatus();
+  }, [open, ensureStatus]);
 
   useEffect(() => {
     if (!open) return;
@@ -71,9 +79,14 @@ export function FloatingActions() {
             className="absolute bottom-full right-0 mb-3 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-[4px] border border-line bg-white text-ink shadow-lift"
           >
             <div className="bg-ink px-5 py-4 text-white">
-              <p className="font-display text-lg font-bold">{t("help.title")}</p>
-              <p className="text-sm text-white/70">{t("help.subtitle")}</p>
+              <p className="font-display text-lg font-bold">{chatOn ? t("chat.title") : t("help.title")}</p>
+              <p className="text-sm text-white/70">{chatOn ? t("chat.subtitle") : t("help.subtitle")}</p>
             </div>
+            {chatOn ? (
+              <ChatPanel session={chat} />
+            ) : chat.status === null ? (
+              <p className="px-5 py-6 text-sm text-ink/60" aria-busy="true">{t("chat.loading")}</p>
+            ) : (
             <div className="max-h-[50vh] divide-y divide-line overflow-y-auto">
               {quickFaqs.map((f) => (
                 <details key={f.q} className="group px-5 py-3">
@@ -85,6 +98,7 @@ export function FloatingActions() {
                 </details>
               ))}
             </div>
+            )}
             {WA_HREF && (
               <div className="border-t border-line p-4">
                 <a href={WA_HREF} target="_blank" rel="noopener noreferrer" className="btn w-full bg-[#25D366] text-ink hover:bg-[#3ddc7a]">

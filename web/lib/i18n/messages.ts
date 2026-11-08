@@ -1,5 +1,6 @@
 import { enCheckout, idCheckout } from "./messages-checkout";
 import { enShop, idShop } from "./messages-shop";
+import { enAccount, idAccount } from "./messages-account";
 
 /** Kamus bahasa toko. Indonesia (id) adalah sumber; en wajib punya semua kunci yang sama (dicek TypeScript). */
 export type Lang = "id" | "en";
@@ -139,6 +140,26 @@ const idBase = {
   "help.whatsappHover": "Klik untuk info lebih lanjut",
   "help.whatsappAria": "Chat lewat WhatsApp",
 
+  // Asisten chat di panel bantuan
+  "chat.title": "Asisten Nomadia",
+  "chat.subtitle": "Tanya paket yang cocok untuk perjalananmu.",
+  "chat.intro": "Hai! Ceritakan tujuan dan lama perjalananmu, nanti kubantu pilih paket yang cocok.",
+  "chat.placeholder": "Mau ke mana, berapa hari?",
+  "chat.inputAria": "Tulis pesan untuk asisten",
+  "chat.listAria": "Percakapan dengan asisten",
+  "chat.send": "Kirim",
+  "chat.thinking": "Mengetik…",
+  "chat.loading": "Memuat…",
+  "chat.retry": "Coba lagi",
+  "chat.errBusy": "Asisten sedang ramai. Coba lagi sebentar lagi.",
+  "chat.errDown": "Asisten sedang tidak bisa dihubungi.",
+  "chat.errInvalid": "Pesanmu tidak bisa diproses. Coba tulis ulang dengan lebih singkat.",
+  "chat.cardMeta": "{days} hari · {data}",
+  "chat.view": "Lihat",
+  "chat.add": "Tambah",
+  "chat.added": "Ditambahkan",
+  "chat.aiNote": "Dijawab asisten AI. Harga final ada di halaman paket.",
+
   // Promo
   "promo.badge": "Promo perjalanan",
   "promo.title": "Diskon {percent}% untuk paket data ke luar negeri",
@@ -154,7 +175,7 @@ const idBase = {
   "toast.view": "Lihat",
 } as const;
 
-const id = { ...idBase, ...idShop, ...idCheckout } as const;
+const id = { ...idBase, ...idShop, ...idCheckout, ...idAccount } as const;
 
 export type MessageKey = keyof typeof id;
 
@@ -279,6 +300,26 @@ const enBase: Record<keyof typeof idBase, string> = {
   "help.whatsappHover": "Click for more info",
   "help.whatsappAria": "Chat on WhatsApp",
 
+  // Chat assistant in the help panel
+  "chat.title": "Nomadia assistant",
+  "chat.subtitle": "Ask which plan fits your trip.",
+  "chat.intro": "Hi! Tell me where you're going and for how long, and I'll help you pick a plan.",
+  "chat.placeholder": "Where to, and for how many days?",
+  "chat.inputAria": "Write a message to the assistant",
+  "chat.listAria": "Conversation with the assistant",
+  "chat.send": "Send",
+  "chat.thinking": "Typing…",
+  "chat.loading": "Loading…",
+  "chat.retry": "Try again",
+  "chat.errBusy": "The assistant is busy. Please try again shortly.",
+  "chat.errDown": "The assistant can't be reached right now.",
+  "chat.errInvalid": "Your message couldn't be processed. Try rewording it more briefly.",
+  "chat.cardMeta": "{days} days · {data}",
+  "chat.view": "View",
+  "chat.add": "Add",
+  "chat.added": "Added",
+  "chat.aiNote": "Answered by an AI assistant. Final prices are on the plan page.",
+
   "promo.badge": "Travel promo",
   "promo.title": "{percent}% off data plans abroad",
   "promo.body": "Enter this code in your cart before paying. Valid for eSIM, SIM Card, and Portable WiFi.",
@@ -292,7 +333,7 @@ const enBase: Record<keyof typeof idBase, string> = {
   "toast.view": "View",
 };
 
-const en: Record<MessageKey, string> = { ...enBase, ...enShop, ...enCheckout };
+const en: Record<MessageKey, string> = { ...enBase, ...enShop, ...enCheckout, ...enAccount };
 
 export const messages: Record<Lang, Record<MessageKey, string>> = { id, en };
 

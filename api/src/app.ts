@@ -11,6 +11,8 @@ import type { OutboxDispatcher } from "./services/outbox.js";
 import { adminRoutes, type AdminConfig } from "./routes/admin.js";
 import { getEnabledMethods } from "./services/settings.js";
 import { rateLimit } from "./services/rate-limit.js";
+import { customerRoutes, type CustomerAuthConfig } from "./routes/customers.js";
+import { chatRoutes, type ChatDeps } from "./routes/chat.js";
 
 export interface AppDeps {
   db: Db;
@@ -21,11 +23,15 @@ export interface AppDeps {
   webUrl?: string;
   checkoutFlow?: "redirect" | "qris";
   admin?: AdminConfig | null;
+  /** Login pelanggan (kode lewat email). null = fitur nonaktif; server.ts mengisinya dari config. */
+  customerAuth?: CustomerAuthConfig | null;
   /** Pembatasan laju per IP. Tanpa nilai ini pembatas mati (dipakai tes); server.ts mengisinya dari config. */
   rateLimit?: { trustProxyHops: number } | null;
+  /** Asisten chat (model bahasa). null = fitur nonaktif; server.ts mengisinya bila LLM_API_KEY terisi. */
+  chat?: ChatDeps | null;
 }
 
-export function createApp({ db, corsOrigins, gateway = null, outbox = null, publicApiUrl = "http://localhost:4000", webUrl = "http://localhost:3000", checkoutFlow = "redirect", admin = null, rateLimit: rl = null }: AppDeps) {
+export function createApp({ db, corsOrigins, gateway = null, outbox = null, publicApiUrl = "http://localhost:4000", webUrl = "http://localhost:3000", checkoutFlow = "redirect", admin = null, customerAuth = null, rateLimit: rl = null, chat = null }: AppDeps) {
   const app = new Hono();
 
   app.use("*", cors({ origin: corsOrigins, allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], maxAge: 600 }));
@@ -41,12 +47,16 @@ export function createApp({ db, corsOrigins, gateway = null, outbox = null, publ
     app.post("/orders", rateLimit({ name: "order", max: 10, windowMs: 10 * 60_000, trustProxyHops: t }));
     app.post("/quote", rateLimit({ name: "quote", max: 60, windowMs: 60_000, trustProxyHops: t }));
     app.get("/orders/:id", rateLimit({ name: "status", max: 120, windowMs: 60_000, trustProxyHops: t }));
+    // Tiap pesan chat memanggil model berbayar: jatah per IP kecil, ditambah batas total per jam di chatRoutes.
+    app.post("/chat", rateLimit({ name: "chat", max: 20, windowMs: 10 * 60_000, trustProxyHops: t }));
   }
 
   app.route("/", catalogRoutes(db));
   app.route("/", quoteRoutes(db));
   app.route("/", orderRoutes(db, gateway, { publicApiUrl, webUrl }, async () => (await getEnabledMethods(db, checkoutFlow)).methods));
   app.route("/", webhookRoutes(db, gateway, outbox));
+  app.route("/", customerRoutes(db, customerAuth, rl));
+  app.route("/", chatRoutes(db, chat));
   if (admin) app.route("/", adminRoutes(db, admin, { gateway, defaultFlow: checkoutFlow }, { trustProxyHops: rl?.trustProxyHops ?? 0 }));
   else {
     // Tanpa kredensial admin, /admin/* memang tidak ada. Jelaskan penyebabnya, jangan 404 generik

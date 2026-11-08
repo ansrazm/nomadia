@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { CheckoutSteps } from "@/components/CheckoutSteps";
+import { AccountNudge } from "@/components/AccountNudge";
 import { PaymentLogo } from "@/components/PaymentLogo";
 import { useCart } from "@/components/CartProvider";
 import { useT } from "@/components/LanguageProvider";
@@ -242,6 +243,8 @@ function OrderStatus() {
         {order.discount > 0 && <div className="flex justify-between text-deep"><dt>{t("order.voucher", { code: order.voucher ?? "" })}</dt><dd>−{idr(order.discount)}</dd></div>}
         <div className="flex justify-between text-base font-bold"><dt>{t("tabs.total")}</dt><dd>{idr(order.total)}</dd></div>
       </dl>
+
+      {order.status === "paid" && <AccountNudge variant="order" email={order.customerEmail} />}
 
       <div className="mt-8 flex flex-wrap gap-3">
         {order.status === "pending" && order.paymentUrl && <a href={order.paymentUrl} className="btn-signal">{t("order.continuePay")}</a>}

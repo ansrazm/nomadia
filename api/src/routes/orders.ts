@@ -3,11 +3,11 @@ import { z } from "zod";
 import type { Db } from "../db/pool.js";
 import { ApiError } from "../errors.js";
 import { createOrder, getOrder, maskEmail } from "../services/orders.js";
-import { departureDateError, maskPhone, normalizePhone, PROVINCES } from "../services/order-details.js";
+import { departureDateError, maskPhone, normalizePhone } from "../services/order-details.js";
 import { startPayment, type CheckoutUrls } from "../services/payments.js";
 import { PAYMENT_METHODS, PAYMENT_METHOD_IDS, type PaymentMethodId } from "../payments/methods.js";
 import type { PaymentGateway } from "../payments/ipaymu.js";
-import { cartItems, voucherField } from "./schemas.js";
+import { cartItems, shipAddress, voucherField } from "./schemas.js";
 
 // Di skema semua opsional; kewajibannya (menurut isi keranjang) dicek di createOrder. Kalau dikirim, wajib valid.
 const phoneField = z
@@ -39,17 +39,6 @@ const departureField = z
     }
     return v;
   });
-
-// Alamat kirim dipecah per kolom supaya tiap salah isi bisa ditunjuk ke kolomnya, dan kurir/admin mendapat data yang bisa dicari.
-const shipAddress = z.object({
-  recipient: z.string().trim().min(2, "Isi nama penerima").max(80),
-  street: z.string().trim().min(5, "Isi jalan dan nomor rumah").max(160),
-  district: z.string().trim().min(2, "Isi kecamatan").max(60),
-  city: z.string().trim().min(2, "Isi kota atau kabupaten").max(60),
-  province: z.enum(PROVINCES, { errorMap: () => ({ message: "Pilih provinsi dari daftar" }) }),
-  postalCode: z.string().trim().regex(/^\d{5}$/, "Kode pos harus 5 digit"),
-  notes: z.string().trim().max(120, "Patokan maksimal 120 karakter").optional().transform((v) => v || undefined),
-});
 
 const deliveryField = z
   .discriminatedUnion(

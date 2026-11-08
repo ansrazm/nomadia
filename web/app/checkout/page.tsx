@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { PaymentLogo } from "@/components/PaymentLogo";
 import { CheckoutBar } from "@/components/CheckoutBar";
+import { AccountNudge } from "@/components/AccountNudge";
 import { CheckoutSteps } from "@/components/CheckoutSteps";
 import { useCart } from "@/components/CartProvider";
 import { useT } from "@/components/LanguageProvider";
@@ -15,6 +16,7 @@ import { TypeArt, typeArtBg } from "@/components/TypeArt";
 import { ApiRequestError, createOrder, getCheckoutFlow, getPaymentMethods, quoteCart, type CheckoutResult, type PaymentMethodView, type Quote } from "@/lib/api";
 import { typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
+import { fetchAddresses, fetchMe, useCustomerSession, type SavedAddress } from "@/lib/customer-session";
 import { markPendingOrder } from "@/lib/pending-order";
 import { ADDRESS_KEYS, ADDRESS_MAX, EMPTY_ADDRESS, invalidAddressFields, isValidPhone, toShipAddress, todayISO, type AddressForm, type AddressKey } from "@/lib/order-details";
 import { PROVINCES } from "@/lib/regions";
@@ -133,6 +135,11 @@ function CheckoutForm() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  // Pelanggan yang sudah masuk: email terisi dari akunnya (tetap bisa diubah) supaya pesanan muncul di "Pesanan saya".
+  const customer = useCustomerSession();
+  useEffect(() => {
+    if (customer) setEmail((cur) => cur || customer.email);
+  }, [customer]);
   const [phone, setPhone] = useState("");
   const [departureDate, setDepartureDate] = useState("");
   const [addr, setAddr] = useState<AddressForm>(EMPTY_ADDRESS);
@@ -150,6 +157,41 @@ function CheckoutForm() {
     return () => { live = false; };
   }, [addr.province]);
   const effectiveAddr: AddressForm = { ...addr, recipient: recipientTouched ? addr.recipient : name };
+
+  // Pelanggan yang masuk: nama, nomor HP, dan alamat utama dari akun mengisi form sekali, hanya kolom yang masih kosong
+  // (tidak pernah menimpa ketikan pembeli). Alamat tersimpan lain bisa dipilih lewat daftar di bagian alamat.
+  const [saved, setSaved] = useState<SavedAddress[]>([]);
+  const addrRef = useRef(addr);
+  addrRef.current = addr;
+  const customerToken = customer?.token;
+  useEffect(() => {
+    if (!customerToken) { setSaved([]); return; }
+    let live = true;
+    Promise.all([fetchMe(customerToken).catch(() => null), fetchAddresses(customerToken).catch(() => [] as SavedAddress[])]).then(([me, list]) => {
+      if (!live) return;
+      if (me?.name) setName((cur) => cur || me.name!);
+      if (me?.phone) setPhone((cur) => cur || me.phone!);
+      setSaved(list);
+      const def = list.find((a) => a.isDefault) ?? list[0];
+      if (def && ADDRESS_KEYS.every((k) => addrRef.current[k] === "")) applySaved(def);
+    });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerToken]);
+  const fromSaved = (a: SavedAddress): AddressForm => ({ recipient: a.address.recipient, street: a.address.street, district: a.address.district, city: a.address.city, province: a.address.province, postalCode: a.address.postalCode, notes: a.address.notes ?? "" });
+  function applySaved(a: SavedAddress) {
+    setAddr(fromSaved(a));
+    setRecipientTouched(true); // penerima ikut alamat tersimpan, bukan nama pembeli
+    setFieldErrors((f) => { const n = { ...f }; for (const k of ADDRESS_KEYS) delete n[`addr_${k}`]; return n; });
+  }
+  // Pilihan di daftar mengikuti isi form: begitu pembeli mengubah kolom alamat, daftar kembali ke "Isi alamat lain".
+  const sameAddr = (a: AddressForm, b: AddressForm) => ADDRESS_KEYS.every((k) => a[k].trim() === b[k].trim());
+  const matchedSaved = saved.find((a) => sameAddr(fromSaved(a), effectiveAddr))?.id ?? "";
+  function pickSaved(id: string) {
+    const a = saved.find((x) => x.id === id);
+    if (a) { applySaved(a); return; }
+    setAddr(EMPTY_ADDRESS); setRecipientTouched(false); setAddrOpen(true);
+  }
   // SIM Card dan Portable WiFi dikirim fisik, jadi butuh tanggal berangkat dan alamat. eSIM cukup email.
   const needsDelivery = items.some((i) => i.type !== "esim");
   // null = belum diketahui atau gagal diambil: tampilkan teks netral, bukan menebak alurnya.
@@ -316,6 +358,7 @@ function CheckoutForm() {
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[1fr_24rem] lg:gap-8">
       <form id="checkout-form" onSubmit={submit} className="space-y-5" noValidate>
+        <AccountNudge variant="checkout" next={voucher ? `/checkout?voucher=${encodeURIComponent(voucher)}` : "/checkout"} />
         {/* 1. Pesanan */}
         <section className="rounded-3xl border border-line bg-white p-5 sm:p-7" aria-labelledby="sec-items">
           <div className="flex items-start justify-between gap-3">
@@ -365,6 +408,7 @@ function CheckoutForm() {
               <label htmlFor="email" className="text-sm font-semibold">{t("co.email")}</label>
               <input id="email" type="email" inputMode="email" value={email} onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined })); }} autoComplete="email" placeholder={t("co.emailPh")} aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? "email-err" : undefined} className={inputCls(fieldErrors.email)} />
               {fieldErrors.email && <p id="email-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.email}</p>}
+              {customer && !fieldErrors.email && email.trim().toLowerCase() === customer.email && <p className="mt-1.5 text-xs text-ink/60">{t("co.emailFromAccount")}</p>}
             </div>
             <div>
               <label htmlFor="phone" className="text-sm font-semibold">{t("co.phone")}</label>
@@ -382,6 +426,19 @@ function CheckoutForm() {
               <fieldset className="min-w-0 sm:col-span-2">
                 <legend className="text-sm font-semibold">{t("co.addr")}</legend>
                 <p className="mt-0.5 text-xs text-ink/55">{t("co.addrHint")}</p>
+                {saved.length > 0 && (
+                  <div className="mt-3">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <label htmlFor="saved-addr" className="text-sm font-medium">{t("co.addr.saved")}</label>
+                      <select id="saved-addr" value={matchedSaved} onChange={(e) => pickSaved(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-line bg-white px-3 py-2 text-sm">
+                        <option value="">{t("co.addr.savedNew")}</option>
+                        {saved.map((a) => <option key={a.id} value={a.id}>{[a.label ?? a.address.recipient, a.address.city].join(" · ")}</option>)}
+                      </select>
+                      <Link href="/akun?tab=alamat" className="shrink-0 text-sm font-semibold text-deep underline-offset-4 hover:underline">{t("co.addr.manage")}</Link>
+                    </div>
+                    {matchedSaved && <p className="mt-1.5 text-xs text-ink/55">{t("co.addr.savedHint")}</p>}
+                  </div>
+                )}
                 {/* Alamat dilipat jadi satu baris di semua ukuran layar (ringkasan setelah terisi). */}
                 <button type="button" aria-expanded={addrOpen} aria-controls="addr-fields" onClick={() => setAddrOpen((v) => !v)}
                   className={`mt-3 flex w-full items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 text-left ${addrHasError ? "border-coral" : "border-line"}`}>
