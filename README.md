@@ -4,7 +4,9 @@
 
 Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical test: **website + CMS**, **integrasi API**, **payment gateway**, dan **otomasi n8n**.
 
-**Demo langsung:** https://nomadia.dragonstorepb.com (CMS di `/admin`). Demo berjalan dari laptop lewat Cloudflare Tunnel, jadi sesekali bisa mati; bila begitu, ikuti [Cara menilai](#cara-menilai-10-menit-hanya-butuh-docker) yang hanya butuh Docker.
+**Isi:** [Instalasi dan menjalankan](#instalasi-dan-menjalankan-10-menit-hanya-butuh-docker) · [Arsitektur](#arsitektur) · [Fitur](#ringkasan-fitur) · [Batasan](#batasan-waktu-dan-prioritas)
+
+**Demo langsung:** https://nomadia.dragonstorepb.com (CMS di `/admin`). Demo berjalan dari laptop lewat Cloudflare Tunnel, jadi sesekali bisa mati; bila begitu, ikuti [Instalasi dan menjalankan](#instalasi-dan-menjalankan-10-menit-hanya-butuh-docker) yang hanya butuh Docker.
 
 > Catatan: ini proyek demo untuk keperluan technical test, bukan layanan komersial. Seluruh merek, copy, dan tampilan dibuat sendiri; semua data produk dan transaksi bersifat contoh, dan pembayaran hanya memakai sandbox.
 
@@ -31,11 +33,18 @@ cp .env.example .env     # isi N8N_WEBHOOK_SECRET (min 16 karakter)
 docker compose up -d --build
 ```
 
-Langkah lengkapnya (n8n, belanja, lunasi, CMS) ada di [Cara menilai](#cara-menilai-10-menit-hanya-butuh-docker).
+Langkah lengkapnya (n8n, belanja, lunasi, CMS) ada di [Instalasi dan menjalankan](#instalasi-dan-menjalankan-10-menit-hanya-butuh-docker).
 
-## Cara menilai (10 menit, hanya butuh Docker)
+## Instalasi dan menjalankan (10 menit, hanya butuh Docker)
 
 Urutan ini sudah dijalankan dari instalasi bersih. Tanpa kredensial iPaymu pun seluruh alur bisa dicoba; bukti dengan iPaymu sandbox sungguhan ada di [`docs/e2e/`](docs/e2e/README.md).
+
+**Prasyarat:** Git dan Docker (termasuk Docker Compose). Ambil kodenya dulu:
+
+```bash
+git clone https://github.com/ansrazm/nomadia.git
+cd nomadia
+```
 
 1. **Jalankan semua layanan**
    ```bash
@@ -54,6 +63,8 @@ Urutan ini sudah dijalankan dari instalasi bersih. Tanpa kredensial iPaymu pun s
 6. **Tes otomatis** (PostgreSQL sungguhan): lihat [Menjalankan tanpa Docker](#menjalankan-tanpa-docker); `npm test` di `api/` menjalankan seluruh tes API.
 
 Bila iPaymu sandbox aktif, langkah 4 diganti pembayaran sungguhan lewat halaman iPaymu (lihat [Tes end-to-end dengan iPaymu sandbox](#5-tes-end-to-end-dengan-ipaymu-sandbox-docker-compose)), atau pakai `mark-paid ... --force`.
+
+Tanpa Docker (Node.js dan PostgreSQL sendiri): lihat [Menjalankan tanpa Docker](#menjalankan-tanpa-docker). Semua variabel lingkungan dan opsinya dijelaskan di [Cara tercepat: Docker Compose](#cara-tercepat-docker-compose).
 
 ## Arsitektur
 
@@ -155,7 +166,7 @@ Proyek dikerjakan dalam dua tahap, dan urutannya disengaja:
 1. **Fondasi backend dan integrasi dulu.** Semua yang diminta test selesai lebih dulu: REST API (Hono + PostgreSQL) dengan harga dihitung di server, order atomik, voucher, pembayaran iPaymu sandbox dengan callback yang diverifikasi ulang, outbox ke n8n (tanda tangan HMAC dan retry), CMS admin, dan tes otomatis. Alur lengkap dari checkout sampai notifikasi sudah dibuktikan lewat satu pesanan nyata di [`docs/e2e/`](docs/e2e/README.md) (6 Nov 2026).
 2. **Polish tampilan dan fitur tambahan.** Brief meminta frontend yang menarik, jadi sisa waktu dipakai untuk pengalaman belanja: filter jenis koneksi dan kawasan, halaman produk dengan perbandingan paket, pilihan bahasa Indonesia dan English di toko, pilihan metode bayar dan QRIS Direct, alamat pengiriman berjenjang, dan banner beranda dari CMS. Tahap ini memakan sebagian besar waktu pengerjaan.
 
-Untuk memeriksa tahap 1 saja, ikuti [Cara menilai](#cara-menilai-10-menit-hanya-butuh-docker); tahap 2 terlihat langsung di storefront.
+Untuk memeriksa tahap 1 saja, ikuti [Instalasi dan menjalankan](#instalasi-dan-menjalankan-10-menit-hanya-butuh-docker); tahap 2 terlihat langsung di storefront.
 
 ## Batasan waktu dan prioritas
 
