@@ -8,13 +8,7 @@ Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical
 
 > Catatan: ini proyek demo untuk keperluan technical test, bukan layanan komersial. Seluruh merek, copy, dan tampilan dibuat sendiri; semua data produk dan transaksi bersifat contoh, dan pembayaran hanya memakai sandbox.
 
-> [!NOTE]
-> **Batasan waktu dan prioritas.** Proyek ini dikerjakan dalam waktu terbatas (tenggat technical test), dan saya harus memilih apa yang dikerjakan lebih dulu; tidak semua yang ingin dibuat sempat selesai. Prioritas saya adalah konsep aplikasi, struktur sistem, pembagian modul, dan integrasi yang diminta (API, payment gateway, n8n), bukan kelengkapan fitur toko online penuh. Karena itu beberapa hal belum ada atau disederhanakan:
-> - Akun member (daftar akun dan dashboard riwayat pesanan) belum dibuat: di luar spesifikasi test, dan waktunya tidak cukup. Checkout memakai alur tamu (tanpa akun); rancangan lanjutannya ada di [Rencana pengembangan lanjutan](#rencana-pengembangan-lanjutan).
-> - Pesan WhatsApp otomatis tidak ada; WhatsApp hanya tautan chat (click-to-chat). Pesan otomatis butuh WhatsApp Business API.
-> - Pembayaran hanya sandbox iPaymu, dan demo berjalan dari laptop lewat tunnel, bukan hosting produksi.
-> - Admin memakai satu akun dari environment variable, tanpa manajemen pengguna atau peran; token login disimpan di `localStorage`.
-> - Tampilan sudah dipoles di halaman utama alur beli (beranda, destinasi, keranjang, checkout), tetapi belum semua halaman dan kondisi tepi diuji di banyak perangkat.
+> Proyek dikerjakan dalam waktu terbatas, jadi ada hal yang belum ada atau disederhanakan; semuanya dicatat terang di [Batasan waktu dan prioritas](#batasan-waktu-dan-prioritas).
 
 ## Ringkasan singkat
 
@@ -30,50 +24,14 @@ Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical
 
 **Fitur utama:** katalog destinasi dengan filter, halaman produk dan perbandingan paket, keranjang dan voucher, checkout dengan metode bayar dan alamat pengiriman, status pesanan yang memperbarui diri, CMS (destinasi, produk, voucher, banner, pesanan), dan toko dalam dua bahasa (ID/EN). Daftar lengkapnya ada di [Ringkasan fitur](#ringkasan-fitur).
 
-**Mau mencoba?** Cukup Docker: ikuti [Cara menilai](#cara-menilai-10-menit-hanya-butuh-docker).
+**Mau mencoba?** Cukup Docker:
 
-## Urutan pengerjaan
+```bash
+cp .env.example .env     # isi N8N_WEBHOOK_SECRET (min 16 karakter)
+docker compose up -d --build
+```
 
-Proyek dikerjakan dalam dua tahap, dan urutannya disengaja:
-
-1. **Fondasi backend dan integrasi dulu.** Semua yang diminta test selesai lebih dulu: REST API (Hono + PostgreSQL) dengan harga dihitung di server, order atomik, voucher, pembayaran iPaymu sandbox dengan callback yang diverifikasi ulang, outbox ke n8n (tanda tangan HMAC dan retry), CMS admin, dan tes otomatis. Alur lengkap dari checkout sampai notifikasi sudah dibuktikan lewat satu pesanan nyata di [`docs/e2e/`](docs/e2e/README.md) (6 Nov 2026).
-2. **Polish tampilan dan fitur tambahan.** Brief meminta frontend yang menarik, jadi sisa waktu dipakai untuk pengalaman belanja: filter jenis koneksi dan kawasan, halaman produk dengan perbandingan paket, pilihan bahasa Indonesia dan English di toko, pilihan metode bayar dan QRIS Direct, alamat pengiriman berjenjang, dan banner beranda dari CMS. Tahap ini memakan sebagian besar waktu pengerjaan.
-
-Untuk memeriksa tahap 1 saja, ikuti [Cara menilai](#cara-menilai-10-menit-hanya-butuh-docker); tahap 2 terlihat langsung di storefront.
-
-## Ringkasan fitur
-
-| Kebutuhan test | Yang ada di proyek ini |
-|---|---|
-| Website | Storefront Next.js 16 (React 19): pencarian destinasi, tab eSIM / SIM Card / WiFi (jenis atau paket yang stoknya habis tetap tampil bertanda Kosong dan tidak bisa dibeli, bukan menghilang), keranjang, voucher, checkout, halaman status pesanan yang memperbarui diri, bagian FAQ, footer lengkap, header yang menempel saat scroll, pilihan bahasa Indonesia dan English (CMS tetap berbahasa Indonesia), rute perjalanan multi-destinasi (sampai 3 tujuan, satu atau beberapa paket per tujuan dengan jumlah masing-masing, ke satu keranjang), tombol WhatsApp dan pusat bantuan melayang |
-| CMS | Area `/admin`: dashboard, CRUD destinasi, produk, dan voucher, unggah gambar destinasi dan banner beranda (sampai 5, berputar otomatis), daftar pesanan dengan filter dan pencarian, batalkan pesanan `pending` |
-| API Connection | Web membaca katalog dan harga dari REST API (Hono + PostgreSQL); API memanggil iPaymu |
-| Payment Gateway | iPaymu sandbox: tagihan dibuat di server, callback diverifikasi ulang lewat Check Transaction |
-| Automation (n8n) | Event `order.paid` dikirim ke n8n lewat outbox (tanda tangan HMAC, retry dengan backoff) |
-
-## Tampilan
-
-| Beranda | Daftar destinasi (filter kawasan dan jenis koneksi, tombol + untuk rute) |
-|---|---|
-| ![Beranda](docs/img/01-home.png) | ![Daftar destinasi](docs/img/02-destinations.png) |
-
-| Halaman produk, contoh Jepang (pilih paket, ringkasan pesanan) | Checkout (data pemesan, alamat, metode bayar) |
-|---|---|
-| ![Halaman produk](docs/img/05-destination.png) | ![Checkout](docs/img/06-checkout.png) |
-
-| FAQ (mobile) | CMS admin |
-|---|---|
-| ![FAQ](docs/img/03-faq-mobile.png) | ![Admin](docs/img/04-admin.png) |
-
-| Rute: pilih sampai 3 tujuan di daftar destinasi | Rute: pilih jenis koneksi yang dijual di tujuan itu |
-|---|---|
-| ![Bar rute perjalanan](docs/img/09-route-bar.png) | ![Dialog jenis koneksi untuk rute](docs/img/07-route-dialog.png) |
-
-| Rute: pilih paket untuk tiap tujuan (halaman /trip) |
-|---|
-| ![Halaman rute perjalanan](docs/img/08-trip.png) |
-
-Tangkapan layar alur bayar iPaymu sandbox sampai email konfirmasi ada di [`docs/e2e/`](docs/e2e/README.md).
+Langkah lengkapnya (n8n, belanja, lunasi, CMS) ada di [Cara menilai](#cara-menilai-10-menit-hanya-butuh-docker).
 
 ## Cara menilai (10 menit, hanya butuh Docker)
 
@@ -155,6 +113,59 @@ api/                       Hono + PostgreSQL (TypeScript)
 n8n/                       workflow order.paid (import ke n8n)
 docker-compose.yml         db + api + web + n8n
 ```
+
+## Ringkasan fitur
+
+| Kebutuhan test | Yang ada di proyek ini |
+|---|---|
+| Website | Storefront Next.js 16 (React 19): pencarian destinasi, tab eSIM / SIM Card / WiFi (jenis atau paket yang stoknya habis tetap tampil bertanda Kosong dan tidak bisa dibeli, bukan menghilang), keranjang, voucher, checkout, halaman status pesanan yang memperbarui diri, bagian FAQ, footer lengkap, header yang menempel saat scroll, pilihan bahasa Indonesia dan English (CMS tetap berbahasa Indonesia), rute perjalanan multi-destinasi (sampai 3 tujuan, satu atau beberapa paket per tujuan dengan jumlah masing-masing, ke satu keranjang), tombol WhatsApp dan pusat bantuan melayang |
+| CMS | Area `/admin`: dashboard, CRUD destinasi, produk, dan voucher, unggah gambar destinasi dan banner beranda (sampai 5, berputar otomatis), daftar pesanan dengan filter dan pencarian, batalkan pesanan `pending` |
+| API Connection | Web membaca katalog dan harga dari REST API (Hono + PostgreSQL); API memanggil iPaymu |
+| Payment Gateway | iPaymu sandbox: tagihan dibuat di server, callback diverifikasi ulang lewat Check Transaction |
+| Automation (n8n) | Event `order.paid` dikirim ke n8n lewat outbox (tanda tangan HMAC, retry dengan backoff) |
+
+## Tampilan
+
+| Beranda | Daftar destinasi (filter kawasan dan jenis koneksi, tombol + untuk rute) |
+|---|---|
+| ![Beranda](docs/img/01-home.png) | ![Daftar destinasi](docs/img/02-destinations.png) |
+
+| Halaman produk, contoh Jepang (pilih paket, ringkasan pesanan) | Checkout (data pemesan, alamat, metode bayar) |
+|---|---|
+| ![Halaman produk](docs/img/05-destination.png) | ![Checkout](docs/img/06-checkout.png) |
+
+| FAQ (mobile) | CMS admin |
+|---|---|
+| ![FAQ](docs/img/03-faq-mobile.png) | ![Admin](docs/img/04-admin.png) |
+
+| Rute: pilih sampai 3 tujuan di daftar destinasi | Rute: pilih jenis koneksi yang dijual di tujuan itu |
+|---|---|
+| ![Bar rute perjalanan](docs/img/09-route-bar.png) | ![Dialog jenis koneksi untuk rute](docs/img/07-route-dialog.png) |
+
+| Rute: pilih paket untuk tiap tujuan (halaman /trip) |
+|---|
+| ![Halaman rute perjalanan](docs/img/08-trip.png) |
+
+Tangkapan layar alur bayar iPaymu sandbox sampai email konfirmasi ada di [`docs/e2e/`](docs/e2e/README.md).
+
+## Urutan pengerjaan
+
+Proyek dikerjakan dalam dua tahap, dan urutannya disengaja:
+
+1. **Fondasi backend dan integrasi dulu.** Semua yang diminta test selesai lebih dulu: REST API (Hono + PostgreSQL) dengan harga dihitung di server, order atomik, voucher, pembayaran iPaymu sandbox dengan callback yang diverifikasi ulang, outbox ke n8n (tanda tangan HMAC dan retry), CMS admin, dan tes otomatis. Alur lengkap dari checkout sampai notifikasi sudah dibuktikan lewat satu pesanan nyata di [`docs/e2e/`](docs/e2e/README.md) (6 Nov 2026).
+2. **Polish tampilan dan fitur tambahan.** Brief meminta frontend yang menarik, jadi sisa waktu dipakai untuk pengalaman belanja: filter jenis koneksi dan kawasan, halaman produk dengan perbandingan paket, pilihan bahasa Indonesia dan English di toko, pilihan metode bayar dan QRIS Direct, alamat pengiriman berjenjang, dan banner beranda dari CMS. Tahap ini memakan sebagian besar waktu pengerjaan.
+
+Untuk memeriksa tahap 1 saja, ikuti [Cara menilai](#cara-menilai-10-menit-hanya-butuh-docker); tahap 2 terlihat langsung di storefront.
+
+## Batasan waktu dan prioritas
+
+> [!NOTE]
+> Proyek ini dikerjakan dalam waktu terbatas (tenggat technical test), dan saya harus memilih apa yang dikerjakan lebih dulu; tidak semua yang ingin dibuat sempat selesai. Prioritas saya adalah konsep aplikasi, struktur sistem, pembagian modul, dan integrasi yang diminta (API, payment gateway, n8n), bukan kelengkapan fitur toko online penuh. Karena itu beberapa hal belum ada atau disederhanakan:
+> - Akun member (daftar akun dan dashboard riwayat pesanan) belum dibuat: di luar spesifikasi test, dan waktunya tidak cukup. Checkout memakai alur tamu (tanpa akun); rancangan lanjutannya ada di [Rencana pengembangan lanjutan](#rencana-pengembangan-lanjutan).
+> - Pesan WhatsApp otomatis tidak ada; WhatsApp hanya tautan chat (click-to-chat). Pesan otomatis butuh WhatsApp Business API.
+> - Pembayaran hanya sandbox iPaymu, dan demo berjalan dari laptop lewat tunnel, bukan hosting produksi.
+> - Admin memakai satu akun dari environment variable, tanpa manajemen pengguna atau peran; token login disimpan di `localStorage`.
+> - Tampilan sudah dipoles di halaman utama alur beli (beranda, destinasi, keranjang, checkout), tetapi belum semua halaman dan kondisi tepi diuji di banyak perangkat.
 
 ## Cara tercepat: Docker Compose
 
