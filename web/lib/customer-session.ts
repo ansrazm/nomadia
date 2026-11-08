@@ -16,6 +16,8 @@ export interface CustomerSession {
   /** Epoch milidetik, dari server. */
   expiresAt: number;
   email: string;
+  /** Nama dari akun (kosong untuk akun yang dibuat lewat kode saja, atau sesi lama yang tersimpan sebelum ada nama). */
+  name?: string | null;
 }
 
 let memory: CustomerSession | null = null;
@@ -124,13 +126,25 @@ export function useLoginEnabled(): boolean | null {
 
 export interface CodeRequested { sent: true; resendAfterSec: number; expiresInMin: number }
 
-export const requestCode = (email: string, lang: "id" | "en") =>
-  call<CodeRequested>("/auth/request-code", { method: "POST", body: { email, lang } });
+interface SessionData { token: string; expiresAt: number; customer: { email: string; name?: string | null } }
+const toSession = (d: SessionData): CustomerSession => ({ token: d.token, expiresAt: d.expiresAt, email: d.customer.email, name: d.customer.name ?? null });
+const post = <T>(path: string, body: unknown) => call<T>(path, { method: "POST", body });
 
-export async function verifyCode(email: string, code: string): Promise<CustomerSession> {
-  const d = await call<{ token: string; expiresAt: number; customer: { email: string } }>("/auth/verify", { method: "POST", body: { email, code } });
-  return { token: d.token, expiresAt: d.expiresAt, email: d.customer.email };
-}
+/** Masuk tanpa kata sandi: minta kode 6 digit ke email, lalu tukar kodenya dengan sesi. */
+export const requestCode = (email: string, lang: "id" | "en") => post<CodeRequested>("/auth/request-code", { email, lang });
+export const verifyCode = (email: string, code: string) => post<SessionData>("/auth/verify", { email, code }).then(toSession);
+
+/** Masuk dengan email dan kata sandi. */
+export const loginWithPassword = (email: string, password: string) => post<SessionData>("/auth/login", { email, password }).then(toSession);
+
+/** Daftar dua langkah: kirim data (server mengirim kode ke email), lalu kode benar membuat akun dan langsung masuk. */
+export const registerAccount = (name: string, email: string, password: string, lang: "id" | "en") =>
+  post<CodeRequested>("/auth/register", { name, email, password, lang });
+export const verifyRegistration = (email: string, code: string) => post<SessionData>("/auth/register/verify", { email, code }).then(toSession);
+
+/** Lupa kata sandi dua langkah: minta kode, lalu kode benar mengganti kata sandi dan langsung masuk (sesi lama dicabut server). */
+export const requestPasswordReset = (email: string, lang: "id" | "en") => post<CodeRequested>("/auth/forgot", { email, lang });
+export const resetPassword = (email: string, code: string, password: string) => post<SessionData>("/auth/reset", { email, code, password }).then(toSession);
 
 export interface MyOrder {
   id: string;
