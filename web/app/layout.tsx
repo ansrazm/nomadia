@@ -6,13 +6,13 @@ import { SiteShell } from "@/components/SiteShell";
 import { LanguageProvider } from "@/components/LanguageProvider";
 import { getT } from "@/lib/i18n/server";
 
-export function generateMetadata(): Metadata {
-  const { t } = getT();
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT();
   return { title: t("meta.title"), description: t("meta.description") };
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const { lang } = getT();
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { lang } = await getT();
   return (
     <html lang={lang}>
       <head>

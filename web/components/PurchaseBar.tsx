@@ -19,7 +19,7 @@ interface Props {
   total: number;
   added: boolean;
   /** Elemen ringkasan pesanan di sisi kanan (desktop). Selagi ia terlihat, bar ini disembunyikan agar tidak dobel. */
-  summaryRef: React.RefObject<HTMLElement>;
+  summaryRef: React.RefObject<HTMLElement | null>;
   onQty: (n: number) => void;
   onAdd: () => void;
   onBuy: () => void;

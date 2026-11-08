@@ -10,7 +10,7 @@ interface Props {
   busy: boolean;
   canPay: boolean;
   /** Kartu ringkasan (berisi tombol bayar utama). Selagi terlihat, bar ini disembunyikan agar tidak dobel. */
-  summaryRef: React.RefObject<HTMLElement>;
+  summaryRef: React.RefObject<HTMLElement | null>;
 }
 
 /**

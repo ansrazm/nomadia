@@ -14,15 +14,20 @@ import { getT } from "@/lib/i18n/server";
 // Katalog dibaca dari API saat request; slug tidak dikenal dijawab 404 oleh API lalu menjadi notFound().
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   // Fetch yang sama dengan halaman di bawah, jadi Next hanya memanggil API sekali per request.
   const d = await getDestination(params.slug);
-  const { t } = getT();
+  const { t } = await getT();
   return { title: d ? t("detail.metaTitle", { name: d.name }) : t("detail.notFound") };
 }
 
-export default async function DestinationPage({ params, searchParams }: { params: { slug: string }; searchParams: { type?: string | string[] } }) {
-  const { t, lang } = getT();
+export default async function DestinationPage(
+  props: { params: Promise<{ slug: string }>; searchParams: Promise<{ type?: string | string[] }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
+  const { t, lang } = await getT();
   const d = await getDestination(params.slug);
   if (!d) notFound();
   // Paket kosong tetap tampil di pemilih paket, tetapi tidak dihitung sebagai harga mulai dari, jumlah paket, atau bahan FAQ.

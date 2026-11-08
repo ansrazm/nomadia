@@ -27,7 +27,7 @@ async function getData<T>(path: string): Promise<T> {
 /** Semua destinasi, urut sesuai posisi di database, lengkap dengan harga mulai dari. Dengan `type`, hanya yang punya paket jenis itu. */
 export async function getDestinations(type?: ProductType | null): Promise<DestinationSummary[]> {
   const list = await getData<DestinationSummary[]>(type ? `/destinations?type=${type}` : "/destinations");
-  const lang = getLang();
+  const lang = await getLang();
   return list.map((d) => localizeDestination(d, lang));
 }
 
@@ -61,7 +61,7 @@ export async function getHomeBanners(): Promise<string[]> {
 /** Satu destinasi beserta produk aktifnya, atau null bila slug tidak ada. Galat lain dilempar ke error.tsx. */
 export async function getDestination(slug: string): Promise<DestinationDetail | null> {
   try {
-    return localizeDestination(await getData<DestinationDetail>(`/destinations/${encodeURIComponent(slug)}`), getLang());
+    return localizeDestination(await getData<DestinationDetail>(`/destinations/${encodeURIComponent(slug)}`), await getLang());
   } catch (e) {
     if (e instanceof ApiRequestError && e.status === 404 && e.code === "DESTINATION_NOT_FOUND") return null;
     throw e;
