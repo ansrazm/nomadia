@@ -16,6 +16,22 @@ Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical
 > - Admin memakai satu akun dari environment variable, tanpa manajemen pengguna atau peran; token login disimpan di `localStorage`.
 > - Tampilan sudah dipoles di halaman utama alur beli (beranda, destinasi, keranjang, checkout), tetapi belum semua halaman dan kondisi tepi diuji di banyak perangkat.
 
+## Ringkasan singkat
+
+**Apa ini:** toko eSIM, SIM Card, dan Portable WiFi lengkap dengan CMS admin. Pembeli memilih paket, membayar lewat iPaymu (sandbox), lalu pesanan lunas memicu email dan notifikasi Telegram lewat n8n.
+
+**Arsitektur dalam lima baris**
+
+- `web/`: Next.js (React). Storefront untuk pembeli dan CMS di `/admin`; tidak menyentuh database langsung.
+- `api/`: Hono + PostgreSQL. Satu-satunya pintu ke database; harga selalu dihitung di server, bukan di browser.
+- iPaymu sandbox: tagihan dibuat oleh API, hasil bayar masuk lewat callback yang diverifikasi ulang ke Check Transaction.
+- Outbox: event `order.paid` disimpan di database lalu dikirim ke n8n (tanda tangan HMAC, retry dengan backoff).
+- n8n: mengirim email (Mailpit) dan notifikasi Telegram. Diagram dan rincian ada di [Arsitektur](#arsitektur).
+
+**Fitur utama:** katalog destinasi dengan filter, halaman produk dan perbandingan paket, keranjang dan voucher, checkout dengan metode bayar dan alamat pengiriman, status pesanan yang memperbarui diri, CMS (destinasi, produk, voucher, banner, pesanan), dan toko dalam dua bahasa (ID/EN). Daftar lengkapnya ada di [Ringkasan fitur](#ringkasan-fitur).
+
+**Mau mencoba?** Cukup Docker: ikuti [Cara menilai](#cara-menilai-10-menit-hanya-butuh-docker).
+
 ## Urutan pengerjaan
 
 Proyek dikerjakan dalam dua tahap, dan urutannya disengaja:
