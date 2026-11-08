@@ -70,13 +70,13 @@ export function Header() {
       >
         <div
           className={`mx-auto flex items-center justify-between text-white transition-[max-width,padding] duration-500 ease-out ${
-            floating ? "max-w-full px-5 py-2.5 sm:px-7" : "max-w-6xl px-5 py-5 sm:px-8"
+            floating ? "max-w-full px-4 py-2.5 sm:px-7" : "max-w-6xl px-4 py-5 sm:px-8"
           }`}
         >
           {/* <a> biasa (bukan <Link>): logo selalu memuat ulang beranda penuh, jadi tetap jalan dari halaman mana pun
               walau navigasi sisi-klien tertahan (mis. halaman resi yang sedang polling, atau proxy/tunnel yang menahan request RSC). */}
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a href="/" className="flex items-center gap-2 font-display text-2xl font-bold tracking-tight">
+          <a href="/" className="flex shrink-0 items-center gap-2 font-display text-xl font-bold tracking-tight sm:text-2xl">
             <SignalBars level={4} className="h-5" />
             nomadia
           </a>
@@ -105,13 +105,15 @@ export function Header() {
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <DestinationSearch />
             <LanguageSwitcher />
-            <Link href="/cart" className="relative rounded-[3px] bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20">
-              {t("nav.cart")}
+            <Link href="/cart" aria-label={t("nav.cart")} className="relative flex items-center rounded-[3px] bg-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/20 sm:px-4">
+              {/* Di HP (di bawah sm) tombol keranjang cukup ikon + jumlah supaya header tidak melebar keluar layar. */}
+              <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 sm:hidden" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 7h12l-1 13H7L6 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /></svg>
+              <span className="hidden sm:inline">{t("nav.cart")}</span>
               {count > 0 && (
-                <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-[3px] bg-signal px-1.5 text-xs font-bold text-ink">{count}</span>
+                <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-[3px] bg-signal px-1.5 text-xs font-bold text-ink">{count}</span>
               )}
             </Link>
             <button className="rounded-[3px] bg-white/10 px-3 py-2 text-sm font-semibold md:hidden" aria-expanded={open} onClick={() => setOpen(!open)}>

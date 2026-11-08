@@ -85,7 +85,7 @@ export function LanguageSwitcher({ className = "" }: { className?: string }) {
           <path d="M3 12h18M12 3c2.6 2.7 3.9 5.7 3.9 9s-1.3 6.3-3.9 9c-2.6-2.7-3.9-5.7-3.9-9S9.4 5.7 12 3Z" />
         </svg>
         {lang}
-        <svg aria-hidden viewBox="0 0 12 12" className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg aria-hidden viewBox="0 0 12 12" className={`hidden h-3 w-3 transition-transform min-[380px]:block ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="m2.5 4.5 3.5 3.5 3.5-3.5" />
         </svg>
       </button>
