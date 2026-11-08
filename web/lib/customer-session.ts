@@ -157,6 +157,34 @@ export interface MyOrder {
 
 export const fetchMyOrders = (token: string) => call<MyOrder[]>("/me/orders", { token });
 
+// ---------------------------------------------------------------- profil, kata sandi, alamat tersimpan
+
+export interface Me { id: string; email: string; createdAt: string; name: string | null; phone: string | null; role: string; hasPassword: boolean }
+export const fetchMe = (token: string) => call<Me>("/me", { token });
+/** Hanya field yang dikirim yang diubah; phone null atau kosong mengosongkan nomor. */
+export const updateMe = (token: string, patch: { name?: string; phone?: string | null }) => call<Me>("/me", { method: "PATCH", body: patch, token });
+/** Ganti kata sandi dari akun yang masuk. Server mencabut sesi lain dan menerbitkan token baru, jadi hasilnya harus disimpan sebagai sesi. */
+export const changeMyPassword = (token: string, currentPassword: string, newPassword: string) =>
+  call<SessionData>("/me/password", { method: "POST", body: { currentPassword, newPassword }, token }).then(toSession);
+
+/** Bentuk alamat kirim di API (sama dengan ShipAddress di server). */
+export interface ShipAddressDto { recipient: string; street: string; district: string; city: string; province: string; postalCode: string; notes?: string }
+export interface SavedAddress { id: string; label: string | null; address: ShipAddressDto; isDefault: boolean; createdAt: string; updatedAt: string }
+/** Batas alamat tersimpan per akun; sama dengan MAX_ADDRESSES di server. */
+export const MAX_SAVED_ADDRESSES = 5;
+
+const addrPath = (id: string) => `/me/addresses/${encodeURIComponent(id)}`;
+export const fetchAddresses = (token: string) => call<SavedAddress[]>("/me/addresses", { token });
+export const createAddress = (token: string, input: { label: string | null; address: ShipAddressDto; isDefault?: boolean }) =>
+  call<SavedAddress>("/me/addresses", { method: "POST", body: input, token });
+/** `label: null` menghapus label; `address` mengganti seluruh alamat; `isDefault` hanya boleh true. */
+export const updateAddress = (token: string, id: string, patch: { label?: string | null; address?: ShipAddressDto; isDefault?: true }) =>
+  call<SavedAddress>(addrPath(id), { method: "PATCH", body: patch, token });
+export const deleteAddress = (token: string, id: string) => call<{ deleted: true }>(addrPath(id), { method: "DELETE", token });
+
+/** Token ditolak server (sesi berakhir atau dicabut): pemanggil harus mengarahkan pengguna masuk lagi. */
+export const isSessionEnded = (err: unknown): boolean => err instanceof ApiRequestError && err.status === 401;
+
 /** Hanya path internal yang boleh jadi tujuan setelah login (cegah open redirect lewat ?next=). */
 export function safeNext(next: string | null | undefined, fallback = "/akun"): string {
   if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return fallback;
