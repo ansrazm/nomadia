@@ -149,6 +149,13 @@ export const idAccount = {
   "acct.a.errGone": "Alamat tidak ditemukan. Daftar dimuat ulang.",
   "acct.a.errSave": "Alamat belum tersimpan. Coba lagi.",
   "co.emailFromAccount": "Terisi dari akunmu. Pesanan akan muncul di Pesanan saya.",
+
+  "nudge.orderTitle": "Simpan pesanan ini di akunmu",
+  "nudge.orderBody": "Masuk atau daftar dengan email yang sama ({email}). Bisa tanpa kata sandi: cukup kode lewat email. Semua pesananmu tampil di satu tempat.",
+  "nudge.login": "Masuk",
+  "nudge.register": "Daftar",
+  "nudge.checkout": "Sudah punya akun?",
+  "nudge.checkoutLink": "Masuk untuk mengisi data otomatis",
 } as const;
 
 export const enAccount: Record<keyof typeof idAccount, string> = {
@@ -301,4 +308,11 @@ export const enAccount: Record<keyof typeof idAccount, string> = {
   "acct.a.errGone": "That address no longer exists. The list was reloaded.",
   "acct.a.errSave": "The address wasn't saved. Please try again.",
   "co.emailFromAccount": "Filled in from your account. The order will appear under My orders.",
+
+  "nudge.orderTitle": "Keep this order in your account",
+  "nudge.orderBody": "Sign in or register with the same email ({email}). No password needed: a code by email is enough. All your orders in one place.",
+  "nudge.login": "Sign in",
+  "nudge.register": "Register",
+  "nudge.checkout": "Already have an account?",
+  "nudge.checkoutLink": "Sign in to autofill your details",
 };

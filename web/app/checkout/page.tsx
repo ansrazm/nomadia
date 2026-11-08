@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { PaymentLogo } from "@/components/PaymentLogo";
 import { CheckoutBar } from "@/components/CheckoutBar";
+import { AccountNudge } from "@/components/AccountNudge";
 import { CheckoutSteps } from "@/components/CheckoutSteps";
 import { useCart } from "@/components/CartProvider";
 import { useT } from "@/components/LanguageProvider";
@@ -357,6 +358,7 @@ function CheckoutForm() {
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[1fr_24rem] lg:gap-8">
       <form id="checkout-form" onSubmit={submit} className="space-y-5" noValidate>
+        <AccountNudge variant="checkout" next={voucher ? `/checkout?voucher=${encodeURIComponent(voucher)}` : "/checkout"} />
         {/* 1. Pesanan */}
         <section className="rounded-3xl border border-line bg-white p-5 sm:p-7" aria-labelledby="sec-items">
           <div className="flex items-start justify-between gap-3">
