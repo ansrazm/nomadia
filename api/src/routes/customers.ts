@@ -3,8 +3,9 @@ import { z } from "zod";
 import type { Db } from "../db/pool.js";
 import { ApiError } from "../errors.js";
 import { customerKey, signToken, verifyToken } from "../services/auth.js";
-import { CODE_TTL_MIN, RESEND_COOLDOWN_SEC, discardLoginCode, getCustomer, issueLoginCode, listCustomerOrders, normalizeEmail, verifyLoginCode } from "../services/customers.js";
-import { loginCodeEmail, type Mailer } from "../services/mailer.js";
+import { CODE_TTL_MIN, RESEND_COOLDOWN_SEC, discardLoginCode, getCustomer, issueLoginCode, listCustomerOrders, loginWithPassword, normalizeEmail, requestRegistration, verifyLoginCode, verifyRegistration, type Customer } from "../services/customers.js";
+import { accountExistsEmail, codeEmail, loginCodeEmail, type Mailer } from "../services/mailer.js";
+import { PASSWORD_MAX, PASSWORD_MIN } from "../services/passwords.js";
 import { rateLimit } from "../services/rate-limit.js";
 
 export interface CustomerAuthConfig {
@@ -17,6 +18,14 @@ const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const emailField = z.string().trim().email("Format email tidak valid").max(120).transform(normalizeEmail);
 
 const requestBody = z.object({ email: emailField, lang: z.enum(["id", "en"]).default("id") });
+const passwordField = z.string().min(PASSWORD_MIN, `Kata sandi minimal ${PASSWORD_MIN} karakter`).max(PASSWORD_MAX, `Kata sandi maksimal ${PASSWORD_MAX} karakter`);
+const registerBody = z.object({
+  name: z.string().trim().min(1, "Nama wajib diisi").max(80, "Nama terlalu panjang"),
+  email: emailField,
+  password: passwordField,
+  lang: z.enum(["id", "en"]).default("id"),
+});
+const loginBody = z.object({ email: emailField, password: z.string().min(1, "Kata sandi wajib diisi").max(PASSWORD_MAX) });
 const verifyBody = z.object({ email: emailField, code: z.string().trim().regex(/^\d{6}$/, "Kode terdiri dari 6 digit") });
 
 async function readJson(c: Context): Promise<unknown> {
@@ -26,7 +35,7 @@ async function readJson(c: Context): Promise<unknown> {
 }
 
 /**
- * Login pelanggan tanpa kata sandi (kode 6 digit lewat email). Bila `cfg` null (belum dikonfigurasi),
+ * Akun pelanggan: daftar dan masuk dengan kata sandi, atau masuk tanpa kata sandi lewat kode 6 digit di email. Bila `cfg` null (belum dikonfigurasi),
  * /auth/config melaporkan enabled: false dan rute lain menjawab 503 dengan penjelasan, bukan 404 yang membingungkan.
  */
 export function customerRoutes(db: Db, cfg: CustomerAuthConfig | null, rl: { trustProxyHops: number } | null = null) {
@@ -49,6 +58,9 @@ export function customerRoutes(db: Db, cfg: CustomerAuthConfig | null, rl: { tru
   if (rl) {
     app.use("/auth/request-code", rateLimit({ name: "auth-request", max: 5, windowMs: 10 * 60_000, trustProxyHops: t }));
     app.use("/auth/verify", rateLimit({ name: "auth-verify", max: 20, windowMs: 10 * 60_000, trustProxyHops: t }));
+    app.use("/auth/register", rateLimit({ name: "auth-register", max: 5, windowMs: 10 * 60_000, trustProxyHops: t }));
+    app.use("/auth/register/verify", rateLimit({ name: "auth-register-verify", max: 20, windowMs: 10 * 60_000, trustProxyHops: t }));
+    app.use("/auth/login", rateLimit({ name: "auth-login", max: 20, windowMs: 10 * 60_000, trustProxyHops: t }));
     const meLimit = rateLimit({ name: "me", max: 120, windowMs: 60_000, trustProxyHops: t });
     app.use("/me", meLimit);
     app.use("/me/*", meLimit);
@@ -69,12 +81,44 @@ export function customerRoutes(db: Db, cfg: CustomerAuthConfig | null, rl: { tru
     return c.json({ data: { sent: true, resendAfterSec: RESEND_COOLDOWN_SEC, expiresInMin: CODE_TTL_MIN } });
   });
 
+  const session = (c: Context, customer: Customer) => {
+    const { token, expiresAt } = signToken(key, customer.id, Date.now(), SESSION_TTL_MS);
+    return c.json({ data: { token, expiresAt, customer: { id: customer.id, email: customer.email, name: customer.name } } });
+  };
+
   app.post("/auth/verify", async (c) => {
     const parsed = verifyBody.safeParse(await readJson(c));
     if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Data tidak valid.", parsed.error.flatten().fieldErrors);
-    const customer = await verifyLoginCode(db, cfg.secret, parsed.data.email, parsed.data.code);
-    const { token, expiresAt } = signToken(key, customer.id, Date.now(), SESSION_TTL_MS);
-    return c.json({ data: { token, expiresAt, customer: { id: customer.id, email: customer.email } } });
+    return session(c, await verifyLoginCode(db, cfg.secret, parsed.data.email, parsed.data.code));
+  });
+
+  // Daftar: langkah 1 menerbitkan kode verifikasi; akun baru dibuat di langkah 2 setelah emailnya terbukti.
+  // Respons sama untuk email yang sudah terdaftar (yang menerima email pemberitahuan, bukan kode).
+  app.post("/auth/register", async (c) => {
+    const parsed = registerBody.safeParse(await readJson(c));
+    if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Data tidak valid.", parsed.error.flatten().fieldErrors);
+    const { name, email, password, lang } = parsed.data;
+    const issued = await requestRegistration(db, cfg.secret, email, name, password);
+    try {
+      await cfg.mailer.send({ to: email, ...(issued.exists ? accountExistsEmail(lang) : codeEmail(lang, "register", issued.code, CODE_TTL_MIN)) });
+    } catch (e) {
+      await discardLoginCode(db, issued.id);
+      console.error("[auth] gagal mengirim email pendaftaran:", e instanceof Error ? e.message : e);
+      throw new ApiError(503, "EMAIL_SEND_FAILED", "Email verifikasi belum bisa dikirim. Coba lagi sebentar lagi.");
+    }
+    return c.json({ data: { sent: true, resendAfterSec: RESEND_COOLDOWN_SEC, expiresInMin: CODE_TTL_MIN } });
+  });
+
+  app.post("/auth/register/verify", async (c) => {
+    const parsed = verifyBody.safeParse(await readJson(c));
+    if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Data tidak valid.", parsed.error.flatten().fieldErrors);
+    return session(c, await verifyRegistration(db, cfg.secret, parsed.data.email, parsed.data.code));
+  });
+
+  app.post("/auth/login", async (c) => {
+    const parsed = loginBody.safeParse(await readJson(c));
+    if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Data tidak valid.", parsed.error.flatten().fieldErrors);
+    return session(c, await loginWithPassword(db, parsed.data.email, parsed.data.password));
   });
 
   // Semua /me wajib Authorization: Bearer <token pelanggan>. Token admin tidak berlaku di sini (kunci berbeda).
@@ -92,8 +136,8 @@ export function customerRoutes(db: Db, cfg: CustomerAuthConfig | null, rl: { tru
   }
 
   app.get("/me", (c) => {
-    const cu = c.get("customer" as never) as { id: string; email: string; createdAt: string };
-    return c.json({ data: { id: cu.id, email: cu.email, createdAt: cu.createdAt } });
+    const cu = c.get("customer" as never) as Customer;
+    return c.json({ data: { id: cu.id, email: cu.email, createdAt: cu.createdAt, name: cu.name, phone: cu.phone, role: cu.role, hasPassword: cu.hasPassword } });
   });
 
   app.get("/me/orders", async (c) => {

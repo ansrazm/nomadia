@@ -172,7 +172,7 @@ Untuk memeriksa tahap 1 saja, ikuti [Instalasi dan menjalankan](#instalasi-dan-m
 
 > [!NOTE]
 > Proyek ini dikerjakan dalam waktu terbatas (tenggat technical test), dan saya harus memilih apa yang dikerjakan lebih dulu; tidak semua yang ingin dibuat sempat selesai. Prioritas saya adalah konsep aplikasi, struktur sistem, pembagian modul, dan integrasi yang diminta (API, payment gateway, n8n), bukan kelengkapan fitur toko online penuh. Karena itu beberapa hal belum ada atau disederhanakan:
-> - Akun member lengkap (profil, alamat tersimpan, kata sandi) belum dibuat: di luar spesifikasi test. Yang ada hanya login tanpa kata sandi yang opsional beserta riwayat pesanan (lihat [Login pelanggan](#login-pelanggan-opsional)); checkout tetap bisa dipakai sebagai tamu. Rancangan lanjutannya ada di [Rencana pengembangan lanjutan](#rencana-pengembangan-lanjutan).
+> - Akun member baru sebagian: di luar spesifikasi test. API sudah mendukung daftar dan masuk dengan kata sandi serta login kode beserta riwayat pesanan (lihat [Login pelanggan](#login-pelanggan-opsional)), tetapi halaman web untuk daftar dan masuk dengan kata sandi, profil, dan alamat tersimpan belum dibuat; checkout tetap bisa dipakai sebagai tamu. Rancangan lanjutannya ada di [Rencana pengembangan lanjutan](#rencana-pengembangan-lanjutan).
 > - Pesan WhatsApp otomatis tidak ada; WhatsApp hanya tautan chat (click-to-chat). Pesan otomatis butuh WhatsApp Business API.
 > - Pembayaran hanya sandbox iPaymu, dan demo berjalan dari laptop lewat tunnel, bukan hosting produksi.
 > - Admin memakai satu akun dari environment variable, tanpa manajemen pengguna atau peran; token login disimpan di `localStorage`.
@@ -246,7 +246,9 @@ Token berlaku 8 jam. Login gagal 5x dari satu IP dalam 15 menit diblokir sementa
 
 Pembeli tetap bisa checkout tanpa akun, dan itu tetap jalur utama. Akun hanya menambah riwayat pesanan.
 
-- **Tanpa kata sandi:** pelanggan memasukkan email, menerima kode 6 digit (berlaku 10 menit, sekali pakai), lalu memasukkannya. Tidak ada kata sandi yang bisa bocor atau terlupa.
+- **Dua cara masuk.** *Tanpa kata sandi:* pelanggan memasukkan email, menerima kode 6 digit (berlaku 10 menit, sekali pakai), lalu memasukkannya; akun dibuat otomatis saat kode pertama benar. *Dengan kata sandi:* `POST /auth/register` (nama, email, kata sandi 8 sampai 128 karakter) mengirim kode verifikasi, dan akun baru dibuat setelah `POST /auth/register/verify`; sesudahnya masuk lewat `POST /auth/login`. Akun lama yang tanpa kata sandi bisa memasang sandi lewat pendaftaran dengan email yang sama (kodenya buktinya), dan pesanan lamanya tetap ada.
+- **Kata sandi:** di-hash dengan `scrypt` bawaan Node (N=2^15, salt acak 16 byte, parameter ikut tersimpan di hash), tanpa dependensi tambahan. Pendaftaran tidak membuat akun sebelum emailnya terbukti: nama dan hash menunggu di kode verifikasi, jadi mendaftarkan email orang lain tidak meninggalkan akun setengah jadi. Kode punya tujuan (`login`, `register`): kode daftar tidak bisa dipakai untuk masuk dan sebaliknya, dan kode baru dengan tujuan apa pun menghanguskan yang lama. Email yang sudah punya akun berkata sandi menerima email pemberitahuan (bukan kode) dengan respons luar yang sama, sehingga pendaftaran tidak membocorkan email terdaftar. Gagal masuk (email tidak ada, belum punya sandi, atau sandi salah) memberi respons dan waktu yang sama; lima kegagalan berturut-turut mengunci email itu 15 menit (email tanpa akun ikut dihitung), sementara masuk lewat kode tetap bisa dipakai.
+- **Peran:** kolom `customers.role` (`customer` atau `admin`, bawaan `customer`) sudah ada, tetapi belum dipakai untuk hak akses. Admin CMS tetap satu akun dari `.env` dengan kunci token terpisah, jadi peran di tabel ini tidak membuka `/admin`.
 - **Aktif hanya bila** `CUSTOMER_AUTH_SECRET` (min 32 karakter, harus berbeda dari `AUTH_SECRET`) dan `SMTP_HOST` terisi. Di Docker Compose, SMTP sudah menunjuk Mailpit, jadi cukup mengisi `CUSTOMER_AUTH_SECRET`; kode login bisa dibaca di http://localhost:8025. Bila kosong, `/auth/config` melaporkan `enabled: false` dan rute lain menjawab `503 CUSTOMER_LOGIN_DISABLED` beserta petunjuknya.
 - **Keamanan:** yang disimpan hanya HMAC kode, bukan kodenya; satu kode maksimal 5 percobaan; permintaan kode dibatasi per email (jeda 60 detik, 5 per jam) dan per IP; semua kegagalan memakai pesan yang sama sehingga tidak membocorkan apakah sebuah email pernah dipakai; token sesi ditandatangani dengan kunci turunan yang terpisah dari token admin, jadi tidak bisa dipakai di `/admin` walau nilai secret-nya sama; email kode yang gagal terkirim menjawab `503 EMAIL_SEND_FAILED` dan tidak menghabiskan jatah permintaan.
 - **Riwayat pesanan** dicocokkan lewat email yang terbukti dimiliki lewat kode, jadi pesanan yang dibuat sebelum akun ada ikut muncul. Tabel `orders` tidak diubah.
@@ -454,7 +456,10 @@ Setelah mengubah `NEXT_PUBLIC_API_URL`, restart `npm run dev` web.
 | GET | `/auth/config` | `{enabled}`: apakah login pelanggan aktif (web menyembunyikan tombol masuk bila tidak) |
 | POST | `/auth/request-code` | `{email, lang?}` → mengirim kode 6 digit ke email. Jeda 60 detik dan paling banyak 5 kode per jam per email |
 | POST | `/auth/verify` | `{email, code}` → `{token, expiresAt, customer}`; token sesi berlaku 30 hari |
-| GET | `/me`, `/me/orders` | Akun dan riwayat pesanan pelanggan (`Authorization: Bearer <token>`); pesanan dicocokkan lewat email |
+| POST | `/auth/register` | `{name, email, password, lang?}` → mengirim kode verifikasi pendaftaran (jeda dan jatah sama dengan `/auth/request-code`); akun belum dibuat. Email yang sudah punya akun berkata sandi menerima pemberitahuan, dengan respons yang sama |
+| POST | `/auth/register/verify` | `{email, code}` → membuat akun terverifikasi dan langsung masuk (bentuk respons sama dengan `/auth/verify`) |
+| POST | `/auth/login` | `{email, password}` → sesi; `401 INVALID_CREDENTIALS` yang sama untuk semua kegagalan, `429 ACCOUNT_LOCKED` setelah 5 kegagalan |
+| GET | `/me`, `/me/orders` | Akun (email, nama, telepon, peran, `hasPassword`) dan riwayat pesanan pelanggan (`Authorization: Bearer <token>`); pesanan dicocokkan lewat email |
 | GET | `/checkout-config` | Alur bayar yang aktif `{checkoutFlow: "redirect"\|"qris"}`, dipakai halaman checkout untuk teks langkah 3 |
 | POST | `/webhooks/ipaymu` | Callback iPaymu (form atau JSON) |
 
@@ -470,6 +475,8 @@ Jalur publik yang rawan disalahgunakan dibatasi per IP (jendela tetap, dalam mem
 | `POST /admin/login` | 5 login gagal per 15 menit (pembatas terpisah) |
 | `POST /auth/request-code` | 5 per 10 menit per IP, ditambah jeda dan jatah per email (lihat Login pelanggan) |
 | `POST /auth/verify` | 20 per 10 menit |
+| `POST /auth/register` | 5 per 10 menit per IP, ditambah jeda dan jatah per email |
+| `POST /auth/register/verify`, `POST /auth/login` | 20 per 10 menit per IP; login juga dikunci per email setelah 5 kegagalan |
 | `/me` dan `/me/orders` | 120 per menit |
 
 `/health` dan `/webhooks/ipaymu` tidak dibatasi. Katalog dan voucher (GET) juga tidak.
