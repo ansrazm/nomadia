@@ -88,7 +88,7 @@ export default function AccountPage() {
           <p role="status" className="text-ink/70">{t("acct.loading")}</p>
         ) : (
           <>
-            <div role="tablist" aria-label={t("acct.tabsAria")} onKeyDown={onKeyDown} className="mb-6 flex gap-1 overflow-x-auto border-b border-line">
+            <div role="tablist" aria-label={t("acct.tabsAria")} onKeyDown={onKeyDown} className="mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line">
               {TABS.map((x) => {
                 const on = x === tab;
                 return (
@@ -101,7 +101,7 @@ export default function AccountPage() {
                     aria-controls="acct-panel"
                     tabIndex={on ? 0 : -1}
                     onClick={() => choose(x)}
-                    className={`-mb-px shrink-0 whitespace-nowrap border-b-[3px] px-5 py-3 text-sm font-semibold transition-colors ${on ? "border-signal text-ink" : "border-transparent text-ink/60 hover:text-ink"}`}
+                    className={`shrink-0 whitespace-nowrap border-b-[3px] px-5 py-3 text-sm font-semibold transition-colors ${on ? "border-signal text-ink" : "border-transparent text-ink/60 hover:text-ink"}`}
                   >
                     {t(`acct.tab.${x}`)}
                   </button>
