@@ -24,7 +24,7 @@ Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical
 - Outbox: event `order.paid` disimpan di database lalu dikirim ke n8n (tanda tangan HMAC, retry dengan backoff).
 - n8n: mengirim email (Mailpit) dan notifikasi Telegram. Diagram dan rincian ada di [Arsitektur](#arsitektur).
 
-**Fitur utama:** katalog destinasi dengan filter, halaman produk dan perbandingan paket, keranjang dan voucher, checkout dengan metode bayar dan alamat pengiriman, status pesanan yang memperbarui diri, CMS (destinasi, produk, voucher, banner, pesanan), dan toko dalam dua bahasa (ID/EN). Daftar lengkapnya ada di [Ringkasan fitur](#ringkasan-fitur).
+**Fitur utama:** katalog destinasi dengan filter, halaman produk dan perbandingan paket, keranjang dan voucher, checkout dengan metode bayar dan alamat pengiriman, status pesanan yang memperbarui diri, CMS (destinasi, produk, voucher, banner, pesanan), dan toko dalam dua bahasa (ID/EN). Di luar spesifikasi test ada dua fitur opsional: akun pelanggan (daftar, masuk dengan kata sandi atau kode lewat email, riwayat pesanan, alamat tersimpan) dan asisten chat AI yang menjawab dari data katalog. Daftar lengkapnya ada di [Ringkasan fitur](#ringkasan-fitur).
 
 **Mau mencoba?** Cukup Docker:
 
@@ -97,7 +97,10 @@ Semua koneksi antar-komponen, dibedakan internal (di dalam sistem ini) dan ekste
 | 7 | n8n → SMTP (email konfirmasi + QR eSIM) | **Eksternal** (Mailpit di demo) | Node email di workflow | Eksekusi n8n gagal terlihat di tab Executions |
 | 8 | n8n → **Telegram Bot API** | **Eksternal**, opsional | Aktif hanya bila `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` diisi | Dilewati bila kosong |
 | 9 | Browser → WhatsApp | Tautan click-to-chat (`wa.me`), bukan API | Nomor dari `NEXT_PUBLIC_WHATSAPP_NUMBER`; tombol disembunyikan bila kosong | Tidak ada |
-| 10 | API → pemasok eSIM | **Belum terhubung** | `services/esim.ts` membuat kode aktivasi contoh | Diganti pemanggilan API pemasok di produksi |
+| 10 | Browser → API (`/auth/*`, `/me/*`) | Internal, REST JSON | Token sesi pelanggan bertanda tangan (kunci terpisah dari token admin); aktif bila `CUSTOMER_AUTH_SECRET` dan `SMTP_HOST` terisi | `503 CUSTOMER_LOGIN_DISABLED` bila belum aktif; checkout tamu tidak terpengaruh |
+| 11 | API → SMTP (kode masuk, daftar, dan atur ulang kata sandi) | **Eksternal** (Mailpit di demo) | Langsung dari API lewat `services/mailer.ts` (nodemailer), tanpa n8n | `503 EMAIL_SEND_FAILED`; jatah permintaan kode tidak terpakai |
+| 12 | Browser → API (`/chat`) → **penyedia model bahasa** | Internal REST, lalu **eksternal** (Anthropic atau endpoint kompatibel OpenAI), opsional | Server menjalankan tool baca-saja; kunci hanya dibaca server; batas per IP dan per jam | `503 CHAT_DISABLED`, `429 CHAT_BUSY`, atau `502 CHAT_UNAVAILABLE`; panel kembali ke FAQ statis bila nonaktif |
+| 13 | API → pemasok eSIM | **Belum terhubung** | `services/esim.ts` membuat kode aktivasi contoh | Diganti pemanggilan API pemasok di produksi |
 
 ### Pembagian modul
 
@@ -131,7 +134,9 @@ docker-compose.yml         db + api + web + n8n
 |---|---|
 | Website | Storefront Next.js 16 (React 19): pencarian destinasi, tab eSIM / SIM Card / WiFi (jenis atau paket yang stoknya habis tetap tampil bertanda Kosong dan tidak bisa dibeli, bukan menghilang), keranjang, voucher, checkout, halaman status pesanan yang memperbarui diri, bagian FAQ, footer lengkap, header yang menempel saat scroll, pilihan bahasa Indonesia dan English (CMS tetap berbahasa Indonesia), rute perjalanan multi-destinasi (sampai 3 tujuan, satu atau beberapa paket per tujuan dengan jumlah masing-masing, ke satu keranjang), tombol WhatsApp dan pusat bantuan melayang |
 | CMS | Area `/admin`: dashboard, CRUD destinasi, produk, dan voucher, unggah gambar destinasi dan banner beranda (sampai 5, berputar otomatis), daftar pesanan dengan filter dan pencarian, batalkan pesanan `pending` |
-| API Connection | Web membaca katalog dan harga dari REST API (Hono + PostgreSQL); API memanggil iPaymu |
+| Akun pelanggan (opsional, di luar spesifikasi) | Daftar dan masuk dengan kata sandi atau kode 6 digit lewat email, lupa kata sandi, riwayat pesanan, profil, dan alamat tersimpan yang mengisi checkout otomatis; checkout tamu tetap jalan. Detail di [Login pelanggan](#login-pelanggan-opsional) |
+| Asisten chat AI (opsional, di luar spesifikasi) | Panel chat di tombol bantuan melayang: menjawab soal destinasi, paket, dan status pesanan dari data katalog (tool baca-saja, harga tidak dikarang model), dengan kartu paket yang bisa langsung ditambahkan ke keranjang. Tanpa kunci model, panel kembali ke FAQ statis. Detail di [Asisten chat AI](#asisten-chat-ai-opsional) |
+| API Connection | Web membaca katalog dan harga dari REST API (Hono + PostgreSQL); API memanggil iPaymu, dan penyedia model bahasa bila asisten chat diaktifkan. Daftar lengkap koneksi ada di [Daftar koneksi API](#daftar-koneksi-api) |
 | Payment Gateway | iPaymu sandbox: tagihan dibuat di server, callback diverifikasi ulang lewat Check Transaction |
 | Automation (n8n) | Event `order.paid` dikirim ke n8n lewat outbox (tanda tangan HMAC, retry dengan backoff) |
 
@@ -157,6 +162,10 @@ docker-compose.yml         db + api + web + n8n
 |---|
 | ![Halaman rute perjalanan](docs/img/08-trip.png) |
 
+| Masuk ke akun (kata sandi atau kode lewat email) | Asisten chat AI di panel bantuan |
+|---|---|
+| ![Halaman masuk](docs/img/10-login.png) | ![Asisten chat](docs/img/11-chat.png) |
+
 Tangkapan layar alur bayar iPaymu sandbox sampai email konfirmasi ada di [`docs/e2e/`](docs/e2e/README.md).
 
 ## Urutan pengerjaan
@@ -172,7 +181,8 @@ Untuk memeriksa tahap 1 saja, ikuti [Instalasi dan menjalankan](#instalasi-dan-m
 
 > [!NOTE]
 > Proyek ini dikerjakan dalam waktu terbatas (tenggat technical test), dan saya harus memilih apa yang dikerjakan lebih dulu; tidak semua yang ingin dibuat sempat selesai. Prioritas saya adalah konsep aplikasi, struktur sistem, pembagian modul, dan integrasi yang diminta (API, payment gateway, n8n), bukan kelengkapan fitur toko online penuh. Karena itu beberapa hal belum ada atau disederhanakan:
-> - Akun member baru sebagian: di luar spesifikasi test. API mendukung daftar dan masuk dengan kata sandi serta login kode beserta riwayat pesanan (lihat [Login pelanggan](#login-pelanggan-opsional)), dan halaman web untuk daftar, masuk (kata sandi atau kode), dan lupa kata sandi sudah ada; halaman akun di web punya tab Pesanan, Profil (nama, nomor HP, ganti kata sandi), dan Alamat (alamat tersimpan yang mengisi checkout otomatis); checkout tetap bisa dipakai sebagai tamu. Rancangan lanjutannya ada di [Rencana pengembangan lanjutan](#rencana-pengembangan-lanjutan).
+> - Akun pelanggan ada tetapi opsional dan di luar spesifikasi test (lihat [Login pelanggan](#login-pelanggan-opsional)): daftar, masuk dengan kata sandi atau kode, lupa kata sandi, riwayat pesanan, profil, dan alamat tersimpan sudah jalan, dan checkout tamu tetap jadi jalur utama. Yang belum ada: login Google, hak akses berbasis peran (kolom `role` belum dipakai), dan sesi di cookie `HttpOnly`. Rancangan lanjutannya ada di [Rencana pengembangan lanjutan](#rencana-pengembangan-lanjutan).
+> - Asisten chat AI juga opsional, dan kualitas jawabannya bergantung pada model yang dipasang: model kecil atau gratis bisa menjawab kurang rapi atau dalam bahasa yang tidak diminta. Yang dijaga server bukan gaya jawabannya, melainkan datanya: harga, stok, dan kartu paket hanya berasal dari database lewat tool baca-saja.
 > - Pesan WhatsApp otomatis tidak ada; WhatsApp hanya tautan chat (click-to-chat). Pesan otomatis butuh WhatsApp Business API.
 > - Pembayaran hanya sandbox iPaymu, dan demo berjalan dari laptop lewat tunnel, bukan hosting produksi.
 > - Admin memakai satu akun dari environment variable, tanpa manajemen pengguna atau peran; token login disimpan di `localStorage`.
@@ -271,7 +281,8 @@ Asisten menjawab pertanyaan pembeli (destinasi, paket, status pesanan) memakai m
 - **Privasi.** Kunci API hanya dibaca server dan tidak pernah dikirim ke browser. Isi percakapan tidak dicatat di log (bisa memuat email pembeli); galat penyedia model hanya masuk log server, dan klien hanya menerima `502 CHAT_UNAVAILABLE` yang ramah.
 - **Tanpa memori di server.** Riwayat dikirim klien di tiap permintaan (`{messages: [{role, content}]}`) dan tidak disimpan. Karena klien yang menyusunnya, pesan "asisten" dari klien diperlakukan sama tidak tepercayanya dengan pesan pengguna.
 - **Aktif hanya bila** `LLM_API_KEY` terisi. `LLM_PROVIDER` bawaannya `anthropic` (model bawaan `claude-haiku-5-5`, bisa diganti lewat `LLM_MODEL`). Untuk `openai`, `LLM_MODEL` wajib karena nama model berbeda di tiap penyedia. Baris startup API menyebut `chatbot: aktif (...)` atau `nonaktif (FAQ statis)`.
-- **Batasan.** Jawaban dikirim utuh, belum bertahap per token. Adapter diuji dengan `fetch` palsu terhadap bentuk permintaan dan respons yang didokumentasikan penyedia; belum dijalankan terhadap penyedia asli di repo ini, dan `max_tokens` di adapter `openai` belum tentu diterima model OpenAI terbaru yang meminta `max_completion_tokens`. Sisi web (panel chat) belum ada di patch ini: tombol chat di web masih membuka FAQ statis.
+- **Batasan.** Jawaban dikirim utuh, belum bertahap per token. Adapter diuji dengan `fetch` palsu terhadap bentuk permintaan dan respons yang didokumentasikan penyedia; belum dijalankan terhadap penyedia asli di repo ini, dan `max_tokens` di adapter `openai` belum tentu diterima model OpenAI terbaru yang meminta `max_completion_tokens`.
+- **Tampilan web.** Tombol bantuan melayang memeriksa `GET /chat/status` sekali saat panel dibuka. Bila aktif, panel menampilkan percakapan dengan kartu paket yang bisa ditambahkan ke keranjang, dan catatan bahwa jawaban dibuat AI dan harga final ada di halaman paket; bila nonaktif, panel menampilkan FAQ statis dan tautan WhatsApp seperti sebelumnya. Percakapan hanya disimpan di memori halaman, jadi hilang saat halaman dimuat ulang, dan tidak pernah disimpan di server.
 
 ## Menguji n8n
 
@@ -575,16 +586,12 @@ Dropdown provinsi, kota/kabupaten, dan kecamatan di checkout memakai data statis
 
 ## Rencana pengembangan lanjutan
 
-Belum dikerjakan; ini arah yang dipilih bila proyek dilanjutkan, bukan fitur yang sudah ada.
+Belum dikerjakan; ini arah yang dipilih bila proyek dilanjutkan, bukan fitur yang sudah ada. Akun pelanggan dan asisten chat sudah dibuat dan dijelaskan di bagian masing-masing di atas.
 
-- **Akun member: daftar akun dan dashboard.** Pelanggan mendaftar atau masuk, lalu melihat riwayat pesanan, mengunduh ulang bukti, dan menyimpan nomor HP dan alamat pengiriman supaya checkout berikutnya terisi otomatis. Rancangan yang cocok dengan struktur sekarang:
-  - Tabel `users` (email, hash password) dan kolom `orders.user_id` yang boleh kosong, sehingga checkout tamu tetap berjalan dan akun hanya menambah, bukan menggantikan.
-  - Pesanan tamu lama bisa ditautkan ke akun lewat email yang sudah terverifikasi (kolom `customer_email` sudah ada di setiap order).
-  - Verifikasi email dan reset password lewat n8n, memakai jalur outbox yang sudah ada untuk email konfirmasi.
-  - Sesi memakai pola token bertanda tangan seperti admin, tetapi disimpan di cookie `HttpOnly` (lihat [Batasan yang diketahui](#batasan-yang-diketahui)), dengan rute `/akun` dan `/akun/pesanan` di web.
-- **Login dengan Google (OAuth 2.0 / OpenID Connect)** sebagai pilihan masuk di atas akun member: API menukar kode dari Google dengan email terverifikasi, lalu memakai tabel `users` dan sesi yang sama. Dibuat opsional lewat environment variable (client ID dan secret), supaya Compose tetap jalan tanpa kredensial Google.
-- **Asisten AI di panel bantuan.** Saat ini panel bantuan hanya menampilkan FAQ statis. Rancangannya: pesan pengguna ke API, diteruskan ke webhook n8n yang memanggil model bahasa dengan data katalog sebagai konteks (agar harga dan paket tidak dikarang), lalu jawabannya dikembalikan. Opsional lewat kunci API, dengan cadangan ke FAQ bila kosong atau gagal.
-- **Workflow n8n tambahan**: ringkasan penjualan harian ke Telegram dan pemberitahuan pesanan kedaluwarsa. Keduanya butuh event baru di outbox (selain `order.paid`).
+- **Hak akses berbasis peran.** Kolom `customers.role` sudah ada tetapi belum dipakai; langkah lanjutannya menyatukan admin CMS ke tabel akun dengan peran, menggantikan akun tunggal dari `.env`, dan memindahkan token sesi dari `localStorage` ke cookie `HttpOnly` (lihat [Batasan yang diketahui](#batasan-yang-diketahui)).
+- **Login dengan Google (OAuth 2.0 / OpenID Connect)** sebagai pilihan masuk di atas akun pelanggan yang sudah ada: API menukar kode dari Google dengan email terverifikasi, lalu memakai tabel `customers` dan penerbitan sesi yang sama. Dibuat opsional lewat environment variable (client ID dan secret), supaya Compose tetap jalan tanpa kredensial Google.
+- **Asisten chat: jawaban bertahap (streaming)** per token, dan pengujian terhadap penyedia model asli (adapter saat ini diuji dengan `fetch` palsu).
+- **Workflow n8n tambahan**: ringkasan penjualan harian ke Telegram dan pemberitahuan pesanan kedaluwarsa. Keduanya butuh event baru di outbox (selain `order.paid`); penyaringan kiriman ulang lewat `X-Nomadia-Delivery` juga termasuk di sini.
 - **Pesan WhatsApp otomatis** (konfirmasi dan status pengiriman) lewat node WhatsApp Business Cloud di n8n, bila kredensial Meta tersedia.
 - **Halaman kategori per jenis koneksi** (eSIM, SIM Card, Portable WiFi) sebagai landing page sendiri, dan FAQ yang dikelola dari CMS.
 
