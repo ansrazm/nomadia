@@ -7,7 +7,7 @@ import { useEffect, type RefObject } from "react";
  * FloatingActions memakainya untuk naik di atas bar, jadi bar tidak perlu menyisakan ruang kosong di kanan
  * (dulu `pr-20`, yang menyempitkan isi bar sampai harga tertimpa tombol di layar sempit).
  */
-export function useBarOffset(ref: RefObject<HTMLElement>, active: boolean) {
+export function useBarOffset(ref: RefObject<HTMLElement | null>, active: boolean) {
   useEffect(() => {
     const el = ref.current;
     const root = document.documentElement;

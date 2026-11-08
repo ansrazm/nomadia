@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "../src/db/pool.js";
-import { OutboxDispatcher, backoffSeconds, signPayload, verifySignature } from "../src/services/outbox.js";
+import { OUTBOX_TIMEOUT_MS, OutboxDispatcher, backoffSeconds, signPayload, verifySignature } from "../src/services/outbox.js";
 import { freshDb } from "./helpers.js";
 
 const SECRET = "n8n-secret-0123456789";
@@ -96,6 +96,27 @@ describe("OutboxDispatcher", () => {
     const d = mk((async () => { throw new Error("ECONNREFUSED"); }) as unknown as typeof fetch);
     expect(await d.deliverDue()).toEqual({ delivered: 0, failed: 1 });
     expect((await row("NMD-T1")).last_error).toBe("ECONNREFUSED");
+  });
+
+  it("batas waktu bawaan di atas 10 detik: n8n membalas setelah email dan Telegram (timeout 8 detik) selesai", () => {
+    expect(OUTBOX_TIMEOUT_MS).toBeGreaterThan(10_000);
+  });
+
+  it("balasan n8n yang lambat tapi masih dalam batas waktu dianggap berhasil, bukan dikirim ulang", async () => {
+    await enqueue("NMD-T1");
+    const slow = (async () => { await new Promise((r) => setTimeout(r, 100)); return new Response("ok", { status: 200 }); }) as unknown as typeof fetch;
+    expect(await mk(slow, { timeoutMs: 1000 }).deliverDue()).toEqual({ delivered: 1, failed: 0 });
+    expect((await row("NMD-T1")).delivered_at).not.toBeNull();
+  });
+
+  it("melewati batas waktu -> dianggap gagal dan dijadwal ulang (di sinilah pengiriman ulang bisa terjadi)", async () => {
+    await enqueue("NMD-T1");
+    const hang = ((_url: string, init: any) => new Promise((_res, rej) => init.signal.addEventListener("abort", () => rej(init.signal.reason)))) as unknown as typeof fetch;
+    expect(await mk(hang, { timeoutMs: 50 }).deliverDue()).toEqual({ delivered: 0, failed: 1 });
+    const r = await row("NMD-T1");
+    expect(r.delivered_at).toBeNull();
+    expect(r.attempts).toBe(1);
+    expect(r.last_error).toBeTruthy();
   });
 
   it("berhenti setelah maxAttempts", async () => {

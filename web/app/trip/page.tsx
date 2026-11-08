@@ -10,16 +10,19 @@ import { bestType, parseStops } from "@/lib/trip";
 // Katalog dibaca dari API saat request, seperti halaman destinasi.
 export const dynamic = "force-dynamic";
 
-export function generateMetadata() {
-  return { title: getT().t("trip.metaTitle") };
+export async function generateMetadata() {
+  return { title: (await getT()).t("trip.metaTitle") };
 }
 
 /**
  * Rute perjalanan: /trip?d=jepang,turki&type=esim. Slug yang tidak dikenal dilewati; kalau tidak ada yang tersisa,
  * kembali ke daftar destinasi. Tanpa ?type= dipilih jenis dengan cakupan terbanyak.
  */
-export default async function TripPage({ searchParams }: { searchParams: { d?: string | string[]; type?: string | string[] } }) {
-  const { t } = getT();
+export default async function TripPage(
+  props: { searchParams: Promise<{ d?: string | string[]; type?: string | string[] }> }
+) {
+  const searchParams = await props.searchParams;
+  const { t } = await getT();
   const slugs = parseStops(searchParams.d);
   const destinations = (await Promise.all(slugs.map((s) => getDestination(s)))).filter((d): d is DestinationDetail => d !== null);
   if (!destinations.length) redirect("/destinations");

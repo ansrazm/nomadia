@@ -5,14 +5,17 @@ import { mediaUrl, parseProductType, typeInfo } from "@/lib/catalog-types";
 import { getT } from "@/lib/i18n/server";
 import { parseStops } from "@/lib/trip";
 
-export function generateMetadata() {
-  return { title: getT().t("dest.metaTitle") };
+export async function generateMetadata() {
+  return { title: (await getT()).t("dest.metaTitle") };
 }
 
 export const dynamic = "force-dynamic";
 
-export default async function DestinationsPage({ searchParams }: { searchParams: { type?: string | string[]; trip?: string | string[] } }) {
-  const { t } = getT();
+export default async function DestinationsPage(
+  props: { searchParams: Promise<{ type?: string | string[]; trip?: string | string[] }> }
+) {
+  const searchParams = await props.searchParams;
+  const { t } = await getT();
   const type = parseProductType(searchParams.type);
   // Dengan filter jenis, daftar tampil hanya destinasi berjenis itu; rute perjalanan tetap butuh nama semua destinasi.
   const [destinations, homeBanners, availability, everything] = await Promise.all([

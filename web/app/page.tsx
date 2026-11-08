@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import Link from "next/link";
 import { FaqSection } from "@/components/FaqSection";
 import { Hero } from "@/components/Hero";
@@ -57,8 +58,9 @@ const routeExamples: string[][] = [["jepang", "korea-selatan"], ["singapura", "m
 // Katalog dibaca dari API saat request, jadi halaman tidak boleh di-prerender saat build (API belum jalan).
 export const dynamic = "force-dynamic";
 
-export default async function Home({ searchParams }: { searchParams: { type?: string | string[] } }) {
-  const { t } = getT();
+export default async function Home(props: { searchParams: Promise<{ type?: string | string[] }> }) {
+  const searchParams = await props.searchParams;
+  const { t } = await getT();
   const type = parseProductType(searchParams.type);
   // Hero tetap memakai semua destinasi; hanya bagian "Tujuan yang sering dipilih" mengikuti filter jenis.
   const [destinations, homeBanners, byType] = await Promise.all([getDestinations(), getHomeBanners(), type ? getDestinations(type) : null]);

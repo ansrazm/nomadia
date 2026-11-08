@@ -22,8 +22,17 @@ export interface DispatcherOptions {
   fetchImpl?: typeof fetch;
   maxAttempts?: number;
   batch?: number;
+  /** Batas waktu satu pengiriman; bawaan OUTBOX_TIMEOUT_MS. */
+  timeoutMs?: number;
   now?: () => Date;
 }
+
+/**
+ * Batas waktu satu pengiriman ke n8n. Webhook n8n baru membalas setelah email dan notifikasi Telegram selesai
+ * (Telegram sendiri sampai 8 detik), jadi batas ini harus jauh di atas waktu terburuk workflow. Bila API menyerah
+ * lebih dulu, n8n tetap menyelesaikan pekerjaannya lalu event dicoba ulang dan notifikasi terkirim dua kali.
+ */
+export const OUTBOX_TIMEOUT_MS = 30_000;
 
 export const backoffSeconds = (attempts: number) => Math.min(30 * 2 ** (attempts - 1), 3600);
 
@@ -65,7 +74,7 @@ export class OutboxDispatcher {
               "X-Nomadia-Signature": signPayload(this.o.secret, timestamp, body),
             },
             body,
-            signal: AbortSignal.timeout(10_000),
+            signal: AbortSignal.timeout(this.o.timeoutMs ?? OUTBOX_TIMEOUT_MS),
           });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           await client.query("UPDATE webhook_outbox SET delivered_at = now(), attempts = attempts + 1, last_error = NULL WHERE id = $1", [row.id]);

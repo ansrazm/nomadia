@@ -10,7 +10,7 @@ function observe(el: Element | null, set: (v: boolean) => void): () => void {
 }
 
 /** true selagi elemen (lewat ref) terlihat di layar. Dipakai untuk menyembunyikan bar melayang saat isinya sudah terlihat di halaman. */
-export function useOnScreen(ref: RefObject<Element>): boolean {
+export function useOnScreen(ref: RefObject<Element | null>): boolean {
   const [on, setOn] = useState(false);
   useEffect(() => observe(ref.current, setOn), [ref]);
   return on;
