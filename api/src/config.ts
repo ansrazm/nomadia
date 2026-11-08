@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { z } from "zod";
+import { ANTHROPIC_DEFAULT_MODEL, type ChatConfig } from "./chat/index.js";
 
 const schema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
@@ -28,6 +29,14 @@ const schema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().min(3).default("Nomadia <no-reply@nomadia.local>"),
+  // Asisten chat (opsional). Aktif bila LLM_API_KEY terisi; kosong = panel chat memakai FAQ statis.
+  // anthropic = API Anthropic. openai = endpoint /chat/completions bergaya OpenAI (juga Groq, OpenRouter, Gemini, Ollama... lewat LLM_BASE_URL).
+  LLM_PROVIDER: z.enum(["anthropic", "openai"]).optional(),
+  LLM_API_KEY: z.string().min(8, "LLM_API_KEY terlalu pendek").optional(),
+  LLM_MODEL: z.string().min(1).optional(),
+  LLM_BASE_URL: z.string().url().optional(),
+  // Batas total panggilan chat per jam untuk seluruh server (menjaga tagihan model).
+  CHAT_GLOBAL_PER_HOUR: z.coerce.number().int().min(1).max(100000).default(300),
   // Pembatasan laju per IP untuk jalur publik. off = mati.
   RATE_LIMIT: z.enum(["on", "off"]).default("on"),
   // Jumlah proxy tepercaya di depan API (Nginx, Caddy, Cloudflare...). 0 = baca IP dari koneksi TCP, abaikan X-Forwarded-For.
@@ -46,6 +55,7 @@ export interface Config {
   admin: { email: string; password: string; secret: string } | null;
   customerLogin: { secret: string; smtp: { host: string; port: number; secure: boolean; user?: string; pass?: string; from: string } } | null;
   rateLimit: { trustProxyHops: number } | null;
+  chat: ChatConfig | null;
 }
 
 const blank = (v: string | undefined) => (v && v.trim() ? v.trim() : undefined);
@@ -65,6 +75,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (d.CUSTOMER_AUTH_SECRET && !d.SMTP_HOST) throw new Error("Konfigurasi tidak valid: CUSTOMER_AUTH_SECRET butuh SMTP_HOST (kode login dikirim lewat email)");
   if (d.CUSTOMER_AUTH_SECRET && d.CUSTOMER_AUTH_SECRET === d.AUTH_SECRET) throw new Error("Konfigurasi tidak valid: CUSTOMER_AUTH_SECRET harus berbeda dari AUTH_SECRET");
   if (!!d.SMTP_USER !== !!d.SMTP_PASS) throw new Error("Konfigurasi tidak valid: SMTP_USER dan SMTP_PASS harus diisi berpasangan");
+  if (d.LLM_PROVIDER && !d.LLM_API_KEY) throw new Error("Konfigurasi tidak valid: LLM_PROVIDER butuh LLM_API_KEY");
+  const provider = d.LLM_PROVIDER ?? "anthropic";
+  if (d.LLM_API_KEY && provider === "openai" && !d.LLM_MODEL) throw new Error("Konfigurasi tidak valid: LLM_PROVIDER=openai butuh LLM_MODEL (nama model berbeda di tiap penyedia)");
   return {
     port: d.PORT,
     databaseUrl: d.DATABASE_URL,
@@ -83,5 +96,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
           }
         : null,
     rateLimit: d.RATE_LIMIT === "off" ? null : { trustProxyHops: d.TRUST_PROXY_HOPS },
+    chat: d.LLM_API_KEY ? { provider, apiKey: d.LLM_API_KEY, model: d.LLM_MODEL ?? ANTHROPIC_DEFAULT_MODEL, baseUrl: d.LLM_BASE_URL, globalPerHour: d.CHAT_GLOBAL_PER_HOUR } : null,
   };
 }

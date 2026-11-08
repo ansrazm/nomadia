@@ -46,6 +46,12 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-Nomadia <no-reply@nomadia.local>}
+      # Asisten chat AI (opsional). Kosong = panel chat memakai FAQ statis. Lihat .env.example.
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      CHAT_GLOBAL_PER_HOUR: ${CHAT_GLOBAL_PER_HOUR:-300}
       # Pembatasan laju per IP. Di belakang Cloudflare Tunnel / Nginx / Caddy isi TRUST_PROXY_HOPS=1 (jumlah proxy tepercaya).
       RATE_LIMIT: ${RATE_LIMIT:-on}
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}
