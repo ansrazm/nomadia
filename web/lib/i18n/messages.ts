@@ -1,5 +1,6 @@
 import { enCheckout, idCheckout } from "./messages-checkout";
 import { enShop, idShop } from "./messages-shop";
+import { enAccount, idAccount } from "./messages-account";
 
 /** Kamus bahasa toko. Indonesia (id) adalah sumber; en wajib punya semua kunci yang sama (dicek TypeScript). */
 export type Lang = "id" | "en";
@@ -154,7 +155,7 @@ const idBase = {
   "toast.view": "Lihat",
 } as const;
 
-const id = { ...idBase, ...idShop, ...idCheckout } as const;
+const id = { ...idBase, ...idShop, ...idCheckout, ...idAccount } as const;
 
 export type MessageKey = keyof typeof id;
 
@@ -292,7 +293,7 @@ const enBase: Record<keyof typeof idBase, string> = {
   "toast.view": "View",
 };
 
-const en: Record<MessageKey, string> = { ...enBase, ...enShop, ...enCheckout };
+const en: Record<MessageKey, string> = { ...enBase, ...enShop, ...enCheckout, ...enAccount };
 
 export const messages: Record<Lang, Record<MessageKey, string>> = { id, en };
 

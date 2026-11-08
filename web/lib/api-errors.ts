@@ -9,6 +9,10 @@ const codeKey: Record<string, MessageKey> = {
   ORDER_NOT_FOUND: "apierr.orderNotFound",
   NO_API: "apierr.noApi",
   RATE_LIMITED: "apierr.rateLimited",
+  CODE_INVALID: "login.errCodeWrong",
+  EMAIL_SEND_FAILED: "login.errSend",
+  UNAUTHORIZED: "login.sessionEnded",
+  CUSTOMER_LOGIN_DISABLED: "login.disabled",
 };
 
 /**

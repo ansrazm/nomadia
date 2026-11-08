@@ -15,6 +15,7 @@ import { TypeArt, typeArtBg } from "@/components/TypeArt";
 import { ApiRequestError, createOrder, getCheckoutFlow, getPaymentMethods, quoteCart, type CheckoutResult, type PaymentMethodView, type Quote } from "@/lib/api";
 import { typeInfo } from "@/lib/catalog-types";
 import { idr } from "@/lib/format";
+import { useCustomerSession } from "@/lib/customer-session";
 import { markPendingOrder } from "@/lib/pending-order";
 import { ADDRESS_KEYS, ADDRESS_MAX, EMPTY_ADDRESS, invalidAddressFields, isValidPhone, toShipAddress, todayISO, type AddressForm, type AddressKey } from "@/lib/order-details";
 import { PROVINCES } from "@/lib/regions";
@@ -133,6 +134,11 @@ function CheckoutForm() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  // Pelanggan yang sudah masuk: email terisi dari akunnya (tetap bisa diubah) supaya pesanan muncul di "Pesanan saya".
+  const customer = useCustomerSession();
+  useEffect(() => {
+    if (customer) setEmail((cur) => cur || customer.email);
+  }, [customer]);
   const [phone, setPhone] = useState("");
   const [departureDate, setDepartureDate] = useState("");
   const [addr, setAddr] = useState<AddressForm>(EMPTY_ADDRESS);
@@ -365,6 +371,7 @@ function CheckoutForm() {
               <label htmlFor="email" className="text-sm font-semibold">{t("co.email")}</label>
               <input id="email" type="email" inputMode="email" value={email} onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined })); }} autoComplete="email" placeholder={t("co.emailPh")} aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? "email-err" : undefined} className={inputCls(fieldErrors.email)} />
               {fieldErrors.email && <p id="email-err" role="alert" className="mt-1.5 text-sm font-medium text-coral">{fieldErrors.email}</p>}
+              {customer && !fieldErrors.email && email.trim().toLowerCase() === customer.email && <p className="mt-1.5 text-xs text-ink/60">{t("co.emailFromAccount")}</p>}
             </div>
             <div>
               <label htmlFor="phone" className="text-sm font-semibold">{t("co.phone")}</label>

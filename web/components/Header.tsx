@@ -10,6 +10,7 @@ import { useCart } from "./CartProvider";
 import { useT } from "./LanguageProvider";
 import { DestinationSearch, OPEN_SEARCH_EVENT } from "./DestinationSearch";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { clearCustomerSession, useCustomerSession, useLoginEnabled } from "@/lib/customer-session";
 
 const before = [{ href: "/destinations", key: "nav.destinations" as const }];
 const after = [
@@ -21,6 +22,10 @@ const connTypes: ProductType[] = ["esim", "sim", "wifi"];
 export function Header() {
   const { count } = useCart();
   const t = useT();
+  const customer = useCustomerSession();
+  const loginOn = useLoginEnabled();
+  // Tombol akun hanya tampil bila server mengaktifkan login, atau pelanggan sudah punya sesi.
+  const showAccount = loginOn === true || !!customer;
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [connOpen, setConnOpen] = useState(false);
@@ -108,6 +113,16 @@ export function Header() {
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <DestinationSearch />
             <LanguageSwitcher />
+            {showAccount && (
+              <Link
+                href={customer ? "/akun" : "/login"}
+                aria-label={customer ? t("nav.myOrders") : t("nav.login")}
+                className="hidden items-center gap-2 rounded-[3px] bg-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/20 sm:flex"
+              >
+                <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.5" /><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></svg>
+                <span className="hidden lg:inline">{customer ? t("nav.account") : t("nav.login")}</span>
+              </Link>
+            )}
             <Link href="/cart" aria-label={t("nav.cart")} className="relative flex items-center rounded-[3px] bg-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/20 sm:px-4">
               {/* Di HP (di bawah sm) tombol keranjang cukup ikon + jumlah supaya header tidak melebar keluar layar. */}
               <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 sm:hidden" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 7h12l-1 13H7L6 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /></svg>
@@ -202,6 +217,18 @@ export function Header() {
                   {t(l.key)}
                 </Link>
               ))}
+              {showAccount && (
+                <div className="mt-1 border-t border-line pt-1">
+                  {customer ? (
+                    <>
+                      <Link href="/akun" onClick={() => setOpen(false)} className="block rounded-[3px] px-4 py-3 font-medium hover:bg-mist">{t("nav.myOrders")}</Link>
+                      <button type="button" onClick={() => { setOpen(false); clearCustomerSession(); }} className="block w-full rounded-[3px] px-4 py-3 text-left font-medium text-ink/70 hover:bg-mist">{t("nav.logout")}</button>
+                    </>
+                  ) : (
+                    <Link href="/login" onClick={() => setOpen(false)} className="block rounded-[3px] px-4 py-3 font-medium hover:bg-mist">{t("nav.login")}</Link>
+                  )}
+                </div>
+              )}
             </div>
           </motion.nav>
         )}

@@ -103,7 +103,7 @@ Semua koneksi antar-komponen, dibedakan internal (di dalam sistem ini) dan ekste
 
 ```
 web/                       Next.js 16 + React 19 (App Router, Tailwind)
-  app/                     halaman: /, /destinations, /destinations/[slug], /trip, /cart, /checkout, /orders/[id], /admin/*
+  app/                     halaman: /, /destinations, /destinations/[slug], /trip, /cart, /checkout, /orders/[id], /login, /akun, /admin/*
   components/              Hero, ProductTabs, CartProvider, admin/*
                            SiteShell (layout kolom setinggi layar: footer selalu di dasar), Header (sticky),
                            FaqSection, Footer, FloatingActions (tombol WhatsApp + panel bantuan), CartToast, PromoModal,
@@ -172,7 +172,7 @@ Untuk memeriksa tahap 1 saja, ikuti [Instalasi dan menjalankan](#instalasi-dan-m
 
 > [!NOTE]
 > Proyek ini dikerjakan dalam waktu terbatas (tenggat technical test), dan saya harus memilih apa yang dikerjakan lebih dulu; tidak semua yang ingin dibuat sempat selesai. Prioritas saya adalah konsep aplikasi, struktur sistem, pembagian modul, dan integrasi yang diminta (API, payment gateway, n8n), bukan kelengkapan fitur toko online penuh. Karena itu beberapa hal belum ada atau disederhanakan:
-> - Akun member (daftar akun dan dashboard riwayat pesanan) belum dibuat: di luar spesifikasi test, dan waktunya tidak cukup. Checkout memakai alur tamu (tanpa akun); rancangan lanjutannya ada di [Rencana pengembangan lanjutan](#rencana-pengembangan-lanjutan).
+> - Akun member lengkap (profil, alamat tersimpan, kata sandi) belum dibuat: di luar spesifikasi test. Yang ada hanya login tanpa kata sandi yang opsional beserta riwayat pesanan (lihat [Login pelanggan](#login-pelanggan-opsional)); checkout tetap bisa dipakai sebagai tamu. Rancangan lanjutannya ada di [Rencana pengembangan lanjutan](#rencana-pengembangan-lanjutan).
 > - Pesan WhatsApp otomatis tidak ada; WhatsApp hanya tautan chat (click-to-chat). Pesan otomatis butuh WhatsApp Business API.
 > - Pembayaran hanya sandbox iPaymu, dan demo berjalan dari laptop lewat tunnel, bukan hosting produksi.
 > - Admin memakai satu akun dari environment variable, tanpa manajemen pengguna atau peran; token login disimpan di `localStorage`.
@@ -250,6 +250,7 @@ Pembeli tetap bisa checkout tanpa akun, dan itu tetap jalur utama. Akun hanya me
 - **Aktif hanya bila** `CUSTOMER_AUTH_SECRET` (min 32 karakter, harus berbeda dari `AUTH_SECRET`) dan `SMTP_HOST` terisi. Di Docker Compose, SMTP sudah menunjuk Mailpit, jadi cukup mengisi `CUSTOMER_AUTH_SECRET`; kode login bisa dibaca di http://localhost:8025. Bila kosong, `/auth/config` melaporkan `enabled: false` dan rute lain menjawab `503 CUSTOMER_LOGIN_DISABLED` beserta petunjuknya.
 - **Keamanan:** yang disimpan hanya HMAC kode, bukan kodenya; satu kode maksimal 5 percobaan; permintaan kode dibatasi per email (jeda 60 detik, 5 per jam) dan per IP; semua kegagalan memakai pesan yang sama sehingga tidak membocorkan apakah sebuah email pernah dipakai; token sesi ditandatangani dengan kunci turunan yang terpisah dari token admin, jadi tidak bisa dipakai di `/admin` walau nilai secret-nya sama; email kode yang gagal terkirim menjawab `503 EMAIL_SEND_FAILED` dan tidak menghabiskan jatah permintaan.
 - **Riwayat pesanan** dicocokkan lewat email yang terbukti dimiliki lewat kode, jadi pesanan yang dibuat sebelum akun ada ikut muncul. Tabel `orders` tidak diubah.
+- **Tampilan web:** `/login` (email, lalu kode 6 digit yang otomatis dikirim begitu lengkap, tombol kirim ulang dengan hitung mundur dari server) dan `/akun` ("Pesanan saya": status, total, dan tautan ke `/orders/[id]`). Tombol Masuk/Akun di header hanya muncul bila `/auth/config` melaporkan `enabled: true`; di HP tombolnya ada di menu. Pelanggan yang sudah masuk mendapat isian email checkout otomatis (tetap bisa diubah). Teks tersedia dalam bahasa Indonesia dan Inggris. Tujuan `?next=` hanya menerima path internal, jadi tidak bisa dipakai untuk open redirect.
 - **Batasan:** sesi berupa token bertanda tangan 30 hari tanpa daftar pencabutan, jadi "keluar" menghapus token di browser tetapi tidak membatalkannya di server. Pembatas per IP ada di memori satu proses (lihat Pembatasan laju).
 
 ## Menguji n8n
@@ -526,7 +527,7 @@ Dropdown provinsi, kota/kabupaten, dan kecamatan di checkout memakai data statis
 
 ## Batasan yang diketahui
 
-- Token login admin disimpan di `localStorage`, jadi rentan bila ada celah XSS. Dipilih demi kesederhanaan untuk technical test; produksi sebaiknya memakai cookie `HttpOnly`.
+- Token login admin dan token pelanggan (`nomadia_customer`) disimpan di `localStorage`, jadi rentan bila ada celah XSS. Dipilih demi kesederhanaan untuk technical test; produksi sebaiknya memakai cookie `HttpOnly`.
 - Pembatas laju (termasuk pembatas login) ada di memori dan per IP: cukup untuk satu instance, bukan proteksi penuh terhadap serangan terdistribusi. Lihat [Pembatasan laju](#pembatasan-laju) untuk `TRUST_PROXY_HOPS` di belakang proxy.
 - Membatalkan order dari admin hanya mengubah status di database, bukan membatalkan sesi bayar di iPaymu. Bila pelanggan terlanjur bayar sesudahnya, webhook mencatatnya ke log untuk ditinjau manual dan tidak mengembalikan status ke lunas.
 - Beberapa pesan validasi dari zod masih berbahasa Inggris.
