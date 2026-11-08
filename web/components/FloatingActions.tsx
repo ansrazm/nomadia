@@ -25,7 +25,10 @@ function WhatsAppIcon() {
   );
 }
 
-/** Tombol melayang di pojok kanan bawah: WhatsApp (jika nomor diatur) dan panel bantuan berisi jawaban cepat. */
+/**
+ * Tombol melayang di pojok kanan bawah: WhatsApp (jika nomor diatur) dan panel bantuan berisi jawaban cepat.
+ * Saat ada bar melayang di dasar layar (bar beli), tombol naik setinggi bar lewat --bar-offset; di layar lebar bar ada di tengah dan tidak bertabrakan.
+ */
 export function FloatingActions() {
   const { lang, t } = useLang();
   const quickFaqs = getQuickFaqs(lang);
@@ -53,7 +56,7 @@ export function FloatingActions() {
   }, [open]);
 
   return (
-    <div ref={rootRef} className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3">
+    <div ref={rootRef} className="fixed bottom-[calc(1.25rem+var(--bar-offset,0px))] right-5 z-40 flex flex-col items-end gap-3 transition-[bottom] duration-300 min-[920px]:bottom-5">
       <AnimatePresence>
         {open && (
           <motion.div

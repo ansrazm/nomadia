@@ -23,7 +23,7 @@ export function CartToast() {
   }, [lastAdded, dismissAdded]);
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-36 z-40 flex justify-center px-4 sm:bottom-4 sm:justify-end sm:pl-8 sm:pr-24">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(9.75rem+var(--bar-offset,0px))] z-40 flex justify-center px-4 sm:bottom-[calc(1rem+var(--bar-offset,0px))] sm:justify-end sm:pl-8 sm:pr-24">
       <AnimatePresence>
         {lastAdded && !hidden && (
           <motion.div
