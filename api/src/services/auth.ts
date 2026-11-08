@@ -13,8 +13,8 @@ export function safeEqual(a: string, b: string): boolean {
 }
 
 /** Token bertanda tangan HMAC: base64url(payload).tanda-tangan. Tanpa dependensi tambahan. */
-export function signToken(secret: string, sub: string, now = Date.now()): { token: string; expiresAt: number } {
-  const expiresAt = now + TTL_MS;
+export function signToken(secret: string, sub: string, now = Date.now(), ttlMs = TTL_MS): { token: string; expiresAt: number } {
+  const expiresAt = now + ttlMs;
   const payload = b64(JSON.stringify({ sub, exp: expiresAt }));
   return { token: `${payload}.${mac(secret, payload)}`, expiresAt };
 }
@@ -60,3 +60,9 @@ export class LoginLimiter {
   reset(key: string) { this.fails.delete(key); }
   get size() { return this.fails.size; }
 }
+
+/**
+ * Kunci sesi pelanggan diturunkan dari secret-nya dengan label tetap. Dengan begitu token pelanggan tidak pernah valid
+ * sebagai token admin (dan sebaliknya), sekalipun operator keliru memakai nilai secret yang sama di dua tempat.
+ */
+export const customerKey = (secret: string) => createHmac("sha256", secret).update("nomadia:customer-session:v1").digest("hex");

@@ -242,6 +242,16 @@ Aktif hanya bila `ADMIN_EMAIL`, `ADMIN_PASSWORD` (min 12 karakter), dan `AUTH_SE
 
 Token berlaku 8 jam. Login gagal 5x dari satu IP dalam 15 menit diblokir sementara (429).
 
+## Login pelanggan (opsional)
+
+Pembeli tetap bisa checkout tanpa akun, dan itu tetap jalur utama. Akun hanya menambah riwayat pesanan.
+
+- **Tanpa kata sandi:** pelanggan memasukkan email, menerima kode 6 digit (berlaku 10 menit, sekali pakai), lalu memasukkannya. Tidak ada kata sandi yang bisa bocor atau terlupa.
+- **Aktif hanya bila** `CUSTOMER_AUTH_SECRET` (min 32 karakter, harus berbeda dari `AUTH_SECRET`) dan `SMTP_HOST` terisi. Di Docker Compose, SMTP sudah menunjuk Mailpit, jadi cukup mengisi `CUSTOMER_AUTH_SECRET`; kode login bisa dibaca di http://localhost:8025. Bila kosong, `/auth/config` melaporkan `enabled: false` dan rute lain menjawab `503 CUSTOMER_LOGIN_DISABLED` beserta petunjuknya.
+- **Keamanan:** yang disimpan hanya HMAC kode, bukan kodenya; satu kode maksimal 5 percobaan; permintaan kode dibatasi per email (jeda 60 detik, 5 per jam) dan per IP; semua kegagalan memakai pesan yang sama sehingga tidak membocorkan apakah sebuah email pernah dipakai; token sesi ditandatangani dengan kunci turunan yang terpisah dari token admin, jadi tidak bisa dipakai di `/admin` walau nilai secret-nya sama; email kode yang gagal terkirim menjawab `503 EMAIL_SEND_FAILED` dan tidak menghabiskan jatah permintaan.
+- **Riwayat pesanan** dicocokkan lewat email yang terbukti dimiliki lewat kode, jadi pesanan yang dibuat sebelum akun ada ikut muncul. Tabel `orders` tidak diubah.
+- **Batasan:** sesi berupa token bertanda tangan 30 hari tanpa daftar pencabutan, jadi "keluar" menghapus token di browser tetapi tidak membatalkannya di server. Pembatas per IP ada di memori satu proses (lihat Pembatasan laju).
+
 ## Menguji n8n
 
 Workflow `n8n/nomadia-order-paid.json` menerima event `order.paid`, **memeriksa tanda tangan HMAC dan kesegaran timestamp** (5 menit), lalu mengirim email konfirmasi ke pelanggan (SMTP; di Compose ke Mailpit), lengkap dengan **kode aktivasi dan QR eSIM sebagai lampiran PNG** untuk setiap unit eSIM yang dibeli, dan notifikasi Telegram ke pemilik toko. Tanda tangan tidak sah dibalas **401** supaya pengirim mencatat kegagalan. Diuji dengan n8n 2.35.7.
@@ -440,6 +450,10 @@ Setelah mengubah `NEXT_PUBLIC_API_URL`, restart `npm run dev` web.
 | POST | `/quote` | Harga keranjang `{items:[{productId, qty}], voucher?}` → baris, `subtotal`, `discount`, `total` |
 | POST | `/orders` | Buat order `{name, email, phone, items:[{productId, qty}], voucher?, departureDate?, delivery?}`. `phone` wajib (0812…, +62 812…). Keranjang berisi SIM Card atau Portable WiFi: `departureDate` (YYYY-MM-DD, tidak lewat, maks. 2 tahun) dan `delivery` juga wajib: `{method:"ship", address:{recipient, street, district, city, province, postalCode, notes?}}` (provinsi dari daftar 38 provinsi, kode pos 5 digit) atau `{method:"pickup", detail:<titik ambil>}`. 422 `VALIDATION_FAILED` memuat `details` per field; galat alamat juga ditunjuk per kolom (`address.postalCode`, …) |
 | GET | `/orders/:id` | Detail order (email dan nomor HP disamarkan, alamat tidak dikirim) |
+| GET | `/auth/config` | `{enabled}`: apakah login pelanggan aktif (web menyembunyikan tombol masuk bila tidak) |
+| POST | `/auth/request-code` | `{email, lang?}` → mengirim kode 6 digit ke email. Jeda 60 detik dan paling banyak 5 kode per jam per email |
+| POST | `/auth/verify` | `{email, code}` → `{token, expiresAt, customer}`; token sesi berlaku 30 hari |
+| GET | `/me`, `/me/orders` | Akun dan riwayat pesanan pelanggan (`Authorization: Bearer <token>`); pesanan dicocokkan lewat email |
 | GET | `/checkout-config` | Alur bayar yang aktif `{checkoutFlow: "redirect"\|"qris"}`, dipakai halaman checkout untuk teks langkah 3 |
 | POST | `/webhooks/ipaymu` | Callback iPaymu (form atau JSON) |
 
@@ -453,6 +467,9 @@ Jalur publik yang rawan disalahgunakan dibatasi per IP (jendela tetap, dalam mem
 | `POST /quote` | 60 per menit |
 | `GET /orders/:id` | 120 per menit (halaman status memeriksa tiap 4 detik, jadi aman) |
 | `POST /admin/login` | 5 login gagal per 15 menit (pembatas terpisah) |
+| `POST /auth/request-code` | 5 per 10 menit per IP, ditambah jeda dan jatah per email (lihat Login pelanggan) |
+| `POST /auth/verify` | 20 per 10 menit |
+| `/me` dan `/me/orders` | 120 per menit |
 
 `/health` dan `/webhooks/ipaymu` tidak dibatasi. Katalog dan voucher (GET) juga tidak.
 

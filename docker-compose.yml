@@ -19,6 +19,7 @@ services:
     build: ./api
     depends_on:
       db: { condition: service_healthy }
+      mailpit: { condition: service_started }
     environment:
       PORT: "4000"
       DATABASE_URL: postgres://nomadia:nomadia@db:5432/nomadia
@@ -36,6 +37,15 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       AUTH_SECRET: ${AUTH_SECRET:-}
+      # Login pelanggan (kode 6 digit lewat email). Aktif bila CUSTOMER_AUTH_SECRET diisi (minimal 32 karakter, beda dari AUTH_SECRET).
+      # SMTP bawaannya Mailpit di compose ini: kodenya bisa dibaca di http://localhost:8025.
+      CUSTOMER_AUTH_SECRET: ${CUSTOMER_AUTH_SECRET:-}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-Nomadia <no-reply@nomadia.local>}
       # Pembatasan laju per IP. Di belakang Cloudflare Tunnel / Nginx / Caddy isi TRUST_PROXY_HOPS=1 (jumlah proxy tepercaya).
       RATE_LIMIT: ${RATE_LIMIT:-on}
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}

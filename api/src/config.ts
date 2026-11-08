@@ -20,6 +20,14 @@ const schema = z.object({
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().min(12, "ADMIN_PASSWORD minimal 12 karakter").optional(),
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET minimal 32 karakter").optional(),
+  // Login pelanggan (kode lewat email). Aktif bila CUSTOMER_AUTH_SECRET dan SMTP_HOST terisi; kosong = fitur mati.
+  CUSTOMER_AUTH_SECRET: z.string().min(32, "CUSTOMER_AUTH_SECRET minimal 32 karakter").optional(),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(1025),
+  SMTP_SECURE: z.enum(["true", "false", "1", "0"]).default("false"),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().min(3).default("Nomadia <no-reply@nomadia.local>"),
   // Pembatasan laju per IP untuk jalur publik. off = mati.
   RATE_LIMIT: z.enum(["on", "off"]).default("on"),
   // Jumlah proxy tepercaya di depan API (Nginx, Caddy, Cloudflare...). 0 = baca IP dari koneksi TCP, abaikan X-Forwarded-For.
@@ -36,6 +44,7 @@ export interface Config {
   ipaymu: { va: string; apiKey: string; mode: "sandbox" | "live"; debug: boolean } | null;
   n8n: { url: string; secret: string } | null;
   admin: { email: string; password: string; secret: string } | null;
+  customerLogin: { secret: string; smtp: { host: string; port: number; secure: boolean; user?: string; pass?: string; from: string } } | null;
   rateLimit: { trustProxyHops: number } | null;
 }
 
@@ -53,6 +62,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (!!d.N8N_WEBHOOK_URL !== !!d.N8N_WEBHOOK_SECRET) throw new Error("Konfigurasi tidak valid: N8N_WEBHOOK_URL dan N8N_WEBHOOK_SECRET harus diisi berpasangan");
   const adminSet = [d.ADMIN_EMAIL, d.ADMIN_PASSWORD, d.AUTH_SECRET].filter(Boolean).length;
   if (adminSet !== 0 && adminSet !== 3) throw new Error("Konfigurasi tidak valid: ADMIN_EMAIL, ADMIN_PASSWORD, dan AUTH_SECRET harus diisi bersamaan");
+  if (d.CUSTOMER_AUTH_SECRET && !d.SMTP_HOST) throw new Error("Konfigurasi tidak valid: CUSTOMER_AUTH_SECRET butuh SMTP_HOST (kode login dikirim lewat email)");
+  if (d.CUSTOMER_AUTH_SECRET && d.CUSTOMER_AUTH_SECRET === d.AUTH_SECRET) throw new Error("Konfigurasi tidak valid: CUSTOMER_AUTH_SECRET harus berbeda dari AUTH_SECRET");
+  if (!!d.SMTP_USER !== !!d.SMTP_PASS) throw new Error("Konfigurasi tidak valid: SMTP_USER dan SMTP_PASS harus diisi berpasangan");
   return {
     port: d.PORT,
     databaseUrl: d.DATABASE_URL,
@@ -63,6 +75,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     ipaymu: d.IPAYMU_VA && d.IPAYMU_API_KEY ? { va: d.IPAYMU_VA, apiKey: d.IPAYMU_API_KEY, mode: d.IPAYMU_MODE, debug: d.IPAYMU_DEBUG === "true" || d.IPAYMU_DEBUG === "1" } : null,
     n8n: d.N8N_WEBHOOK_URL && d.N8N_WEBHOOK_SECRET ? { url: d.N8N_WEBHOOK_URL, secret: d.N8N_WEBHOOK_SECRET } : null,
     admin: d.ADMIN_EMAIL && d.ADMIN_PASSWORD && d.AUTH_SECRET ? { email: d.ADMIN_EMAIL, password: d.ADMIN_PASSWORD, secret: d.AUTH_SECRET } : null,
+    customerLogin:
+      d.CUSTOMER_AUTH_SECRET && d.SMTP_HOST
+        ? {
+            secret: d.CUSTOMER_AUTH_SECRET,
+            smtp: { host: d.SMTP_HOST, port: d.SMTP_PORT, secure: d.SMTP_SECURE === "true" || d.SMTP_SECURE === "1", ...(d.SMTP_USER && d.SMTP_PASS ? { user: d.SMTP_USER, pass: d.SMTP_PASS } : {}), from: d.SMTP_FROM },
+          }
+        : null,
     rateLimit: d.RATE_LIMIT === "off" ? null : { trustProxyHops: d.TRUST_PROXY_HOPS },
   };
 }

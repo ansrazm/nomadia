@@ -7,6 +7,7 @@ import { autoSeed } from "./db/seed.js";
 import { IpaymuClient } from "./payments/ipaymu.js";
 import { OutboxDispatcher } from "./services/outbox.js";
 import { getCheckoutFlow } from "./services/settings.js";
+import { SmtpMailer } from "./services/mailer.js";
 
 const config = loadConfig();
 const db = createPool(config.databaseUrl);
@@ -17,10 +18,11 @@ if (seeded === "diisi") console.log("Katalog kosong: contoh destinasi, produk, v
 const gateway = config.ipaymu ? new IpaymuClient(config.ipaymu) : null;
 const outbox = config.n8n ? new OutboxDispatcher({ db, url: config.n8n.url, secret: config.n8n.secret }) : null;
 outbox?.start();
+const customerAuth = config.customerLogin ? { secret: config.customerLogin.secret, mailer: new SmtpMailer(config.customerLogin.smtp) } : null;
 const startFlow = await getCheckoutFlow(db, config.checkoutFlow);
-console.log(`iPaymu: ${config.ipaymu ? `${config.ipaymu.mode}, alur ${startFlow.flow} (${startFlow.source === "database" ? "dari admin" : "dari env"})` : "nonaktif (order dibuat tanpa paymentUrl)"} | n8n: ${config.n8n ? "aktif" : "nonaktif"} | CMS admin: ${config.admin ? "aktif" : "nonaktif"} | rate limit: ${config.rateLimit ? `aktif (proxy tepercaya: ${config.rateLimit.trustProxyHops})` : "nonaktif"}`);
+console.log(`iPaymu: ${config.ipaymu ? `${config.ipaymu.mode}, alur ${startFlow.flow} (${startFlow.source === "database" ? "dari admin" : "dari env"})` : "nonaktif (order dibuat tanpa paymentUrl)"} | n8n: ${config.n8n ? "aktif" : "nonaktif"} | CMS admin: ${config.admin ? "aktif" : "nonaktif"} | login pelanggan: ${config.customerLogin ? "aktif" : "nonaktif"} | rate limit: ${config.rateLimit ? `aktif (proxy tepercaya: ${config.rateLimit.trustProxyHops})` : "nonaktif"}`);
 
-const app = createApp({ db, corsOrigins: config.corsOrigins, gateway, outbox, publicApiUrl: config.publicApiUrl, checkoutFlow: config.checkoutFlow, webUrl: config.webUrl, admin: config.admin, rateLimit: config.rateLimit });
+const app = createApp({ db, corsOrigins: config.corsOrigins, gateway, outbox, publicApiUrl: config.publicApiUrl, checkoutFlow: config.checkoutFlow, webUrl: config.webUrl, admin: config.admin, customerAuth, rateLimit: config.rateLimit });
 const server = serve({ fetch: app.fetch, port: config.port }, (i) => console.log(`Nomadia API di http://localhost:${i.port}`));
 
 const stop = () => {
