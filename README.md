@@ -97,6 +97,23 @@ flowchart LR
     C["CMS /admin"] -->|"/admin/* + token"| A
 ```
 
+### Daftar koneksi API
+
+Semua koneksi antar-komponen, dibedakan internal (di dalam sistem ini) dan eksternal (layanan pihak ketiga).
+
+| # | Koneksi | Jenis | Cara kerja | Bila gagal |
+|---|---|---|---|---|
+| 1 | Browser → API (`/quote`, `/orders`, `/orders/[id]`) | Internal, REST JSON | Harga dihitung server; validasi zod; pembatas laju per IP | Pesan galat per kolom; status pesanan dicoba lagi berkala |
+| 2 | Web (server component) → API katalog | Internal, REST JSON | Alamat lewat `API_INTERNAL_URL`, dirender di server saat request | Halaman tetap tampil dengan data yang tersedia; fitur rute disembunyikan |
+| 3 | CMS `/admin` → API `/admin/*` | Internal, REST JSON | Login admin dari environment variable, token bertanda tangan | 401; admin bisa dimatikan dengan env kosong |
+| 4 | API → n8n (`order.paid`) | Internal, webhook | Header `X-Nomadia-Signature` (HMAC-SHA256 dengan timestamp), ditulis lewat outbox | Dicoba ulang dengan backoff sampai 10 kali; event tidak hilang |
+| 5 | API → **iPaymu** (buat tagihan, Check Transaction) | **Eksternal**, REST | Permintaan ditandatangani dengan API key; sandbox | Galat dari iPaymu diteruskan sebagai respons gagal, pesanan tetap `pending` |
+| 6 | **iPaymu** → API (`/webhooks/ipaymu`) | **Eksternal**, callback masuk | Hanya `trx_id` dipakai; status dan nominal dibaca ulang lewat Check Transaction; idempotent | Dibalas 502 supaya iPaymu mengulang; nominal tidak cocok ditolak 409 |
+| 7 | n8n → SMTP (email konfirmasi + QR eSIM) | **Eksternal** (Mailpit di demo) | Node email di workflow | Eksekusi n8n gagal terlihat di tab Executions |
+| 8 | n8n → **Telegram Bot API** | **Eksternal**, opsional | Aktif hanya bila `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` diisi | Dilewati bila kosong |
+| 9 | Browser → WhatsApp | Tautan click-to-chat (`wa.me`), bukan API | Nomor dari `NEXT_PUBLIC_WHATSAPP_NUMBER`; tombol disembunyikan bila kosong | Tidak ada |
+| 10 | API → pemasok eSIM | **Belum terhubung** | `services/esim.ts` membuat kode aktivasi contoh | Diganti pemanggilan API pemasok di produksi |
+
 ### Pembagian modul
 
 ```
@@ -473,6 +490,9 @@ Belum dikerjakan; ini arah yang dipilih bila proyek dilanjutkan, bukan fitur yan
   - Pesanan tamu lama bisa ditautkan ke akun lewat email yang sudah terverifikasi (kolom `customer_email` sudah ada di setiap order).
   - Verifikasi email dan reset password lewat n8n, memakai jalur outbox yang sudah ada untuk email konfirmasi.
   - Sesi memakai pola token bertanda tangan seperti admin, tetapi disimpan di cookie `HttpOnly` (lihat [Batasan yang diketahui](#batasan-yang-diketahui)), dengan rute `/akun` dan `/akun/pesanan` di web.
+- **Login dengan Google (OAuth 2.0 / OpenID Connect)** sebagai pilihan masuk di atas akun member: API menukar kode dari Google dengan email terverifikasi, lalu memakai tabel `users` dan sesi yang sama. Dibuat opsional lewat environment variable (client ID dan secret), supaya Compose tetap jalan tanpa kredensial Google.
+- **Asisten AI di panel bantuan.** Saat ini panel bantuan hanya menampilkan FAQ statis. Rancangannya: pesan pengguna ke API, diteruskan ke webhook n8n yang memanggil model bahasa dengan data katalog sebagai konteks (agar harga dan paket tidak dikarang), lalu jawabannya dikembalikan. Opsional lewat kunci API, dengan cadangan ke FAQ bila kosong atau gagal.
+- **Workflow n8n tambahan**: ringkasan penjualan harian ke Telegram dan pemberitahuan pesanan kedaluwarsa. Keduanya butuh event baru di outbox (selain `order.paid`).
 - **Pesan WhatsApp otomatis** (konfirmasi dan status pengiriman) lewat node WhatsApp Business Cloud di n8n, bila kredensial Meta tersedia.
 - **Halaman kategori per jenis koneksi** (eSIM, SIM Card, Portable WiFi) sebagai landing page sendiri, dan FAQ yang dikelola dari CMS.
 
