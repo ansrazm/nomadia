@@ -8,6 +8,8 @@ import { accountExistsEmail, codeEmail, loginCodeEmail, noAccountEmail, type Mai
 import { normalizePhone } from "../services/order-details.js";
 import { PASSWORD_MAX, PASSWORD_MIN } from "../services/passwords.js";
 import { rateLimit } from "../services/rate-limit.js";
+import { createAddress, deleteAddress, listAddresses, updateAddress } from "../services/addresses.js";
+import { shipAddress } from "./schemas.js";
 
 export interface CustomerAuthConfig {
   secret: string;
@@ -54,6 +56,20 @@ const profileBody = z
       }),
   })
   .refine((b) => b.name !== undefined || b.phone !== undefined, { message: "Kirim minimal satu field: name atau phone" });
+
+const labelBase = z.string().trim().max(30, "Label maksimal 30 karakter").nullable().optional();
+const addressBody = z.object({ label: labelBase.transform((v) => v || null), address: shipAddress, isDefault: z.boolean().optional() });
+// Patch: label tidak dikirim = tidak diubah; null atau teks kosong = menghapus label. isDefault hanya bisa true (menjadikan utama).
+const addressPatchBody = z
+  .object({ label: labelBase.transform((v) => (v === undefined ? undefined : v || null)), address: shipAddress.optional(), isDefault: z.literal(true, { errorMap: () => ({ message: "isDefault hanya boleh true" }) }).optional() })
+  .refine((b) => b.label !== undefined || b.address !== undefined || b.isDefault !== undefined, { message: "Kirim minimal satu field: label, address, atau isDefault" });
+
+/** Galat zod per field. Galat di dalam alamat juga dilaporkan per kolom (`address.postalCode`), sama seperti di checkout. */
+function addressFieldErrors(error: z.ZodError): Record<string, string[]> {
+  const out: Record<string, string[]> = { ...error.flatten().fieldErrors } as Record<string, string[]>;
+  for (const i of error.issues) if (i.path[0] === "address" && typeof i.path[1] === "string") (out[`address.${i.path[1]}`] ??= []).push(i.message);
+  return out;
+}
 
 async function readJson(c: Context): Promise<unknown> {
   return c.req.json().catch(() => {
@@ -212,6 +228,34 @@ export function customerRoutes(db: Db, cfg: CustomerAuthConfig | null, rl: { tru
     const parsed = changePasswordBody.safeParse(await readJson(c));
     if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Data tidak valid.", parsed.error.flatten().fieldErrors);
     return session(c, await changePassword(db, cu.id, cu.email, parsed.data.currentPassword, parsed.data.newPassword));
+  });
+
+  // Alamat tersimpan (paling banyak 5 per akun). Semua operasi dibatasi ke pemilik akun; id milik akun lain dijawab 404.
+  app.get("/me/addresses", async (c) => {
+    const cu = c.get("customer" as never) as Customer;
+    return c.json({ data: await listAddresses(db, cu.id) });
+  });
+
+  app.post("/me/addresses", async (c) => {
+    const cu = c.get("customer" as never) as Customer;
+    const parsed = addressBody.safeParse(await readJson(c));
+    if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Data tidak valid.", addressFieldErrors(parsed.error));
+    const { label, address, isDefault } = parsed.data;
+    return c.json({ data: await createAddress(db, cu.id, { label, address, makeDefault: isDefault === true }) }, 201);
+  });
+
+  app.patch("/me/addresses/:id", async (c) => {
+    const cu = c.get("customer" as never) as Customer;
+    const parsed = addressPatchBody.safeParse(await readJson(c));
+    if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Data tidak valid.", addressFieldErrors(parsed.error));
+    const { label, address, isDefault } = parsed.data;
+    return c.json({ data: await updateAddress(db, cu.id, c.req.param("id"), { ...(label !== undefined ? { label } : {}), ...(address ? { address } : {}), ...(isDefault ? { makeDefault: true as const } : {}) }) });
+  });
+
+  app.delete("/me/addresses/:id", async (c) => {
+    const cu = c.get("customer" as never) as Customer;
+    await deleteAddress(db, cu.id, c.req.param("id"));
+    return c.json({ data: { deleted: true } });
   });
 
   app.get("/me/orders", async (c) => {
