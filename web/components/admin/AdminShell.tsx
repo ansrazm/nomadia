@@ -46,14 +46,19 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen md:flex">
       <aside className="bg-ink text-white md:sticky md:top-0 md:h-screen md:w-60 md:shrink-0">
-        {/* Di HP: logo di kiri, tombol Lihat toko dan Keluar selalu terlihat di kanan (dibungkus bila layar sangat sempit). Di desktop: susunan sidebar. */}
+        {/* Di HP: logo di kiri, Lihat toko dan Keluar di kanan. Grup tombol memakai ml-auto supaya tetap rata kanan walau layar sempit
+            membungkusnya ke baris kedua. Keduanya setinggi 44 px, berjarak 12 px, dan bentuknya dibedakan (ikon bergaris vs tombol isi
+            kuning) supaya tidak salah ketuk. Di desktop: susunan sidebar. */}
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 md:block md:px-5 md:py-6">
           <Link href="/" aria-label="nomadia admin, buka toko" className="flex items-center gap-2 font-display text-lg font-bold md:text-xl">
             <SignalBars level={4} className="h-4" /> nomadia <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">admin</span>
           </Link>
-          <div className="flex shrink-0 items-center gap-2 md:hidden">
-            <Link href="/" className="rounded-full border border-white/25 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10">← Lihat toko</Link>
-            <button type="button" className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-signal hover:bg-white/15" onClick={logout}>Keluar</button>
+          <div className="ml-auto flex shrink-0 items-center gap-3 md:hidden">
+            <Link href="/" aria-label="Lihat toko" className="flex h-11 items-center justify-center gap-2 rounded-full border border-white/25 px-3 text-sm font-semibold text-white hover:bg-white/10 sm:px-4">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 10 5.5 4h13L20 10M4 10h16M5 10v10h14V10M10 20v-5h4v5" /></svg>
+              <span className="hidden sm:inline">Lihat toko</span>
+            </Link>
+            <button type="button" className="h-11 rounded-full bg-white/10 px-4 text-sm font-semibold text-signal hover:bg-white/15" onClick={logout}>Keluar</button>
           </div>
           <div className="hidden md:mt-6 md:block">
             <p className="truncate text-xs text-white/60">{email}</p>
