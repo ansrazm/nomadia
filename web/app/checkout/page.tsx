@@ -379,7 +379,7 @@ function CheckoutForm() {
               </div>
             )}
             {needsDelivery && (
-              <fieldset className="sm:col-span-2">
+              <fieldset className="min-w-0 sm:col-span-2">
                 <legend className="text-sm font-semibold">{t("co.addr")}</legend>
                 <p className="mt-0.5 text-xs text-ink/55">{t("co.addrHint")}</p>
                 {/* Alamat dilipat jadi satu baris di semua ukuran layar (ringkasan setelah terisi). */}

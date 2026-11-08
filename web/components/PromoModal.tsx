@@ -94,7 +94,7 @@ export function PromoModal() {
               type="button"
               onClick={close}
               aria-label={t("promo.closeAria")}
-              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-lg hover:bg-white/20"
+              className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-lg hover:bg-white/20"
             >
               ×
             </button>
