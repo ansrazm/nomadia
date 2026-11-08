@@ -15,7 +15,7 @@ export function safeEqual(a: string, b: string): boolean {
 /** Token bertanda tangan HMAC: base64url(payload).tanda-tangan. Tanpa dependensi tambahan. */
 export function signToken(secret: string, sub: string, now = Date.now(), ttlMs = TTL_MS): { token: string; expiresAt: number } {
   const expiresAt = now + ttlMs;
-  const payload = b64(JSON.stringify({ sub, exp: expiresAt }));
+  const payload = b64(JSON.stringify({ sub, exp: expiresAt, iat: now }));
   return { token: `${payload}.${mac(secret, payload)}`, expiresAt };
 }
 
@@ -27,6 +27,19 @@ export function verifyToken(secret: string, token: string, now = Date.now()): { 
     const { sub, exp } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (typeof sub !== "string" || typeof exp !== "number" || exp <= now) return null;
     return { sub };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Waktu terbit token (ms), atau null untuk token lama yang belum membawanya. Hanya boleh dipanggil untuk token yang
+ * sudah lolos `verifyToken`; fungsi ini tidak memeriksa tanda tangan.
+ */
+export function tokenIssuedAt(token: string): number | null {
+  try {
+    const { iat } = JSON.parse(Buffer.from(token.split(".")[0] ?? "", "base64url").toString("utf8"));
+    return typeof iat === "number" ? iat : null;
   } catch {
     return null;
   }

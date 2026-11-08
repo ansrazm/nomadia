@@ -47,16 +47,21 @@ const wrap = (hello: string, body: string, small: string) =>
 const codeBox = (code: string) =>
   `<p style="font-size:32px;font-weight:700;letter-spacing:8px;background:#fff6d6;border-radius:6px;padding:14px 18px;display:inline-block;margin:4px 0">${code}</p>`;
 
-/** Email kode (masuk atau verifikasi pendaftaran). Kodenya hanya berisi digit, jadi aman dimasukkan ke HTML tanpa escape. */
-export function codeEmail(lang: MailLang, kind: "login" | "register", code: string, minutes: number): { subject: string; text: string; html: string } {
+/** Email kode (masuk, verifikasi pendaftaran, atau atur ulang kata sandi). Kodenya hanya berisi digit, jadi aman dimasukkan ke HTML tanpa escape. */
+export function codeEmail(lang: MailLang, kind: "login" | "register" | "reset", code: string, minutes: number): { subject: string; text: string; html: string } {
   const en = lang === "en";
   const t = {
-    subject: kind === "login" ? (en ? `Your Nomadia sign-in code: ${code}` : `Kode masuk Nomadia: ${code}`) : en ? `Verify your Nomadia account: ${code}` : `Verifikasi akun Nomadia: ${code}`,
+    subject: {
+      login: en ? `Your Nomadia sign-in code: ${code}` : `Kode masuk Nomadia: ${code}`,
+      register: en ? `Verify your Nomadia account: ${code}` : `Verifikasi akun Nomadia: ${code}`,
+      reset: en ? `Reset your Nomadia password: ${code}` : `Atur ulang kata sandi Nomadia: ${code}`,
+    }[kind],
     hello: en ? "Hi," : "Halo,",
-    intro:
-      kind === "login"
-        ? en ? "Use this code to sign in to Nomadia:" : "Gunakan kode ini untuk masuk ke Nomadia:"
-        : en ? "Use this code to verify your email and finish creating your Nomadia account:" : "Gunakan kode ini untuk memverifikasi email dan menyelesaikan pendaftaran akun Nomadia:",
+    intro: {
+      login: en ? "Use this code to sign in to Nomadia:" : "Gunakan kode ini untuk masuk ke Nomadia:",
+      register: en ? "Use this code to verify your email and finish creating your Nomadia account:" : "Gunakan kode ini untuk memverifikasi email dan menyelesaikan pendaftaran akun Nomadia:",
+      reset: en ? "Use this code to set a new password for your Nomadia account:" : "Gunakan kode ini untuk membuat kata sandi baru akun Nomadia:",
+    }[kind],
     valid: en ? `The code is valid for ${minutes} minutes and can only be used once.` : `Kode berlaku ${minutes} menit dan hanya bisa dipakai sekali.`,
     ignore: en ? "If you didn't request this, you can ignore this email. Your account stays safe." : "Kalau kamu tidak memintanya, abaikan saja email ini. Akunmu tetap aman.",
   };
@@ -76,6 +81,21 @@ export function accountExistsEmail(lang: MailLang): { subject: string; text: str
   const ignore = en ? "If this wasn't you, no action is needed." : "Kalau itu bukan kamu, tidak perlu melakukan apa pun.";
   return {
     subject: en ? "You already have a Nomadia account" : "Kamu sudah punya akun Nomadia",
+    text: `${hello}\n\n${body}\n${ignore}\n\nNomadia`,
+    html: wrap(hello, `<p>${body}</p>`, ignore),
+  };
+}
+
+/** Dikirim ke email tanpa akun saat ada yang meminta atur ulang kata sandi. Tanpa kode apa pun, supaya respons luarnya sama dengan email yang punya akun. */
+export function noAccountEmail(lang: MailLang): { subject: string; text: string; html: string } {
+  const en = lang === "en";
+  const hello = en ? "Hi," : "Halo,";
+  const body = en
+    ? "Someone asked to reset the password for a Nomadia account with this email, but there is no account with it yet. If that was you, you can create one on the sign-up page."
+    : "Ada yang meminta atur ulang kata sandi akun Nomadia dengan email ini, tetapi belum ada akun dengan email ini. Kalau itu kamu, kamu bisa membuat akun lewat halaman daftar.";
+  const ignore = en ? "If this wasn't you, no action is needed." : "Kalau itu bukan kamu, tidak perlu melakukan apa pun.";
+  return {
+    subject: en ? "Password reset request for Nomadia" : "Permintaan atur ulang kata sandi Nomadia",
     text: `${hello}\n\n${body}\n${ignore}\n\nNomadia`,
     html: wrap(hello, `<p>${body}</p>`, ignore),
   };

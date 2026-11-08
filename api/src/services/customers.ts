@@ -23,13 +23,15 @@ export interface Customer {
   role: "customer" | "admin";
   /** Akun yang dibuat lewat kode tanpa mendaftar tidak punya kata sandi; mereka tetap bisa masuk lewat kode. */
   hasPassword: boolean;
+  /** Sesi yang terbit sebelum waktu ini (ms) tidak berlaku lagi; null bila belum pernah ada penggantian kata sandi. Tidak dikirim ke klien. */
+  sessionsValidAfterMs: number | null;
 }
 
 export const normalizeEmail = (e: string) => e.trim().toLowerCase();
 
-const CUSTOMER_COLS = "id, email, created_at, name, phone, role, password_hash IS NOT NULL AS has_password";
-interface CustomerRow { id: string; email: string; created_at: Date; name: string | null; phone: string | null; role: Customer["role"]; has_password: boolean }
-const toCustomer = (r: CustomerRow): Customer => ({ id: r.id, email: r.email, createdAt: r.created_at.toISOString(), name: r.name, phone: r.phone, role: r.role, hasPassword: r.has_password });
+const CUSTOMER_COLS = "id, email, created_at, name, phone, role, password_hash IS NOT NULL AS has_password, (extract(epoch FROM sessions_valid_after) * 1000)::float8 AS sessions_valid_after_ms";
+interface CustomerRow { id: string; email: string; created_at: Date; name: string | null; phone: string | null; role: Customer["role"]; has_password: boolean; sessions_valid_after_ms: number | null }
+const toCustomer = (r: CustomerRow): Customer => ({ id: r.id, email: r.email, createdAt: r.created_at.toISOString(), name: r.name, phone: r.phone, role: r.role, hasPassword: r.has_password, sessionsValidAfterMs: r.sessions_valid_after_ms ?? null });
 
 /** HMAC dengan secret: basis data bocor pun tidak membocorkan kode yang masih berlaku (ruang kodenya hanya sejuta). Tujuan ikut di-hash. */
 const hashCode = (secret: string, email: string, purpose: CodePurpose, code: string) => createHmac("sha256", secret).update(`${purpose}:${email}:${code}`).digest("hex");
@@ -218,6 +220,67 @@ export async function loginWithPassword(db: Db, email: string, password: string)
   await db.query("DELETE FROM login_attempts WHERE email = $1", [email]);
   await db.query("UPDATE customers SET last_login_at = now() WHERE id = $1", [row.id]);
   return toCustomer(row);
+}
+
+/**
+ * Langkah 1 lupa kata sandi. Kode diterbitkan untuk email apa pun (jeda dan jatah per email sama, jadi respons luar sama);
+ * bila emailnya tidak punya akun, kodenya ditandai `blocked` dan pemanggil mengirim email "belum ada akun", bukan kode.
+ * Akun tanpa kata sandi (dibuat lewat kode) juga boleh lewat sini untuk memasang kata sandi pertamanya.
+ */
+export async function requestPasswordReset(db: Db, secret: string, email: string): Promise<{ id: number; code: string; exists: boolean }> {
+  const { rowCount } = await db.query("SELECT 1 FROM customers WHERE email = $1 AND email_verified_at IS NOT NULL", [email]);
+  const exists = (rowCount ?? 0) > 0;
+  const issued = await issueCode(db, secret, email, "reset", exists ? null : { blocked: true });
+  return { ...issued, exists };
+}
+
+/**
+ * Langkah 2: kode benar, kata sandi diganti, penguncian login dibersihkan, dan semua sesi lama dicabut. Pemanggil lalu
+ * menerbitkan sesi baru. Kata sandi di-hash setelah kode terbukti, jadi permintaan palsu tidak memakan CPU scrypt.
+ */
+export function resetPassword(db: Db, secret: string, email: string, code: string, newPassword: string): Promise<Customer> {
+  return consumeCode(db, secret, email, code, "reset", async (client, payload) => {
+    if ((payload as { blocked?: unknown } | null)?.blocked) throw BAD_CODE;
+    const hash = await hashPassword(newPassword);
+    const r = await client.query<{ id: string }>(
+      `UPDATE customers SET password_hash = $2, email_verified_at = COALESCE(email_verified_at, now()), last_login_at = now(), sessions_valid_after = $3
+        WHERE email = $1 RETURNING id`,
+      [email, hash, new Date(Date.now())],
+    );
+    if (!r.rows[0]) throw BAD_CODE;
+    await client.query("DELETE FROM login_attempts WHERE email = $1", [email]);
+    return fetchCustomer(client, r.rows[0]!.id);
+  });
+}
+
+/**
+ * Ganti kata sandi dari akun yang sedang masuk. Kata sandi lama wajib benar; salahnya dihitung seperti gagal masuk
+ * (penguncian per email yang sama), supaya sesi curian tidak bisa menebak kata sandi tanpa batas. Akun tanpa kata sandi
+ * tidak boleh memasangnya dari sesi lama; mereka memakai "lupa kata sandi", yang membuktikan email lewat kode baru.
+ */
+export async function changePassword(db: Db, id: string, email: string, current: string, next: string): Promise<Customer> {
+  const wait = await lockedFor(db, email);
+  if (wait > 0) throw new ApiError(429, "ACCOUNT_LOCKED", `Terlalu banyak percobaan. Coba lagi dalam ${Math.ceil(wait / 60)} menit.`, { retryAfterSec: wait });
+  const { rows } = await db.query<{ password_hash: string | null }>("SELECT password_hash FROM customers WHERE id = $1", [id]);
+  const stored = rows[0]?.password_hash;
+  if (!stored) throw new ApiError(409, "NO_PASSWORD", "Akun ini belum memakai kata sandi. Pasang lewat \"Lupa kata sandi\".");
+  if (!(await verifyPassword(current, stored))) {
+    await recordPasswordFailure(db, email);
+    throw new ApiError(403, "CURRENT_PASSWORD_WRONG", "Kata sandi saat ini salah.");
+  }
+  await db.query("UPDATE customers SET password_hash = $2, sessions_valid_after = $3 WHERE id = $1", [id, await hashPassword(next), new Date(Date.now())]);
+  await db.query("DELETE FROM login_attempts WHERE email = $1", [email]);
+  return (await getCustomer(db, id))!;
+}
+
+/** Ubah nama dan/atau telepon. Hanya field yang dikirim yang diubah; telepon null mengosongkannya. Nama kolom tetap, nilai lewat parameter. */
+export async function updateProfile(db: Db, id: string, patch: { name?: string | undefined; phone?: string | null | undefined }): Promise<Customer> {
+  const sets: string[] = [];
+  const vals: unknown[] = [id];
+  if (patch.name !== undefined) { vals.push(cleanName(patch.name)); sets.push(`name = $${vals.length}`); }
+  if (patch.phone !== undefined) { vals.push(patch.phone); sets.push(`phone = $${vals.length}`); }
+  if (sets.length) await db.query(`UPDATE customers SET ${sets.join(", ")} WHERE id = $1`, vals);
+  return (await getCustomer(db, id))!;
 }
 
 export async function getCustomer(db: Db, id: string): Promise<Customer | null> {
