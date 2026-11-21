@@ -1,0 +1,24 @@
+---
+import Base from "../../layouts/Base.astro";
+import { getGuides } from "../../lib/content";
+const guides = await getGuides();
+---
+<Base title="Panduan destinasi" description="Panduan eSIM per destinasi: persiapan, jaringan, tips pemakaian, colokan listrik, dan nomor darurat.">
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Beranda</a> / Panduan</nav>
+  <h1>Panduan destinasi</h1>
+  <p class="lead">Pilih tujuanmu untuk melihat persiapan eSIM dan info praktis di sana.</p>
+  <div class="grid">
+    {guides.map((g) => (
+      <a class="card" href={`/panduan/${g.slug}/`}>
+        <h3>{g.title}</h3>
+        <p>{g.summary}</p>
+        <span class="more">Baca panduan →</span>
+      </a>
+    ))}
+  </div>
+</Base>
+
+<style>
+  h1 { font-size:2rem; margin:0 0 .5rem; }
+  .lead { color:#27465e; margin:0 0 1.5rem; }
+</style>

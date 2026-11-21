@@ -1,0 +1,49 @@
+---
+import Base from "../layouts/Base.astro";
+import { getFaqs, getGuides } from "../lib/content";
+import { storeUrl } from "../lib/store";
+const guides = await getGuides();
+const faqs = (await getFaqs()).filter((f) => f.featured);
+---
+<Base title="Nomadia: panduan eSIM untuk perjalananmu" description="Panduan memasang eSIM, memilih jaringan, dan hal praktis untuk perjalanan ke Jepang, Korea Selatan, Singapura, dan Thailand.">
+  <section class="hero">
+    <p class="eyebrow">Panduan koneksi perjalanan</p>
+    <h1>Berangkat dengan sinyal yang sudah siap.</h1>
+    <p class="lead">Cara memasang eSIM, jaringan yang dipakai, dan info praktis per destinasi. Siap dibaca sebelum kamu membeli paket.</p>
+    <div class="cta">
+      <a class="btn btn-signal" href="/panduan/">Lihat panduan destinasi</a>
+      <a class="btn btn-ghost" href={storeUrl()}>Langsung ke toko</a>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-panduan">
+    <h2 id="h-panduan">Panduan per destinasi</h2>
+    <div class="grid">
+      {guides.map((g) => (
+        <a class="card" href={`/panduan/${g.slug}/`}>
+          <h3>{g.title}</h3>
+          <p>{g.summary}</p>
+          <span class="more">Baca panduan →</span>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  {faqs.length > 0 && (
+    <section aria-labelledby="h-faq" class="faq">
+      <h2 id="h-faq">Pertanyaan yang sering muncul</h2>
+      {faqs.map((f) => <details><summary>{f.question}</summary><p>{f.answer}</p></details>)}
+      <p><a href="/faq/">Lihat semua pertanyaan</a></p>
+    </section>
+  )}
+</Base>
+
+<style>
+  .hero { padding:2.5rem 0 3rem; max-width:44rem; }
+  .eyebrow { color:#0b7f93; font-weight:700; text-transform:uppercase; letter-spacing:.08em; font-size:.8rem; margin:0; }
+  h1 { font-size:clamp(2rem,5vw,3.1rem); margin:.4rem 0 .8rem; }
+  .lead { font-size:1.15rem; color:#27465e; margin:0 0 1.5rem; }
+  .cta { display:flex; gap:.75rem; flex-wrap:wrap; }
+  section + section { margin-top:3rem; }
+  h2 { font-size:1.5rem; margin:0 0 1rem; }
+</style>

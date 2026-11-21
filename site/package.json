@@ -1,0 +1,23 @@
+{
+  "name": "nomadia-site",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Situs panduan Nomadia (Astro, statis). Konten dari Strapi; tombol beli mengarah ke storefront Next.js.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "start": "node server.mjs",
+    "check": "astro check",
+    "fixture": "node scripts/make-fixture.mjs"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.7.0",
+    "astro": "^7.4.13",
+    "marked": "^15.0.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.0",
+    "typescript": "^5.9.0"
+  }
+}

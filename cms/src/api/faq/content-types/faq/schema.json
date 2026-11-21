@@ -1,0 +1,14 @@
+{
+  "kind": "collectionType",
+  "collectionName": "faqs",
+  "info": { "singularName": "faq", "pluralName": "faqs", "displayName": "FAQ", "description": "Pertanyaan umum" },
+  "options": { "draftAndPublish": true },
+  "pluginOptions": {},
+  "attributes": {
+    "question": { "type": "string", "required": true },
+    "answer": { "type": "text", "required": true },
+    "category": { "type": "enumeration", "enum": ["umum", "aktivasi", "pembayaran", "pesanan"], "default": "umum", "required": true },
+    "featured": { "type": "boolean", "default": false },
+    "position": { "type": "integer", "default": 0 }
+  }
+}

@@ -1,0 +1,27 @@
+---
+import Base from "../layouts/Base.astro";
+import { getFaqs } from "../lib/content";
+const faqs = await getFaqs();
+const labels: Record<string, string> = { umum: "Umum", aktivasi: "Aktivasi eSIM", pembayaran: "Pembayaran", pesanan: "Pesanan" };
+const groups = Object.keys(labels).map((key) => ({ key, label: labels[key], items: faqs.filter((f) => f.category === key) })).filter((g) => g.items.length > 0);
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map((f) => ({ "@type": "Question", name: f.question, acceptedAnswer: { "@type": "Answer", text: f.answer } })),
+};
+---
+<Base title="Pertanyaan umum" description="Jawaban untuk pertanyaan umum soal eSIM, aktivasi, pembayaran, dan status pesanan di Nomadia." jsonLd={jsonLd}>
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Beranda</a> / FAQ</nav>
+  <h1>Pertanyaan umum</h1>
+  {groups.map((g) => (
+    <section aria-labelledby={`g-${g.key}`}>
+      <h2 id={`g-${g.key}`}>{g.label}</h2>
+      {g.items.map((f) => <details><summary>{f.question}</summary><p>{f.answer}</p></details>)}
+    </section>
+  ))}
+</Base>
+
+<style>
+  h1 { font-size:2rem; margin:0 0 1rem; }
+  section { max-width:46rem; margin-top:1.75rem; } h2 { font-size:1.2rem; margin:0 0 .5rem; }
+</style>

@@ -1,0 +1,60 @@
+---
+import Base from "../../layouts/Base.astro";
+import { getGuides } from "../../lib/content";
+import { renderMarkdown } from "../../lib/markdown";
+import { storeDestinationUrl } from "../../lib/store";
+import type { Guide } from "../../lib/types";
+
+export async function getStaticPaths() {
+  const guides = await getGuides();
+  return guides.map((guide) => ({ params: { slug: guide.slug }, props: { guide, others: guides.filter((g) => g.slug !== guide.slug) } }));
+}
+interface Props { guide: Guide; others: Guide[] }
+const { guide, others } = Astro.props;
+const html = renderMarkdown(guide.body);
+const buy = storeDestinationUrl(guide.destSlug);
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  headline: guide.title,
+  description: guide.summary,
+  inLanguage: "id",
+  ...(guide.updatedAt ? { dateModified: guide.updatedAt } : {}),
+  publisher: { "@type": "Organization", name: "Nomadia" },
+};
+---
+<Base title={guide.title} description={guide.summary} jsonLd={jsonLd}>
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Beranda</a> / <a href="/panduan/">Panduan</a> / {guide.title}</nav>
+  <article>
+    <h1>{guide.title}</h1>
+    <p class="lead">{guide.summary}</p>
+    <div class="prose" set:html={html} />
+  </article>
+
+  <aside class="buy" aria-label="Beli paket">
+    <div>
+      <h2>Siap memilih paket?</h2>
+      <p>Lihat paket, masa aktif, dan harga terbaru di toko Nomadia.</p>
+    </div>
+    <a class="btn btn-signal" href={buy}>Lihat paket di toko</a>
+  </aside>
+
+  {others.length > 0 && (
+    <section aria-labelledby="h-lain">
+      <h2 id="h-lain">Panduan lain</h2>
+      <div class="grid">
+        {others.map((g) => (
+          <a class="card" href={`/panduan/${g.slug}/`}><h3>{g.title}</h3><p>{g.summary}</p></a>
+        ))}
+      </div>
+    </section>
+  )}
+</Base>
+
+<style>
+  h1 { font-size:clamp(1.8rem,4vw,2.5rem); margin:0 0 .5rem; }
+  .lead { font-size:1.1rem; color:#27465e; max-width:42rem; margin:0 0 1rem; }
+  .buy { margin:2.5rem 0; padding:1.5rem; border-radius:8px; background:var(--ink); color:#fff; display:flex; gap:1rem; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+  .buy h2 { margin:0 0 .25rem; font-size:1.25rem; } .buy p { margin:0; color:#cfe3ee; }
+  section h2 { font-size:1.3rem; margin:0 0 1rem; }
+</style>

@@ -550,6 +550,52 @@ Produk, voucher, atau destinasi yang sudah terpakai di order tidak bisa dihapus 
 
 Format galat: `{ "error": { "code", "message", "details?" } }`.
 
+## Konten editorial (Strapi + Astro)
+
+Lapisan konten untuk SEO, terpisah dari toko. **Harga, katalog, pesanan, dan pembayaran tetap hanya di `api/` (Hono)**; lapisan ini tidak menyimpan satu pun harga.
+
+```
+Editor ──▶ Strapi 5 (cms/) ──webhook──▶ site/server.mjs ──astro build──▶ situs statis (panduan.dragonstorepb.com)
+                                                                              │ tombol "Lihat paket"
+                                                                              ▼
+                                                           Next.js (web/) ──▶ Hono (api/) ──▶ iPaymu ──▶ n8n
+```
+
+| Folder | Isi |
+|---|---|
+| `cms/` | Strapi 5. Content type `guide` (panduan destinasi, markdown, draft/publish) dan `faq`. Konten awal (4 destinasi + 9 FAQ) di-seed saat tabel kosong. `destSlug` pada panduan sama dengan slug destinasi di katalog (`jepang`, `korea-selatan`, `singapura`, `thailand`). |
+| `site/` | Astro, output statis. Halaman: beranda, `/panduan/`, `/panduan/<slug>/`, `/faq/`, sitemap, robots. HTML mentah di konten di-escape dan tautan `javascript:` dibuang. |
+
+**Mengapa statis.** Panduan jarang berubah dan perlu terindeks, jadi dibangun saat konten berubah, bukan saat dibuka pengunjung. `site/server.mjs` menyajikan `dist/` dan menerima webhook Strapi (`POST /__rebuild`, header `x-rebuild-secret`). Beberapa perubahan beruntun digabung jadi satu build. Build masuk ke folder sementara lalu ditukar, jadi build yang gagal (mis. Strapi mati) tidak merusak situs yang sedang tayang; status terakhir ada di `/healthz`.
+
+### Menjalankan
+
+```bash
+# isi CMS_* dan SITE_REBUILD_SECRET di .env (lihat .env.example), lalu:
+docker compose --profile content up --build
+# Strapi: http://localhost:1337/admin (buat admin pertama di browser)
+# Situs : http://localhost:4399
+```
+
+Tanpa Docker, tanpa PostgreSQL (SQLite). Strapi 5 mendukung Node 20 sampai 24; Node 25+ belum didukung. `better-sqlite3` sengaja tidak masuk dependensi karena modul native yang butuh kompilasi, jadi pasang manual:
+
+```bash
+cd cms && npm ci && npm i --no-save better-sqlite3
+cp .env.example .env   # isi secret acak, set DATABASE_CLIENT=sqlite
+npm run build && npm start
+cd ../site && npm ci && STRAPI_URL=http://localhost:1337 node server.mjs
+```
+
+Situs juga bisa dibangun tanpa CMS dari `site/src/data/fixture.json` (kosongkan `STRAPI_URL`). Fixture dibuat dari seed CMS: `cd site && npm run fixture`.
+
+### Domain
+
+Situs panduan berada di subdomain (`panduan.dragonstorepb.com`), toko tetap di `nomadia.dragonstorepb.com`. Set `SITE_URL` dan `STORE_URL` sesuai. Lewat Cloudflare Tunnel, arahkan hanya subdomain panduan ke port 4399; admin Strapi (port 1337) sebaiknya tidak dibuka ke publik.
+
+### Yang sudah diuji
+
+Diuji lokal dengan SQLite: seed, izin baca publik (tulis publik ditolak 403), draft tidak tampil di situs publik, publish memicu build ulang dalam beberapa detik, debounce, build gagal tidak mengubah situs yang tayang, penyaji menolak path traversal, `astro check` 0 error. **Belum diuji:** `docker compose` dan Dockerfile `cms/` serta `site/`, dan Strapi di atas PostgreSQL.
+
 ## Keputusan arsitektur
 
 - **Harga dihitung server, di satu tempat.** Klien hanya mengirim `productId` dan `qty`. `services/pricing.ts` dipakai bersama oleh `/quote` dan `/orders`, jadi angka di keranjang dan di order tidak bisa berbeda (ada tes yang membandingkannya). Harga dan nama disalin ke `order_items` sehingga riwayat tidak berubah saat katalog diedit.

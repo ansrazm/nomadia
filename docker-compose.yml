@@ -100,6 +100,69 @@ services:
     ports:
       - "8025:8025"
 
+  # ---- Konten editorial (profil "content"): docker compose --profile content up --build ----
+  # Strapi menyimpan panduan + FAQ; Astro membangun situs statis dari sana. Katalog, harga, dan pesanan tetap di api/ (Hono).
+  cms-db:
+    profiles: ["content"]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: strapi
+      POSTGRES_PASSWORD: ${CMS_DB_PASSWORD:-strapi}
+      POSTGRES_DB: strapi
+    volumes:
+      - cms_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U strapi -d strapi"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  cms:
+    profiles: ["content"]
+    build: ./cms
+    depends_on:
+      cms-db: { condition: service_healthy }
+    environment:
+      HOST: 0.0.0.0
+      PORT: "1337"
+      APP_KEYS: ${CMS_APP_KEYS:-}
+      API_TOKEN_SALT: ${CMS_API_TOKEN_SALT:-}
+      ADMIN_JWT_SECRET: ${CMS_ADMIN_JWT_SECRET:-}
+      TRANSFER_TOKEN_SALT: ${CMS_TRANSFER_TOKEN_SALT:-}
+      ENCRYPTION_KEY: ${CMS_ENCRYPTION_KEY:-}
+      JWT_SECRET: ${CMS_JWT_SECRET:-}
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: cms-db
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: strapi
+      DATABASE_USERNAME: strapi
+      DATABASE_PASSWORD: ${CMS_DB_PASSWORD:-strapi}
+      CORS_ORIGINS: ${SITE_URL:-http://localhost:4399}
+      # Webhook ke penyaji situs dibuat otomatis oleh Strapi saat start.
+      SITE_REBUILD_URL: http://site:4399/__rebuild
+      SITE_REBUILD_SECRET: ${SITE_REBUILD_SECRET:-}
+    volumes:
+      - cms_uploads:/app/public/uploads
+    ports:
+      - "1337:1337"
+
+  site:
+    profiles: ["content"]
+    build: ./site
+    depends_on:
+      - cms
+    environment:
+      PORT: "4399"
+      STRAPI_URL: http://cms:1337
+      REBUILD_SECRET: ${SITE_REBUILD_SECRET:-}
+      SITE_URL: ${SITE_URL:-http://localhost:4399}
+      # Tujuan tombol "Beli": storefront Next.js. Ikut tertanam di HTML saat build.
+      STORE_URL: ${STORE_URL:-http://localhost:3000}
+    ports:
+      - "4399:4399"
+
 volumes:
   pgdata:
   n8n_data:
+  cms_pgdata:
+  cms_uploads:

@@ -1,0 +1,85 @@
+---
+import { storeUrl } from "../lib/store";
+interface Props { title: string; description: string; jsonLd?: object }
+const { title, description, jsonLd } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const fullTitle = title.includes("Nomadia") ? title : `${title} | Nomadia`;
+const path = Astro.url.pathname;
+const nav = [
+  { href: "/panduan/", label: "Panduan" },
+  { href: "/faq/", label: "FAQ" },
+];
+---
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:locale" content="id_ID" />
+    <meta name="theme-color" content="#0C2B45" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%230C2B45%22/><circle cx=%2250%22 cy=%2250%22 r=%2218%22 fill=%22%2314B8D4%22/></svg>" />
+    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+  </head>
+  <body>
+    <a class="skip" href="#isi">Lewati ke isi</a>
+    <header class="top">
+      <div class="wrap bar">
+        <a class="brand" href="/">Nomadia<span>panduan</span></a>
+        <nav aria-label="Utama">
+          {nav.map((n) => <a href={n.href} aria-current={path.startsWith(n.href) ? "page" : undefined}>{n.label}</a>)}
+        </nav>
+        <a class="btn btn-signal" href={storeUrl()}>Beli eSIM</a>
+      </div>
+    </header>
+    <main id="isi" class="wrap"><slot /></main>
+    <footer class="foot">
+      <div class="wrap">
+        <p>© {new Date().getFullYear()} Nomadia. Proyek demo untuk technical test: pembayaran memakai sandbox iPaymu dan tidak ada uang yang berpindah.</p>
+        <p>Panduan dikelola lewat Strapi dan dibangun statis dengan Astro. Harga dan pesanan ada di <a href={storeUrl()}>toko Nomadia</a>.</p>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style is:global>
+  :root { --ink:#0C2B45; --deep:#103B5E; --lagoon:#14B8D4; --signal:#FFC93C; --mist:#F1F8FB; --line:#D9E7EE; --muted:#4a6478; }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: 5rem; }
+  body { margin:0; font-family: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--mist); color:var(--ink); line-height:1.6; -webkit-font-smoothing:antialiased; }
+  h1,h2,h3 { font-family: "Bricolage Grotesque", "Figtree", ui-sans-serif, system-ui, sans-serif; line-height:1.2; letter-spacing:-.01em; }
+  a { color:var(--deep); }
+  :focus-visible { outline:3px solid var(--signal); outline-offset:2px; border-radius:6px; }
+  .wrap { width:100%; max-width:68rem; margin:0 auto; padding:0 1.25rem; }
+  main.wrap { padding-top:2rem; padding-bottom:4rem; }
+  .skip { position:absolute; left:-999px; } .skip:focus { left:1rem; top:1rem; background:#fff; padding:.5rem .75rem; z-index:20; }
+  .top { background:var(--ink); color:#fff; position:sticky; top:0; z-index:10; }
+  .bar { display:flex; align-items:center; gap:1.25rem; min-height:3.5rem; }
+  .brand { color:#fff; text-decoration:none; font-weight:800; font-size:1.25rem; font-family:"Bricolage Grotesque","Figtree",system-ui,sans-serif; }
+  .brand span { color:var(--lagoon); font-weight:600; font-size:.85rem; margin-left:.4rem; }
+  .top nav { display:flex; gap:1rem; margin-left:auto; }
+  .top nav a { color:#cfe3ee; text-decoration:none; padding:.4rem .2rem; border-bottom:2px solid transparent; }
+  .top nav a:hover, .top nav a[aria-current] { color:#fff; border-color:var(--lagoon); }
+  .btn { display:inline-flex; align-items:center; gap:.5rem; border-radius:4px; padding:.65rem 1.2rem; font-weight:700; text-decoration:none; border:1px solid transparent; }
+  .btn-signal { background:var(--signal); color:var(--ink); } .btn-signal:hover { background:#ffd86b; }
+  .btn-ink { background:var(--ink); color:#fff; } .btn-ink:hover { background:var(--deep); }
+  .btn-ghost { background:#fff; color:var(--ink); border-color:var(--line); } .btn-ghost:hover { border-color:var(--lagoon); }
+  .foot { background:var(--ink); color:#cfe3ee; font-size:.9rem; padding:2rem 0; } .foot a { color:#fff; } .foot p { margin:.25rem 0; }
+  .crumbs { font-size:.9rem; color:var(--muted); margin-bottom:1rem; } .crumbs a { color:var(--muted); }
+  .grid { display:grid; gap:1rem; grid-template-columns:repeat(auto-fill,minmax(15rem,1fr)); }
+  .card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:1.25rem; display:flex; flex-direction:column; gap:.5rem; text-decoration:none; color:inherit; transition:border-color .15s, transform .15s; }
+  a.card:hover { border-color:var(--lagoon); transform:translateY(-2px); }
+  .card h3 { margin:0; font-size:1.1rem; } .card p { margin:0; color:var(--muted); font-size:.95rem; }
+  .more { margin-top:auto; font-weight:700; color:var(--deep); font-size:.95rem; }
+  details { background:#fff; border:1px solid var(--line); border-radius:8px; padding:.9rem 1.1rem; margin:.5rem 0; }
+  summary { cursor:pointer; font-weight:700; } details[open] summary { margin-bottom:.5rem; } details p { margin:0; color:#27465e; }
+  .prose { max-width:42rem; } .prose h2 { margin:2rem 0 .5rem; font-size:1.35rem; } .prose ul { padding-left:1.2rem; } .prose li { margin:.3rem 0; }
+  .prose strong { color:var(--ink); } .prose a { text-underline-offset:2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+  @media (max-width:36rem) { .top nav { gap:.6rem; } .brand span { display:none; } }
+</style>
