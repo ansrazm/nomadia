@@ -2,7 +2,7 @@ import type { Db } from "../db/pool.js";
 import { ApiError } from "../errors.js";
 import QRCode from "qrcode";
 import { GatewayError, parseIpaymuTime, type PaymentGateway, type TxInfo } from "../payments/ipaymu.js";
-import { buildEsimActivations } from "./esim.js";
+import { buildEsimActivations, esimRequestItems } from "./esim.js";
 import { getOrder, type Order, type OrderQr, type OrderVa } from "./orders.js";
 import { methodDef, PAYMENT_METHODS, type PaymentMethodId } from "../payments/methods.js";
 
@@ -145,7 +145,7 @@ export type SettleOutcome =
  * Menerapkan hasil cek transaksi iPaymu ke order. Idempotent: callback yang dikirim ulang tidak mengubah apa pun
  * dan tidak membuat event ganda. Perubahan status dan event outbox terjadi dalam satu transaksi.
  */
-export async function settleFromTransaction(db: Db, tx: TxInfo): Promise<SettleOutcome> {
+export async function settleFromTransaction(db: Db, tx: TxInfo, opts: { fulfillment?: boolean } = {}): Promise<SettleOutcome> {
   const client = await db.connect();
   try {
     await client.query("BEGIN");
@@ -169,13 +169,19 @@ export async function settleFromTransaction(db: Db, tx: TxInfo): Promise<SettleO
           return { kind: "pending" };
         }
         const order = (await getOrder(client, tx.referenceId))!;
-        // Dibuat sekali di sini lalu disimpan di outbox, sehingga pengiriman ulang ke n8n membawa kode yang sama.
-        const esim = await buildEsimActivations(client, order);
-        await client.query(
-          `INSERT INTO webhook_outbox (order_id, event, payload) VALUES ($1, 'order.paid', $2)
-           ON CONFLICT (order_id, event) DO NOTHING`,
-          [order.id, JSON.stringify({ orderId: order.id, order, esim })],
-        );
+        const eItems = opts.fulfillment ? await esimRequestItems(client, order) : [];
+        if (opts.fulfillment && eItems.length > 0) {
+          // Layanan fulfillment menerbitkan kodenya. Event order.paid (dan email ke pelanggan) baru masuk outbox setelah kode terbit.
+          await client.query("INSERT INTO fulfillments (order_id, request) VALUES ($1, $2) ON CONFLICT (order_id) DO NOTHING", [order.id, JSON.stringify(eItems)]);
+        } else {
+          // Dibuat sekali di sini lalu disimpan di outbox, sehingga pengiriman ulang ke n8n membawa kode yang sama.
+          const esim = await buildEsimActivations(client, order);
+          await client.query(
+            `INSERT INTO webhook_outbox (order_id, event, payload) VALUES ($1, 'order.paid', $2)
+             ON CONFLICT (order_id, event) DO NOTHING`,
+            [order.id, JSON.stringify({ orderId: order.id, order, esim })],
+          );
+        }
         outcome = { kind: "paid" };
       }
     } else if (tx.status === "expired") {

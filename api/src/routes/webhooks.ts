@@ -4,8 +4,9 @@ import type { Db } from "../db/pool.js";
 import { GatewayError, type PaymentGateway } from "../payments/ipaymu.js";
 import { settleFromTransaction } from "../services/payments.js";
 import type { OutboxDispatcher } from "../services/outbox.js";
+import type { FulfillmentDispatcher } from "../services/fulfillment.js";
 
-export function webhookRoutes(db: Db, gateway: PaymentGateway | null, outbox: OutboxDispatcher | null) {
+export function webhookRoutes(db: Db, gateway: PaymentGateway | null, outbox: OutboxDispatcher | null, fulfillment: FulfillmentDispatcher | null = null) {
   const app = new Hono();
 
   /**
@@ -45,7 +46,7 @@ export function webhookRoutes(db: Db, gateway: PaymentGateway | null, outbox: Ou
     }
     if (!tx) throw new ApiError(404, "TRANSACTION_NOT_FOUND", "Transaksi tidak dikenal.");
 
-    const out = await settleFromTransaction(db, tx);
+    const out = await settleFromTransaction(db, tx, { fulfillment: !!fulfillment });
     switch (out.kind) {
       case "unknown_order":
         throw new ApiError(404, "ORDER_NOT_FOUND", "Pesanan untuk transaksi ini tidak ditemukan.");
@@ -53,6 +54,7 @@ export function webhookRoutes(db: Db, gateway: PaymentGateway | null, outbox: Ou
         console.error(`[webhook] NOMINAL TIDAK COCOK order ${tx.referenceId}: order ${out.expected}, iPaymu ${out.got}. Tidak ditandai lunas.`);
         throw new ApiError(409, "AMOUNT_MISMATCH", "Nominal transaksi tidak sesuai dengan pesanan.");
       case "paid":
+        fulfillment?.kick();
         outbox?.kick();
         break;
     }

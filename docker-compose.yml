@@ -34,6 +34,10 @@ services:
       IPAYMU_FLOW: ${IPAYMU_FLOW:-redirect}
       N8N_WEBHOOK_URL: http://n8n:5678/webhook/nomadia-order-paid
       N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:?isi N8N_WEBHOOK_SECRET di .env (minimal 16 karakter)}
+      # Penerbit kode eSIM (profil "fulfillment"). Kosong = kode contoh dibuat lokal seperti semula.
+      # Untuk mengaktifkan: FULFILLMENT_URL=http://fulfillment:8000 dan FULFILLMENT_SECRET (min. 16 karakter) di .env.
+      FULFILLMENT_URL: ${FULFILLMENT_URL:-}
+      FULFILLMENT_SECRET: ${FULFILLMENT_SECRET:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       AUTH_SECRET: ${AUTH_SECRET:-}
@@ -161,8 +165,24 @@ services:
     ports:
       - "4399:4399"
 
+  # ---- Gerbang pemasok eSIM (profil "fulfillment"): docker compose --profile fulfillment up --build ----
+  # FastAPI menerbitkan kode aktivasi per ID pesanan (idempotent). Pemasoknya TIRUAN; lihat fulfillment/README.md.
+  # SUPPLIER=mock-down memperagakan kegagalan total (pesanan tetap lunas -> menunggu penerbitan manual).
+  fulfillment:
+    profiles: ["fulfillment"]
+    build: ./fulfillment
+    environment:
+      FULFILLMENT_SECRET: ${FULFILLMENT_SECRET:-}
+      SUPPLIER: ${SUPPLIER:-mock}
+      FULFILLMENT_DB: /data/fulfillment.db
+    volumes:
+      - fulfillment_data:/data
+    ports:
+      - "8000:8000"
+
 volumes:
   pgdata:
   n8n_data:
   cms_pgdata:
   cms_uploads:
+  fulfillment_data:

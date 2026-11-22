@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const crypto = require('crypto');\nconst secret = $env.N8N_WEBHOOK_SECRET;\nconst h = $input.first().json.headers;\nconst body = $input.first().json.body;\n// Body dikirim API sebagai JSON.stringify; stringify ulang hasil parse menghasilkan byte yang sama.\nconst raw = JSON.stringify(body);\nconst ts = h['x-nomadia-timestamp'];\nconst expected = 'sha256=' + crypto.createHmac('sha256', secret).update(ts + '.' + raw).digest('hex');\nconst got = String(h['x-nomadia-signature'] || '');\nconst fresh = Math.abs(Date.now() / 1000 - Number(ts)) <= 300;\nconst same = got.length === expected.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(expected));\n// Tidak melempar galat: galat di node membuat n8n tetap membalas 200, sehingga API menganggap event terkirim.\n// Cabang IF di bawah membalas 401 supaya API mencatat kegagalan dan mencoba lagi.\nif (!fresh || !same) return [{ json: { valid: false } }];\nreturn [{ json: { valid: true, deliveryId: body.id, order: body.data.order, esim: body.data.esim || [] } }];"
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.N8N_WEBHOOK_SECRET;\nconst h = $input.first().json.headers;\nconst body = $input.first().json.body;\n// Body dikirim API sebagai JSON.stringify; stringify ulang hasil parse menghasilkan byte yang sama.\nconst raw = JSON.stringify(body);\nconst ts = h['x-nomadia-timestamp'];\nconst expected = 'sha256=' + crypto.createHmac('sha256', secret).update(ts + '.' + raw).digest('hex');\nconst got = String(h['x-nomadia-signature'] || '');\nconst fresh = Math.abs(Date.now() / 1000 - Number(ts)) <= 300;\nconst same = got.length === expected.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(expected));\n// Tidak melempar galat: galat di node membuat n8n tetap membalas 200, sehingga API menganggap event terkirim.\n// Cabang IF di bawah membalas 401 supaya API mencatat kegagalan dan mencoba lagi.\nif (!fresh || !same) return [{ json: { valid: false } }];\nreturn [{ json: { valid: true, deliveryId: body.id, event: body.event, order: body.data.order, esim: body.data.esim || [], failure: body.data.error || null, attempts: body.data.attempts || 0 } }];"
       },
       "id": "a1000000-0000-4000-8000-000000000002",
       "name": "Verifikasi tanda tangan",
@@ -212,6 +212,141 @@
         1200,
         128
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b1000000-0000-4000-8000-000000000011",
+              "leftValue": "={{ $json.event }}",
+              "rightValue": "order.fulfillment_failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000011",
+      "name": "Event gagal terbit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { order: o, failure, attempts } = $input.first().json;\nconst rp = (n) => 'Rp' + n.toLocaleString('id-ID');\nconst items = o.items.map((i) => `- ${i.name} x${i.qty}`).join('\\n');\n// Pesanan SUDAH lunas; pelanggan belum menerima email kode aktivasi. Terbitkan ulang dari admin (POST /admin/orders/:id/fulfillment/retry).\nreturn [{ json: {\n  orderId: o.id,\n  telegramText: `PERLU TINDAKAN: kode eSIM gagal terbit\\nPesanan ${o.id} (LUNAS ${rp(o.total)}) - ${o.customerName} (${o.customerEmail})\\n${items}\\nSetelah ${attempts} percobaan: ${failure || '-'}\\nPelanggan belum menerima email kode aktivasi. Terbitkan ulang dari admin.`,\n} }];"
+      },
+      "id": "a1000000-0000-4000-8000-000000000012",
+      "name": "Siapkan peringatan gagal terbit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b1000000-0000-4000-8000-000000000013",
+              "leftValue": "={{ !!$env.TELEGRAM_BOT_TOKEN && !!$env.TELEGRAM_CHAT_ID }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000013",
+      "name": "Telegram aktif? (peringatan)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.TELEGRAM_API_BASE || 'https://api.telegram.org') + '/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TELEGRAM_CHAT_ID, text: $('Siapkan peringatan gagal terbit').first().json.telegramText }) }}",
+        "options": {
+          "timeout": 8000
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000014",
+      "name": "Peringatan Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        160
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"orderId\": $('Siapkan peringatan gagal terbit').first().json.orderId, \"alert\": true } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000015",
+      "name": "Balas 200 peringatan",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1560,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": false, \"error\": \"alert_failed\" } }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000016",
+      "name": "Balas 500 peringatan",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1560,
+        384
+      ]
     }
   ],
   "pinData": {},
@@ -242,7 +377,7 @@
       "main": [
         [
           {
-            "node": "Siapkan email konfirmasi",
+            "node": "Event gagal terbit?",
             "type": "main",
             "index": 0
           }
@@ -308,6 +443,71 @@
         [
           {
             "node": "Balas 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event gagal terbit?": {
+      "main": [
+        [
+          {
+            "node": "Siapkan peringatan gagal terbit",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Siapkan email konfirmasi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Siapkan peringatan gagal terbit": {
+      "main": [
+        [
+          {
+            "node": "Telegram aktif? (peringatan)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram aktif? (peringatan)": {
+      "main": [
+        [
+          {
+            "node": "Peringatan Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Balas 200 peringatan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Peringatan Telegram": {
+      "main": [
+        [
+          {
+            "node": "Balas 200 peringatan",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Balas 500 peringatan",
             "type": "main",
             "index": 0
           }

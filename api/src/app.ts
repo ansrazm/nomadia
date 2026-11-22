@@ -8,6 +8,7 @@ import { ApiError } from "./errors.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import type { PaymentGateway } from "./payments/ipaymu.js";
 import type { OutboxDispatcher } from "./services/outbox.js";
+import type { FulfillmentDispatcher } from "./services/fulfillment.js";
 import { adminRoutes, type AdminConfig } from "./routes/admin.js";
 import { getEnabledMethods } from "./services/settings.js";
 import { rateLimit } from "./services/rate-limit.js";
@@ -19,6 +20,8 @@ export interface AppDeps {
   corsOrigins: string[];
   gateway?: PaymentGateway | null;
   outbox?: OutboxDispatcher | null;
+  /** Penerbit kode eSIM lewat layanan fulfillment. null = kode contoh dibuat lokal saat pelunasan. */
+  fulfillment?: FulfillmentDispatcher | null;
   publicApiUrl?: string;
   webUrl?: string;
   checkoutFlow?: "redirect" | "qris";
@@ -31,7 +34,7 @@ export interface AppDeps {
   chat?: ChatDeps | null;
 }
 
-export function createApp({ db, corsOrigins, gateway = null, outbox = null, publicApiUrl = "http://localhost:4000", webUrl = "http://localhost:3000", checkoutFlow = "redirect", admin = null, customerAuth = null, rateLimit: rl = null, chat = null }: AppDeps) {
+export function createApp({ db, corsOrigins, gateway = null, outbox = null, fulfillment = null, publicApiUrl = "http://localhost:4000", webUrl = "http://localhost:3000", checkoutFlow = "redirect", admin = null, customerAuth = null, rateLimit: rl = null, chat = null }: AppDeps) {
   const app = new Hono();
 
   app.use("*", cors({ origin: corsOrigins, allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], maxAge: 600 }));
@@ -54,10 +57,10 @@ export function createApp({ db, corsOrigins, gateway = null, outbox = null, publ
   app.route("/", catalogRoutes(db));
   app.route("/", quoteRoutes(db));
   app.route("/", orderRoutes(db, gateway, { publicApiUrl, webUrl }, async () => (await getEnabledMethods(db, checkoutFlow)).methods));
-  app.route("/", webhookRoutes(db, gateway, outbox));
+  app.route("/", webhookRoutes(db, gateway, outbox, fulfillment));
   app.route("/", customerRoutes(db, customerAuth, rl));
   app.route("/", chatRoutes(db, chat));
-  if (admin) app.route("/", adminRoutes(db, admin, { gateway, defaultFlow: checkoutFlow }, { trustProxyHops: rl?.trustProxyHops ?? 0 }));
+  if (admin) app.route("/", adminRoutes(db, admin, { gateway, defaultFlow: checkoutFlow }, { trustProxyHops: rl?.trustProxyHops ?? 0, fulfillment }));
   else {
     // Tanpa kredensial admin, /admin/* memang tidak ada. Jelaskan penyebabnya, jangan 404 generik
     // "Endpoint tidak ditemukan" yang membuat penilai mengira login-nya rusak.

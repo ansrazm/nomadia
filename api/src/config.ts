@@ -17,6 +17,9 @@ const schema = z.object({
   IPAYMU_DEBUG: z.enum(["true", "false", "1", "0"]).default("false"),
   N8N_WEBHOOK_URL: z.string().url().optional(),
   N8N_WEBHOOK_SECRET: z.string().min(16, "N8N_WEBHOOK_SECRET minimal 16 karakter").optional(),
+  // Layanan fulfillment (FastAPI) penerbit kode aktivasi eSIM. Isi berpasangan; kosong = kode contoh dibuat lokal seperti semula.
+  FULFILLMENT_URL: z.string().url().optional(),
+  FULFILLMENT_SECRET: z.string().min(16, "FULFILLMENT_SECRET minimal 16 karakter").optional(),
   // CMS admin: isi ketiganya atau kosongkan ketiganya (kosong = endpoint /admin tidak aktif).
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().min(12, "ADMIN_PASSWORD minimal 12 karakter").optional(),
@@ -52,6 +55,7 @@ export interface Config {
   checkoutFlow: "redirect" | "qris";
   ipaymu: { va: string; apiKey: string; mode: "sandbox" | "live"; debug: boolean } | null;
   n8n: { url: string; secret: string } | null;
+  fulfillment: { url: string; secret: string } | null;
   admin: { email: string; password: string; secret: string } | null;
   customerLogin: { secret: string; smtp: { host: string; port: number; secure: boolean; user?: string; pass?: string; from: string } } | null;
   rateLimit: { trustProxyHops: number } | null;
@@ -70,6 +74,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const d = parsed.data;
   if (!!d.IPAYMU_VA !== !!d.IPAYMU_API_KEY) throw new Error("Konfigurasi tidak valid: IPAYMU_VA dan IPAYMU_API_KEY harus diisi berpasangan");
   if (!!d.N8N_WEBHOOK_URL !== !!d.N8N_WEBHOOK_SECRET) throw new Error("Konfigurasi tidak valid: N8N_WEBHOOK_URL dan N8N_WEBHOOK_SECRET harus diisi berpasangan");
+  if (!!d.FULFILLMENT_URL !== !!d.FULFILLMENT_SECRET) throw new Error("Konfigurasi tidak valid: FULFILLMENT_URL dan FULFILLMENT_SECRET harus diisi berpasangan");
   const adminSet = [d.ADMIN_EMAIL, d.ADMIN_PASSWORD, d.AUTH_SECRET].filter(Boolean).length;
   if (adminSet !== 0 && adminSet !== 3) throw new Error("Konfigurasi tidak valid: ADMIN_EMAIL, ADMIN_PASSWORD, dan AUTH_SECRET harus diisi bersamaan");
   if (d.CUSTOMER_AUTH_SECRET && !d.SMTP_HOST) throw new Error("Konfigurasi tidak valid: CUSTOMER_AUTH_SECRET butuh SMTP_HOST (kode login dikirim lewat email)");
@@ -87,6 +92,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     checkoutFlow: d.IPAYMU_FLOW,
     ipaymu: d.IPAYMU_VA && d.IPAYMU_API_KEY ? { va: d.IPAYMU_VA, apiKey: d.IPAYMU_API_KEY, mode: d.IPAYMU_MODE, debug: d.IPAYMU_DEBUG === "true" || d.IPAYMU_DEBUG === "1" } : null,
     n8n: d.N8N_WEBHOOK_URL && d.N8N_WEBHOOK_SECRET ? { url: d.N8N_WEBHOOK_URL, secret: d.N8N_WEBHOOK_SECRET } : null,
+    fulfillment: d.FULFILLMENT_URL && d.FULFILLMENT_SECRET ? { url: d.FULFILLMENT_URL, secret: d.FULFILLMENT_SECRET } : null,
     admin: d.ADMIN_EMAIL && d.ADMIN_PASSWORD && d.AUTH_SECRET ? { email: d.ADMIN_EMAIL, password: d.ADMIN_PASSWORD, secret: d.AUTH_SECRET } : null,
     customerLogin:
       d.CUSTOMER_AUTH_SECRET && d.SMTP_HOST

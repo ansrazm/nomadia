@@ -1,3 +1,4 @@
+import { retryManualFulfillment, type FulfillmentDispatcher } from "../services/fulfillment.js";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z, type ZodTypeAny } from "zod";
@@ -101,7 +102,7 @@ const productDto = (r: any) => ({ id: r.id, destSlug: r.dest_slug, type: r.type,
 const voucherDto = (r: any) => ({ code: r.code, percent: r.percent, active: r.active, ...(r.used !== undefined ? { used: r.used } : {}) });
 const orderDto = (r: any) => ({ id: r.id, status: r.status, customerName: r.customer_name, customerEmail: r.customer_email, customerPhone: r.customer_phone, departureDate: r.departure_date, deliveryMethod: r.delivery_method, deliveryDetail: r.delivery_detail, deliveryAddress: r.delivery_address ?? null, subtotal: r.subtotal, discount: r.discount, total: r.total, voucher: r.voucher_code, createdAt: r.created_at, paidAt: r.paid_at });
 
-export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext = { gateway: null, defaultFlow: "redirect" }, opts: { trustProxyHops?: number } = {}) {
+export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext = { gateway: null, defaultFlow: "redirect" }, opts: { trustProxyHops?: number; fulfillment?: FulfillmentDispatcher | null } = {}) {
   const app = new Hono();
   const limiter = new LoginLimiter();
 
@@ -409,9 +410,11 @@ export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext =
     const o = (await db.query("SELECT * FROM orders WHERE id = $1", [c.req.param("id")])).rows[0];
     if (!o) throw new ApiError(404, "ORDER_NOT_FOUND", "Order tidak ditemukan.");
     const items = await db.query("SELECT product_id, product_name, unit_price, qty FROM order_items WHERE order_id = $1 ORDER BY id", [o.id]);
+    const f = (await db.query("SELECT status, attempts, last_error, issued_at FROM fulfillments WHERE order_id = $1", [o.id])).rows[0];
     return c.json({
       data: {
         ...orderDto(o),
+        fulfillment: f ? { status: f.status, attempts: f.attempts, lastError: f.last_error, issuedAt: f.issued_at } : null,
         paymentRef: o.payment_ref,
         paymentUrl: o.payment_url,
         paymentMethod: o.payment_method,
@@ -428,6 +431,30 @@ export function adminRoutes(db: Db, cfg: AdminConfig, pay: AdminPaymentContext =
     const exists = await db.query("SELECT status FROM orders WHERE id = $1", [c.req.param("id")]);
     if (!exists.rows[0]) throw new ApiError(404, "ORDER_NOT_FOUND", "Order tidak ditemukan.");
     throw new ApiError(409, "ORDER_NOT_PENDING", `Hanya order pending yang bisa dibatalkan (status sekarang: ${exists.rows[0]!.status}).`);
+  });
+
+  // ---- Fulfillment (penerbitan kode eSIM) ----
+  // Daftar penerbitan yang butuh perhatian. Kode aktivasi sengaja tidak ikut dikembalikan.
+  app.get("/admin/fulfillments", async (c) => {
+    const status = c.req.query("status");
+    if (status !== undefined && !["pending", "issued", "manual_pending"].includes(status)) throw new ApiError(422, "VALIDATION_FAILED", "Parameter status tidak valid.");
+    const rows = await db.query(
+      `SELECT order_id, status, attempts, last_error, created_at, issued_at FROM fulfillments ${status ? "WHERE status = $1" : ""} ORDER BY created_at DESC LIMIT 200`,
+      status ? [status] : [],
+    );
+    return c.json({ data: rows.rows.map((r) => ({ orderId: r.order_id, status: r.status, attempts: r.attempts, lastError: r.last_error, createdAt: r.created_at, issuedAt: r.issued_at })) });
+  });
+
+  // Terbitkan ulang pesanan berstatus manual_pending. Order tetap lunas sepanjang proses.
+  app.post("/admin/orders/:id/fulfillment/retry", async (c) => {
+    const id = c.req.param("id");
+    if (await retryManualFulfillment(db, id)) {
+      opts.fulfillment?.kick();
+      return c.json({ data: { orderId: id, status: "pending" } });
+    }
+    const f = (await db.query("SELECT status FROM fulfillments WHERE order_id = $1", [id])).rows[0];
+    if (!f) throw new ApiError(404, "FULFILLMENT_NOT_FOUND", "Order ini tidak punya penerbitan eSIM.");
+    throw new ApiError(409, "NOT_MANUAL_PENDING", `Hanya penerbitan berstatus manual_pending yang bisa diulang (status sekarang: ${f.status}).`);
   });
 
   return app;

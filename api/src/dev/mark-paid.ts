@@ -29,9 +29,10 @@ try {
     console.error(`Order ${id} tidak ditemukan.`);
     process.exitCode = 1;
   } else {
-    const outcome = await settleFromTransaction(db, { trxId: Date.now(), referenceId: id, status: "paid", amount: row.total });
+    const outcome = await settleFromTransaction(db, { trxId: Date.now(), referenceId: id, status: "paid", amount: row.total }, { fulfillment: !!config.fulfillment });
     console.log(id, outcome);
-    if (outcome.kind === "paid") console.log(config.n8n ? "Event order.paid masuk outbox; dispatcher API mengirimnya ke n8n dalam <= 15 detik." : "n8n nonaktif di konfigurasi API: event hanya tersimpan di outbox.");
+    if (outcome.kind === "paid" && config.fulfillment) console.log("Penerbitan eSIM masuk antrean fulfillment; server API menerbitkannya, lalu event order.paid masuk outbox.");
+    else if (outcome.kind === "paid") console.log(config.n8n ? "Event order.paid masuk outbox; dispatcher API mengirimnya ke n8n dalam <= 15 detik." : "n8n nonaktif di konfigurasi API: event hanya tersimpan di outbox.");
   }
 } finally {
   await db.end();
