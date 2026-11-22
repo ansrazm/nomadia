@@ -614,7 +614,7 @@ Situs juga bisa dibangun tanpa CMS dari `site/src/data/fixture.json` (kosongkan 
 
 ### Domain
 
-Situs panduan berada di subdomain (`panduan.dragonstorepb.com`), toko tetap di `nomadia.dragonstorepb.com`. Set `SITE_URL` dan `STORE_URL` sesuai. Lewat Cloudflare Tunnel, arahkan hanya subdomain panduan ke port 4399; admin Strapi (port 1337) sebaiknya tidak dibuka ke publik.
+Situs panduan berada di subdomain (`panduan.dragonstorepb.com`), toko tetap di `nomadia.dragonstorepb.com`. Set `SITE_URL` dan `STORE_URL` sesuai. Isi juga `NEXT_PUBLIC_GUIDE_URL` dengan alamat situs panduan agar header toko menampilkan tautan **Panduan**; kosong = tautan disembunyikan. Nilainya tertanam saat build, jadi setelah diubah jalankan `docker compose up -d --build web`. Lewat Cloudflare Tunnel, arahkan hanya subdomain panduan ke port 4399; admin Strapi (port 1337) sebaiknya tidak dibuka ke publik.
 
 ### Yang sudah diuji
 

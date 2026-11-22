@@ -18,6 +18,8 @@ const after = [
   { href: "/#faq", key: "nav.faq" as const },
 ];
 const connTypes: ProductType[] = ["esim", "sim", "wifi"];
+// Situs panduan (Astro). Kosong = tautan "Panduan" tidak tampil. Ikut tertanam saat build, seperti NEXT_PUBLIC_API_URL.
+const guideUrl = (process.env.NEXT_PUBLIC_GUIDE_URL ?? "").replace(/\/+$/, "");
 
 export function Header() {
   const { count } = useCart();
@@ -109,6 +111,11 @@ export function Header() {
                 {t(l.key)}
               </Link>
             ))}
+            {guideUrl && (
+              <a href={`${guideUrl}/panduan/`} className={navLink}>
+                {t("nav.guide")}
+              </a>
+            )}
           </nav>
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <DestinationSearch />
@@ -228,6 +235,11 @@ export function Header() {
                   {t(l.key)}
                 </Link>
               ))}
+              {guideUrl && (
+                <a href={`${guideUrl}/panduan/`} onClick={() => setOpen(false)} className="block rounded-[3px] px-4 py-3 font-medium hover:bg-mist">
+                  {t("nav.guide")}
+                </a>
+              )}
               {showAccount && (
                 <div className="mt-1 border-t border-line pt-1">
                   {customer ? (

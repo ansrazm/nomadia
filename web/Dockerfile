@@ -9,6 +9,9 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 # Nomor WhatsApp untuk tombol chat (format internasional tanpa +, mis. 6281234567890). Kosong = tombol disembunyikan.
 ARG NEXT_PUBLIC_WHATSAPP_NUMBER=
 ENV NEXT_PUBLIC_WHATSAPP_NUMBER=$NEXT_PUBLIC_WHATSAPP_NUMBER
+# Alamat publik situs panduan (Astro). Kosong = tautan "Panduan" di header disembunyikan.
+ARG NEXT_PUBLIC_GUIDE_URL=
+ENV NEXT_PUBLIC_GUIDE_URL=$NEXT_PUBLIC_GUIDE_URL
 RUN npm run build
 ENV NODE_ENV=production
 EXPOSE 3000

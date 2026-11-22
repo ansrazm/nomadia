@@ -23,14 +23,18 @@ const nav = [
     <meta property="og:description" content={description} />
     <meta property="og:locale" content="id_ID" />
     <meta name="theme-color" content="#0C2B45" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%230C2B45%22/><circle cx=%2250%22 cy=%2250%22 r=%2218%22 fill=%22%2314B8D4%22/></svg>" />
+    <link rel="icon" href="/icon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" />
     {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
   </head>
   <body>
     <a class="skip" href="#isi">Lewati ke isi</a>
     <header class="top">
       <div class="wrap bar">
-        <a class="brand" href="/">Nomadia<span>panduan</span></a>
+        <a class="brand" href="/" aria-label="Nomadia, panduan"><span class="logo" aria-hidden="true"><i></i><i></i><i></i><i></i></span>nomadia<small>panduan</small></a>
         <nav aria-label="Utama">
           {nav.map((n) => <a href={n.href} aria-current={path.startsWith(n.href) ? "page" : undefined}>{n.label}</a>)}
         </nav>
@@ -60,8 +64,11 @@ const nav = [
   .skip { position:absolute; left:-999px; } .skip:focus { left:1rem; top:1rem; background:#fff; padding:.5rem .75rem; z-index:20; }
   .top { background:var(--ink); color:#fff; position:sticky; top:0; z-index:10; }
   .bar { display:flex; align-items:center; gap:1.25rem; min-height:3.5rem; }
-  .brand { color:#fff; text-decoration:none; font-weight:800; font-size:1.25rem; font-family:"Bricolage Grotesque","Figtree",system-ui,sans-serif; }
-  .brand span { color:var(--lagoon); font-weight:600; font-size:.85rem; margin-left:.4rem; }
+  .brand { display:inline-flex; align-items:center; gap:.5rem; color:#fff; text-decoration:none; font-weight:700; font-size:1.5rem; letter-spacing:-.02em; font-family:"Bricolage Grotesque","Figtree",system-ui,sans-serif; }
+  .brand .logo { display:inline-flex; align-items:flex-end; gap:3px; height:1.25rem; }
+  .brand .logo i { display:block; width:5px; border-radius:2px; background:var(--signal); }
+  .brand .logo i:nth-child(1) { height:30%; } .brand .logo i:nth-child(2) { height:52%; } .brand .logo i:nth-child(3) { height:76%; } .brand .logo i:nth-child(4) { height:100%; }
+  .brand small { color:var(--lagoon); font-weight:600; font-size:.85rem; letter-spacing:0; margin-left:.15rem; }
   .top nav { display:flex; gap:1rem; margin-left:auto; }
   .top nav a { color:#cfe3ee; text-decoration:none; padding:.4rem .2rem; border-bottom:2px solid transparent; }
   .top nav a:hover, .top nav a[aria-current] { color:#fff; border-color:var(--lagoon); }
@@ -81,5 +88,5 @@ const nav = [
   .prose { max-width:42rem; } .prose h2 { margin:2rem 0 .5rem; font-size:1.35rem; } .prose ul { padding-left:1.2rem; } .prose li { margin:.3rem 0; }
   .prose strong { color:var(--ink); } .prose a { text-underline-offset:2px; }
   @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
-  @media (max-width:36rem) { .top nav { gap:.6rem; } .brand span { display:none; } }
+  @media (max-width:36rem) { .top nav { gap:.6rem; } .brand small { display:none; } }
 </style>
