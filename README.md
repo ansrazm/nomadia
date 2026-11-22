@@ -16,13 +16,14 @@ Marketplace eSIM, SIM Card, dan Portable WiFi untuk perjalanan. Proyek technical
 
 **Apa ini:** toko eSIM, SIM Card, dan Portable WiFi lengkap dengan CMS admin. Pembeli memilih paket, membayar lewat iPaymu (sandbox), lalu pesanan lunas memicu email dan notifikasi Telegram lewat n8n.
 
-**Arsitektur dalam lima baris**
+**Arsitektur dalam enam baris**
 
 - `web/`: Next.js (React). Storefront untuk pembeli dan CMS di `/admin`; tidak menyentuh database langsung.
 - `api/`: Hono + PostgreSQL. Satu-satunya pintu ke database; harga selalu dihitung di server, bukan di browser.
 - iPaymu sandbox: tagihan dibuat oleh API, hasil bayar masuk lewat callback yang diverifikasi ulang ke Check Transaction.
 - Outbox: event `order.paid` disimpan di database lalu dikirim ke n8n (tanda tangan HMAC, retry dengan backoff).
-- n8n: mengirim email (Mailpit) dan notifikasi Telegram. Diagram dan rincian ada di [Arsitektur](#arsitektur).
+- n8n: mengirim email (Mailpit) dan notifikasi Telegram.
+- Opsional (profil Compose): `cms/` (Strapi 5) dan `site/` (Astro) untuk panduan destinasi statis, serta `fulfillment/` (FastAPI) sebagai gerbang penerbit kode eSIM. Katalog, harga, dan pesanan tetap hanya di `api/`. Diagram dan rincian ada di [Arsitektur](#arsitektur).
 
 **Fitur utama:** katalog destinasi dengan filter, halaman produk dan perbandingan paket, keranjang dan voucher, checkout dengan metode bayar dan alamat pengiriman, status pesanan yang memperbarui diri, CMS (destinasi, produk, voucher, banner, pesanan), dan toko dalam dua bahasa (ID/EN). Di luar spesifikasi test ada dua fitur opsional: akun pelanggan (daftar, masuk dengan kata sandi atau kode lewat email, riwayat pesanan, alamat tersimpan) dan asisten chat AI yang menjawab dari data katalog. Daftar lengkapnya ada di [Ringkasan fitur](#ringkasan-fitur).
 
@@ -80,7 +81,21 @@ flowchart LR
     A -->|"order.paid + HMAC (outbox)"| N["n8n :5678"]
     N --> E["Email (Mailpit) + Telegram"]
     C["CMS /admin"] -->|"/admin/* + token"| A
+
+    subgraph content ["profil content (opsional)"]
+      direction LR
+      S["cms<br/>Strapi 5 :1337"] -->|"webhook publish"| G["site<br/>Astro statis :4399"]
+    end
+    G -.->|"tombol Lihat paket"| W
+
+    subgraph fulfill ["profil fulfillment (opsional)"]
+      F["fulfillment<br/>FastAPI :8000"]
+    end
+    A -->|"pesanan lunas: minta kode (HMAC, idempotent)"| F
+    F -->|"kode + QR"| A
 ```
+
+Dua lapisan di dalam kotak adalah tambahan opsional. Tanpanya, `api/` membuat kode eSIM contoh sendiri dan alur beli tetap jalan. Pada alur fulfillment, event `order.paid` baru masuk outbox **setelah** kode terbit; bila FastAPI gagal total, pesanan tetap lunas dan pemilik diperingatkan (lihat [Penerbitan kode eSIM](#penerbitan-kode-esim-fastapi)).
 
 ### Daftar koneksi API
 
@@ -100,7 +115,9 @@ Semua koneksi antar-komponen, dibedakan internal (di dalam sistem ini) dan ekste
 | 10 | Browser → API (`/auth/*`, `/me/*`) | Internal, REST JSON | Token sesi pelanggan bertanda tangan (kunci terpisah dari token admin); aktif bila `CUSTOMER_AUTH_SECRET` dan `SMTP_HOST` terisi | `503 CUSTOMER_LOGIN_DISABLED` bila belum aktif; checkout tamu tidak terpengaruh |
 | 11 | API → SMTP (kode masuk, daftar, dan atur ulang kata sandi) | **Eksternal** (Mailpit di demo) | Langsung dari API lewat `services/mailer.ts` (nodemailer), tanpa n8n | `503 EMAIL_SEND_FAILED`; jatah permintaan kode tidak terpakai |
 | 12 | Browser → API (`/chat`) → **penyedia model bahasa** | Internal REST, lalu **eksternal** (Anthropic atau endpoint kompatibel OpenAI), opsional | Server menjalankan tool baca-saja; kunci hanya dibaca server; batas per IP dan per jam | `503 CHAT_DISABLED`, `429 CHAT_BUSY`, atau `502 CHAT_UNAVAILABLE`; panel kembali ke FAQ statis bila nonaktif |
-| 13 | API → pemasok eSIM | **Belum terhubung** | `services/esim.ts` membuat kode aktivasi contoh | Diganti pemanggilan API pemasok di produksi |
+| 13 | API → **fulfillment (FastAPI)** → pemasok eSIM | Internal REST, opsional (profil `fulfillment`); **pemasoknya tiruan** | Dipanggil setelah pesanan lunas, bertanda tangan HMAC, idempotent per ID pesanan; tanpa `FULFILLMENT_URL`, `services/esim.ts` membuat kode contoh seperti semula | Dicoba ulang dengan backoff; gagal total: pesanan tetap lunas, status `manual_pending`, peringatan Telegram, terbitkan ulang dari admin |
+| 14 | Strapi → situs Astro (webhook rebuild) | Internal, opsional (profil `content`) | `POST /__rebuild` dengan `x-rebuild-secret`; build digabung dan ditukar atomik | Situs yang tayang tidak berubah bila build gagal; status di `/healthz` |
+| 15 | Situs Astro → storefront | Tautan biasa, bukan API | Tombol "Lihat paket" menuju `/destinations/<slug>` di Next.js | Tidak ada |
 
 ### Pembagian modul
 
@@ -119,13 +136,18 @@ web/                       Next.js 16 + React 19 (App Router, Tailwind)
   lib/admin-api.ts         klien CMS (token, error validasi per kolom)
 api/                       Hono + PostgreSQL (TypeScript)
   src/routes/              catalog, quote, orders, webhooks, admin, schemas (validasi zod bersama)
-  src/services/            pricing (satu-satunya tempat harga dihitung), orders, payments, outbox, auth, esim (kode aktivasi + QR contoh)
+  src/services/            pricing (satu-satunya tempat harga dihitung), orders, payments, outbox, auth, esim (kode aktivasi + QR contoh), fulfillment (klien + dispatcher ke FastAPI)
   src/payments/ipaymu.ts   klien iPaymu (tanda tangan, buat tagihan, cek transaksi)
   src/db/                  migrasi SQL berurutan, seed katalog + gambar bawaan (seed-images/), pool
   src/dev/                 alat uji: n8n-send, mark-paid (lihat "Menguji n8n")
   tests/                   vitest + PostgreSQL sungguhan
-n8n/                       workflow order.paid (import ke n8n)
-docker-compose.yml         db + api + web + n8n
+cms/                       Strapi 5: panduan destinasi dan FAQ (profil content)
+site/                      Astro statis: situs panduan, dibangun dari Strapi atau fixture (profil content)
+fulfillment/               FastAPI: penerbit kode eSIM per ID pesanan, pemasok tiruan (profil fulfillment)
+n8n/                       workflow order.paid + cabang peringatan order.fulfillment_failed (import ke n8n)
+scripts/                   fake-n8n.mjs, e2e-fulfillment.sh (uji lintas layanan), check-n8n-workflow.mjs
+.github/workflows/ci.yml   CI semua layanan (lihat bagian CI)
+docker-compose.yml         db + api + web + n8n + mailpit; profil content (cms, site) dan fulfillment
 ```
 
 ## Ringkasan fitur
@@ -202,6 +224,7 @@ Web http://localhost:3000, API http://localhost:4000, n8n http://localhost:5678,
 - `NEXT_PUBLIC_WHATSAPP_NUMBER` (format internasional tanpa `+`, mis. `6281234567890`) mengaktifkan tombol WhatsApp dan tautan chat di FAQ dan footer; kosong = semuanya disembunyikan. Nilainya ikut tertanam saat build (build arg di `web/Dockerfile`), jadi setelah mengubahnya jalankan `docker compose up -d --build web`.
 - Tanpa `IPAYMU_*`, order tetap dibuat tetapi tanpa tautan bayar.
 - Untuk n8n lihat bagian [Menguji n8n](#menguji-n8n).
+- Profil opsional: `--profile content` ([Strapi + Astro](#konten-editorial-strapi--astro)) dan `--profile fulfillment` ([FastAPI](#penerbitan-kode-esim-fastapi)). `docker compose up` biasa tidak menjalankan keduanya dan perilakunya tidak berubah.
 
 ## Menjalankan tanpa Docker
 
@@ -426,6 +449,7 @@ API ──POST /api/v2/transaction──▶ iPaymu    (status + nominal dibaca u
 API: UPDATE orders → paid  +  INSERT webhook_outbox   (satu transaksi DB)
 Dispatcher ──POST order.paid (HMAC)──▶ n8n ──▶ email konfirmasi
 ```
+- Dengan layanan fulfillment aktif, langkah "INSERT webhook_outbox" diganti antrean penerbitan kode; `order.paid` masuk outbox setelah kode terbit. Lihat [Penerbitan kode eSIM](#penerbitan-kode-esim-fastapi).
 - **Callback tidak dipercaya.** Hanya `trx_id` yang dipakai; status, `referenceId`, dan nominal diambil dari API Check Transaction yang ditandatangani API key. Nominal harus sama persis dengan `orders.total`, jika tidak, 409 dan order tidak ditandai lunas.
 - `X-Signature` callback iPaymu (HMAC-SHA256, kunci = VA) diperiksa sebagai lapisan tambahan; ketidakcocokan dicatat sebagai peringatan, keputusan tetap dari Check Transaction.
 - **Idempotent.** Baris order dikunci (`FOR UPDATE`); callback ulang atau serentak menghasilkan tepat satu event `order.paid`.
@@ -594,7 +618,50 @@ Situs panduan berada di subdomain (`panduan.dragonstorepb.com`), toko tetap di `
 
 ### Yang sudah diuji
 
-Diuji lokal dengan SQLite: seed, izin baca publik (tulis publik ditolak 403), draft tidak tampil di situs publik, publish memicu build ulang dalam beberapa detik, debounce, build gagal tidak mengubah situs yang tayang, penyaji menolak path traversal, `astro check` 0 error. **Belum diuji:** `docker compose` dan Dockerfile `cms/` serta `site/`, dan Strapi di atas PostgreSQL.
+Diuji lokal dengan SQLite: seed, izin baca publik (tulis publik ditolak 403), draft tidak tampil di situs publik, publish memicu build ulang dalam beberapa detik, debounce, build gagal tidak mengubah situs yang tayang, penyaji menolak path traversal, `astro check` 0 error. Profil `content` di Docker Compose dijalankan di laptop pemilik proyek (21 Nov 2026): Strapi di atas PostgreSQL naik dan situs Astro berhasil dibangun dari kontennya (`/healthz` melaporkan `built: true`). **Belum diuji:** alur publish di admin Strapi yang memicu build ulang di dalam Docker (webhook hanya diuji dengan SQLite di luar Docker).
+
+## Penerbitan kode eSIM (FastAPI)
+
+Lapisan opsional (`docker compose --profile fulfillment up --build`) yang mengganti pembuatan kode eSIM contoh di `api/` dengan layanan terpisah. **Pemasok eSIM-nya tiruan**: belum ada akun pemasok sungguhan, jadi kodenya berformat `LPA:1$smdp.nomadia.example$...` dan tidak terhubung ke operator mana pun. Yang nyata adalah perilaku di sekitarnya: tanda tangan permintaan, idempotency, retry, penanganan gagal total, dan peringatan.
+
+```
+iPaymu ─callback─▶ api: pesanan → paid, baris fulfillments = pending   (satu transaksi; order.paid BELUM dibuat)
+api (dispatcher) ──POST /v1/activations (HMAC, ID pesanan)──▶ fulfillment (FastAPI) ──▶ pemasok (tiruan)
+   sukses: kode disimpan, status issued, order.paid (membawa kode) masuk outbox ──▶ n8n ──▶ email ke pelanggan
+   gagal : dicoba lagi 15, 30, 60, 120, 240 detik (6 percobaan)
+   gagal total: pesanan TETAP paid, status manual_pending, event order.fulfillment_failed ──▶ n8n ──▶ Telegram ke pemilik
+admin: GET /admin/fulfillments?status=manual_pending  →  POST /admin/orders/:id/fulfillment/retry
+```
+
+- **Pembayaran tidak pernah dibatalkan oleh kegagalan fulfillment.** Status pesanan hanya ditentukan iPaymu; fulfillment punya status sendiri di tabel `fulfillments` (migrasi 014).
+- **Pelanggan tidak menerima email "kode aktivasi" sebelum kode benar-benar terbit**, karena event `order.paid` baru dibuat setelah itu. Pesanan tanpa eSIM (SIM Card, Portable WiFi) tidak melewati FastAPI dan langsung membuat `order.paid`.
+- **Idempotent per ID pesanan.** Memanggil ulang dengan ID yang sama mengembalikan kode yang sama dan tidak memanggil pemasok lagi; ID sama dengan isi berbeda ditolak 409; panggilan bersamaan untuk satu pesanan diserialkan. Jadi retry dari `api/` aman, termasuk bila respons sukses hilang di jaringan.
+- **Tanda tangan.** `X-Nomadia-Timestamp` dan `X-Nomadia-Signature` (`sha256=HMAC(secret, "<ts>.<body>")`), skema yang sama dengan webhook ke n8n; timestamp lebih dari 5 menit ditolak. Tes memuat vektor tanda tangan yang identik di sisi TypeScript dan Python.
+- **Peringatan lewat n8n.** Workflow yang sama mendapat satu cabang: bila `event` = `order.fulfillment_failed`, pemilik dikirimi pesan Telegram dan email ke pelanggan dilewati. Bila Telegram gagal dikirim, n8n membalas 500 sehingga outbox mencoba lagi; bila Telegram tidak dikonfigurasi, peringatan tidak terkirim ke mana pun (status `manual_pending` tetap terlihat lewat API admin).
+- **Variabel:** `FULFILLMENT_URL` dan `FULFILLMENT_SECRET` (min. 16 karakter, harus berpasangan) di `.env` untuk `api/`; layanan membaca `FULFILLMENT_SECRET`, `SUPPLIER` (`mock` atau `mock-down`, yang terakhir selalu gagal untuk memperagakan kegagalan total), dan `FULFILLMENT_DB`. Kosong = perilaku lama. Kontrak lengkap ada di [`fulfillment/README.md`](fulfillment/README.md).
+
+**Yang sudah diuji.** Tes `api/` (jalur sukses, gagal sementara, gagal total, retry admin, peringatan kedua setelah retry gagal lagi, klien HTTP), 12 tes pytest, dan `scripts/e2e-fulfillment.sh` yang menjalankan PostgreSQL, API, dan FastAPI sebagai proses sungguhan dengan penerima n8n palsu yang memverifikasi tanda tangan. Image `fulfillment` berhasil dibangun di Docker.
+
+**Belum diuji.** Cabang peringatan di workflow n8n baru diperiksa statis (JSON, koneksi, sintaks node Code) dan belum dijalankan di n8n sungguhan; E2E memakai penerima palsu, bukan n8n. Alur penuh `--profile fulfillment` di Docker Compose juga belum dijalankan.
+
+**Keterbatasan.** Tidak ada tampilan di UI admin Next.js; status hanya lewat `GET /admin/orders/:id` (field `fulfillment`) dan `/admin/fulfillments`. Hasil penerbitan di FastAPI disimpan di SQLite pada volume `/data` (satu instance saja, tanpa migrasi Alembic); beberapa instance butuh database bersama. Pemasok sungguhan cukup mengimplementasikan `Supplier.issue()` di `fulfillment/app/supplier.py`.
+
+## CI
+
+`.github/workflows/ci.yml` berjalan pada push ke `main` dan `content-layer`, pull request, dan manual. Setiap layanan punya job sendiri:
+
+| Job | Isi |
+|---|---|
+| `api` | `tsc --noEmit` dan `vitest` dengan PostgreSQL 16 sebagai service |
+| `fulfillment` | `pytest` (Python 3.12) |
+| `web` | `tsc --noEmit` dan `next build` |
+| `site` | `astro check` dan `astro build` dari fixture (tanpa CMS) |
+| `cms` | `strapi build` |
+| `config` | pemeriksaan statis workflow n8n (`scripts/check-n8n-workflow.mjs`) dan `docker compose config` untuk semua profil |
+| `e2e-fulfillment` | `scripts/e2e-fulfillment.sh`: alur eSIM lintas layanan, gagal bila ada asersi yang meleset |
+| `docker` | `docker build` lima image (api, web, cms, site, fulfillment), tidak di-push |
+
+Perintah tiap job dicoba lebih dulu di sandbox pengembangan, dan sintaks workflow diperiksa dengan `actionlint`, tetapi **workflow ini belum pernah dijalankan di GitHub Actions**; run pertama adalah ujiannya. Tes `api/` butuh database berakhiran `_test`; di laptop dengan Docker Desktop yang lambat, jalankan PostgreSQL tes di RAM: `docker run -d -p 5433:5432 --tmpfs /var/lib/postgresql/data -e POSTGRES_USER=nomadia -e POSTGRES_PASSWORD=nomadia -e POSTGRES_DB=nomadia_test postgres:16-alpine -c fsync=off -c synchronous_commit=off -c full_page_writes=off`, lalu set `TEST_DATABASE_URL` ke port 5433.
 
 ## Keputusan arsitektur
 
@@ -607,6 +674,7 @@ Diuji lokal dengan SQLite: seed, izin baca publik (tulis publik ditolak 403), dr
 - **Rute multi-destinasi hanya lapisan tampilan.** Di daftar destinasi, tombol + memilih sampai 3 tujuan; dialog menunjukkan jenis koneksi mana yang dijual di semua tujuan itu beserta harga mulai dari (jumlah paket termurah tiap tujuan), lalu `/trip?d=jepang,turki&type=esim` memilihkan paket bawaan di tiap tujuan; pembeli bisa menambah paket lain (sejenis maupun beda jenis, misalnya dua eSIM dengan lama aktif berbeda) dan mengatur jumlah tiap paket, lalu semuanya masuk ke keranjang yang sama. Keranjang memang sudah bisa memuat banyak destinasi, harga tetap dihitung server per `productId`, dan tidak ada perubahan API atau database. Ketersediaan datang dari tiga permintaan paralel `GET /destinations?type=`, dan bila gagal fitur rute disembunyikan tanpa mengganggu daftar destinasi. Rute disimpan di URL, bukan di akun atau server. Ada tiga pintu masuk: tombol + di daftar destinasi, tautan "Tambah tujuan" di halaman tiap destinasi (membuka daftar dengan tujuan itu sudah masuk rute lewat `?trip=`), dan bagian "Ke lebih dari satu negara?" di beranda dengan contoh rute yang langsung membuka `/trip`. Contoh rute di beranda adalah daftar slug tetap di `app/page.tsx`; rute yang salah satu tujuannya tidak ada di katalog dilewati otomatis. Hero halaman `/trip` memakai banner tiap tujuan (yang diunggah dari CMS) disusun kiri ke kanan dengan sekat miring: satu tujuan satu banner penuh, dua atau tiga tujuan dibagi sama lebar; tujuan tanpa banner mengisi irisannya dengan warna polos, dan tanpa satu pun banner hero tetap polos. Irisannya dihitung oleh fungsi murni `bannerSlices` (`lib/banner-slices.ts`) dan dipotong dengan `clip-path`, jadi tidak ada gambar baru atau perubahan API.
 - **Produk kosong dibedakan dari produk nonaktif.** Satu flag `active` tidak bisa membedakan "stok habis sementara" dari "sudah tidak dijual", dan menyembunyikan keduanya membuat pelanggan mengira jenis seperti Portable WiFi tidak ada. Kolom `sold_out` (migrasi 006) ditambahkan di samping `active`, jadi data lama tidak berubah: aktif dan tidak kosong = bisa dibeli, aktif dan kosong = tampil abu-abu dengan panel "kabari lewat WhatsApp" dan pintasan ke jenis lain, tidak aktif = disembunyikan. Penolakan tetap dilakukan server di `/quote` dan `/orders`, bukan hanya disembunyikan tombolnya.
 - **Next.js 16 dan React 19, bukan 14.** Next 14 sudah di luar jalur dukungan keamanan (rilis keamanan 2026 hanya menambal 16.x dan 15.5.x), jadi proyek memakai 16.4 (Active LTS) dan React 19.3. Yang berubah di kode: `params`, `searchParams`, dan `cookies()` kini asinkron (`getLang()` dan `getT()` di `lib/i18n/server.ts` ikut async), dan build memakai Turbopack. Perubahan cache bawaan `fetch` tidak berdampak karena semua `fetch` ke API sudah `no-store`. Satu temuan saat upgrade: Turbopack menolak `app/favicon.ico` yang berisi PNG tanpa kanal alfa, jadi berkas itu dibuat ulang dari `icon.png` dalam RGBA. Skrip `lint` dihapus karena `next lint` tidak ada lagi di Next 16 dan proyek memang belum punya konfigurasi ESLint.
+- **Layanan baru ditambahkan di samping, bukan menggantikan.** Admin, checkout, iPaymu, dan n8n buatan sendiri tidak dirombak. Strapi/Astro hanya memegang konten editorial dan FastAPI hanya memegang penerbitan kode, masing-masing dengan tugas yang sebelumnya belum ada; harga tetap hanya ada di `api/`. Semuanya di profil Compose sendiri, jadi `docker compose up` biasa tidak berubah.
 - **Admin bisa dimatikan** lewat env kosong, sehingga deployment tanpa CMS tidak punya permukaan serangan `/admin`.
 
 ## Data wilayah (alamat pengiriman)
@@ -626,8 +694,9 @@ Dropdown provinsi, kota/kabupaten, dan kecamatan di checkout memakai data statis
 - Rute perjalanan hanya menyusun paket per destinasi. Tidak ada produk yang mencakup beberapa negara sekaligus (hanya Eropa yang regional), jadi label "satu paket untuk semua tujuan" tidak ada; cakupan multi-negara dari pemasok adalah langkah lanjutan. Pilihan rute tidak tersimpan setelah tab ditutup kecuali tautannya disalin.
 - Pilihan bahasa hanya berlaku untuk toko; CMS admin tetap berbahasa Indonesia. Teks produk dari database diterjemahkan lewat pola dan peta destinasi, bukan oleh kolom terjemahan per bahasa; itu langkah lanjutan bila katalog perlu dikelola dua bahasa dari CMS.
 - Gambar destinasi dan banner beranda disimpan di PostgreSQL (tabel `media`) supaya demo tidak butuh storage terpisah, dan tidak diubah ukurannya otomatis: unggah gambar yang sudah dioptimalkan (thumbnail ±800×600, banner ±1600×600). Untuk trafik nyata, pindahkan ke object storage dengan CDN. Jenis berkas diperiksa dari isinya (PNG, JPEG, WebP); SVG sengaja ditolak karena bisa memuat skrip.
-- Kode aktivasi dan QR eSIM di email adalah **contoh untuk demo**: acak, format `LPA:1$...`, dan tidak terhubung ke operator mana pun (SM-DP+ `smdp.nomadia.example` tidak ada). Di produksi, `services/esim.ts` diganti pemanggilan API pemasok eSIM. SIM Card dan Portable WiFi hanya mendapat catatan bahwa info pengiriman menyusul.
-- Email konfirmasi memakai Mailpit (SMTP palsu) di Compose; untuk email sungguhan ganti kredensial SMTP di n8n. Kode aktivasi dibuat sekali saat pelunasan dan disimpan di outbox, jadi pengiriman ulang ke n8n membawa kode yang sama; kode itu tidak ditampilkan di halaman pesanan.
+- Kode aktivasi dan QR eSIM di email adalah **contoh untuk demo**: acak, format `LPA:1$...`, dan tidak terhubung ke operator mana pun (SM-DP+ `smdp.nomadia.example` tidak ada). Itu berlaku baik dengan layanan fulfillment (pemasok tiruan di `fulfillment/`) maupun tanpanya (`services/esim.ts`). Di produksi, pemasok nyata menggantikan adapter tiruan. SIM Card dan Portable WiFi hanya mendapat catatan bahwa info pengiriman menyusul.
+- Email konfirmasi memakai Mailpit (SMTP palsu) di Compose; untuk email sungguhan ganti kredensial SMTP di n8n. Tanpa fulfillment, kode dibuat sekali saat pelunasan dan disimpan di outbox; dengan fulfillment, kode diterbitkan sekali per ID pesanan oleh FastAPI lalu disimpan. Pada keduanya pengiriman ulang ke n8n membawa kode yang sama, dan kode tidak ditampilkan di halaman pesanan.
+- Status penerbitan eSIM belum tampil di UI admin Next.js (hanya lewat API admin), dan peringatan gagal terbit hanya sampai bila Telegram dikonfigurasi. Detailnya ada di [Penerbitan kode eSIM](#penerbitan-kode-esim-fastapi).
 - Alur bayar iPaymu sandbox penuh (bayar sungguhan → callback → n8n) butuh kredensial sandbox dan tunnel publik; tes otomatis memakai gateway palsu.
 
 ## Rencana pengembangan lanjutan
