@@ -6,6 +6,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 const fullTitle = title.includes("Nomadia") ? title : `${title} | Nomadia`;
 const path = Astro.url.pathname;
 const nav = [
+  { href: `${storeUrl()}/destinations`, label: "Destinasi" },
   { href: "/panduan/", label: "Panduan" },
   { href: "/faq/", label: "FAQ" },
 ];
@@ -55,12 +56,12 @@ const nav = [
   :root { --ink:#0C2B45; --deep:#103B5E; --lagoon:#14B8D4; --signal:#FFC93C; --mist:#F1F8FB; --line:#D9E7EE; --muted:#4a6478; }
   * { box-sizing: border-box; }
   html { scroll-padding-top: 5rem; }
-  body { margin:0; font-family: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--mist); color:var(--ink); line-height:1.6; -webkit-font-smoothing:antialiased; }
+  body { margin:0; font-family: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--mist); color:var(--ink); line-height:1.6; -webkit-font-smoothing:antialiased; min-height:100vh; display:flex; flex-direction:column; }
   h1,h2,h3 { font-family: "Bricolage Grotesque", "Figtree", ui-sans-serif, system-ui, sans-serif; line-height:1.2; letter-spacing:-.01em; }
   a { color:var(--deep); }
   :focus-visible { outline:3px solid var(--signal); outline-offset:2px; border-radius:6px; }
   .wrap { width:100%; max-width:68rem; margin:0 auto; padding:0 1.25rem; }
-  main.wrap { padding-top:2rem; padding-bottom:4rem; }
+  main.wrap { flex:1 0 auto; padding-top:2rem; padding-bottom:4rem; }
   .skip { position:absolute; left:-999px; } .skip:focus { left:1rem; top:1rem; background:#fff; padding:.5rem .75rem; z-index:20; }
   .top { background:var(--ink); color:#fff; position:sticky; top:0; z-index:10; }
   .bar { display:flex; align-items:center; gap:1.25rem; min-height:3.5rem; }
